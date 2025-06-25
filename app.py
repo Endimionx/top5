@@ -40,8 +40,8 @@ if st.button("🔮 Prediksi"):
             total = 0
             benar = 0
 
-            for i in range(jumlah_uji):
-                subset_df = df.iloc[:-(jumlah_uji - i)]
+            for i in range(len(uji_df)):
+                subset_df = df.iloc[:-(len(uji_df) - i)]
                 if len(subset_df) >= 11:
                     if metode == "LSTM AI":
                         prediksi = top5_lstm(subset_df)
@@ -56,6 +56,6 @@ if st.button("🔮 Prediksi"):
 
             if total > 0:
                 akurasi_total = (benar / total) * 100
-                st.info(f"📈 Akurasi per digit (dari {jumlah_uji} data): {akurasi_total:.2f}%")
+                st.info(f"📈 Akurasi per digit (dari {len(uji_df)} data): {akurasi_total:.2f}%")
             else:
                 st.warning("⚠️ Tidak cukup data untuk menghitung akurasi.")
