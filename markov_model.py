@@ -1,4 +1,3 @@
-
 import random
 from collections import defaultdict
 import pandas as pd
@@ -62,20 +61,20 @@ def top5_markov_order2(df):
     data = df["angka"].astype(str).tolist()
     matrix = build_transition_matrix_order2(data)
 
-    first_digits = [int(d) for d in df["angka"].astype(str).str[0]]
-    top1 = sorted({i: first_digits.count(i) for i in set(first_digits)}.items(), key=lambda x: -x[1])
-    top5_d1 = [k for k, _ in top1[:5]]
+    pairs = df["angka"].astype(str).apply(lambda x: x[:2])
+    top_pairs = pairs.value_counts().head(5).index.tolist()
+
+    if not top_pairs:
+        return [[random.randint(0, 9)] * 5 for _ in range(4)]
+
+    d1, d2 = top_pairs[0][0], top_pairs[0][1]
+    top5_d1 = list(set([int(p[0]) for p in top_pairs]))
+    top5_d2 = list(set([int(p[1]) for p in top_pairs]))
     while len(top5_d1) < 5:
         top5_d1.append(random.randint(0, 9))
-
-    second_digits = [int(d[1]) for d in df["angka"].astype(str)]
-    top2 = sorted({i: second_digits.count(i) for i in set(second_digits)}.items(), key=lambda x: -x[1])
-    top5_d2 = [k for k, _ in top2[:5]]
     while len(top5_d2) < 5:
         top5_d2.append(random.randint(0, 9))
 
-    d1 = str(top5_d1[0])
-    d2 = str(top5_d2[0])
     hasil = [top5_d1, top5_d2]
 
     key1 = d1 + d2
@@ -93,5 +92,21 @@ def top5_markov_order2(df):
     while len(top5_d4) < 5:
         top5_d4.append(random.randint(0, 9))
     hasil.append(top5_d4)
+
+    return hasil
+
+def top5_markov_hybrid(df):
+    hasil1 = top5_markov(df)
+    hasil2 = top5_markov_order2(df)
+
+    hasil = []
+    for i in range(4):
+        gabung = hasil1[i] + hasil2[i]
+        freq = {x: gabung.count(x) for x in set(gabung)}
+        top5 = sorted(freq.items(), key=lambda x: -x[1])
+        top5 = [k for k, _ in top5[:5]]
+        while len(top5) < 5:
+            top5.append(random.randint(0, 9))
+        hasil.append(top5)
 
     return hasil
