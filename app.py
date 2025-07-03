@@ -6,11 +6,11 @@ from dotenv import load_dotenv
 from markov_model import top5_markov, top5_markov_order2, top5_markov_hybrid
 from ai_model import top5_lstm
 
-# --- Load API Key dari .env
+# Load API key dari .env
 load_dotenv()
 TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
 
-# --- Konfigurasi Halaman
+# Konfigurasi halaman
 st.set_page_config(page_title="Prediksi Togel AI + Chat", layout="centered")
 st.title("🎰 Prediksi Togel 4 Digit - AI & Markov + Together.ai Assistant")
 
@@ -157,14 +157,14 @@ else:
                         "Content-Type": "application/json"
                     }
                     payload = {
-                        "model": "mistral-7b-instruct",
+                        "model": "mistralai/Mistral-7B-Instruct-v0.1",
                         "messages": [
                             {"role": "system", "content": "Kamu adalah asisten AI untuk prediksi angka dan analisis statistik."},
                             {"role": "user", "content": f"{context}\n\nPertanyaan: {prompt}"}
                         ],
                         "temperature": 0.7,
-                        "max_tokens": 512,
-                        "top_p": 0.9
+                        "top_p": 0.9,
+                        "max_tokens": 512
                     }
 
                     response = requests.post("https://api.together.ai/v1/chat/completions", headers=headers, json=payload)
