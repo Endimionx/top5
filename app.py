@@ -16,9 +16,10 @@ hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 
 selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
-putaran = st.slider("🔁 Jumlah Putaran & Uji Akurasi", min_value=1, max_value=1000, value=5)
+putaran = st.slider("🔁 Jumlah Putaran (Ambil dari API)", min_value=1, max_value=1000, value=10)
+jumlah_uji = st.slider("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=500, value=5)
 
-# --- Hit API dan Ambil Data ---
+# --- Ambil Data dari API
 riwayat_input = ""
 angka_list = []
 
@@ -52,12 +53,15 @@ if selected_lokasi and selected_hari:
         except Exception as e:
             st.error(f"❌ Terjadi error saat request API: {e}")
 
-# --- Text Area Input
-riwayat_input = st.text_area("🧾 Masukkan data history togel (1 angka per baris):", value=riwayat_input, height=200)
+# --- Text Area disembunyikan dalam Expander
+with st.expander("🧾 Data History (opsional)"):
+    riwayat_input = st.text_area("Edit atau masukkan data manual (1 angka per baris):", value=riwayat_input, height=200)
+
+# --- Parse Data
 data_lines = [line.strip() for line in riwayat_input.split("\n") if line.strip().isdigit() and len(line.strip()) == 4]
 df = pd.DataFrame({"angka": data_lines})
 
-# --- Tampilkan Angka Valid
+# --- Tampilkan Data Valid
 with st.expander("✅ Daftar Angka Valid"):
     if data_lines:
         st.code("\n".join(data_lines))
@@ -88,12 +92,14 @@ if st.button("🔮 Prediksi"):
             st.markdown(f"**{posisi}:** {', '.join(str(d) for d in hasil[i])}")
 
         # --- Uji Akurasi
+        list_akurasi = []
+
         if metode == "LSTM AI":
-            if len(df) < putaran + 11:
-                st.warning("❌ Tidak cukup data untuk uji akurasi LSTM AI. Tambahkan lebih banyak data.")
+            if len(df) < jumlah_uji + 11:
+                st.warning("❌ Tidak cukup data untuk uji akurasi LSTM AI.")
             else:
-                uji_df = df.tail(putaran)
-                train_df = df.iloc[:-putaran]
+                uji_df = df.tail(jumlah_uji)
+                train_df = df.iloc[:-jumlah_uji]
 
                 prediksi = top5_lstm(train_df)
                 if prediksi is None or len(prediksi) != 4:
@@ -102,16 +108,19 @@ if st.button("🔮 Prediksi"):
                     total = benar = 0
                     for i in range(len(uji_df)):
                         actual = f"{int(uji_df.iloc[i]['angka']):04d}"
+                        skor = 0
                         for j in range(4):
                             if int(actual[j]) in prediksi[j]:
                                 benar += 1
+                                skor += 1
                         total += 4
+                        list_akurasi.append(skor / 4 * 100)
 
                     akurasi_total = (benar / total) * 100
                     st.info(f"📈 Akurasi LSTM AI (dari {len(uji_df)} data): {akurasi_total:.2f}%")
+
         else:
-            # Markov-based akurasi evaluasi per subset
-            max_uji = min(putaran, len(df))
+            max_uji = min(jumlah_uji, len(df))
             uji_df = df.tail(max_uji)
             total, benar = 0, 0
 
@@ -131,13 +140,24 @@ if st.button("🔮 Prediksi"):
                     continue
 
                 actual = f"{int(uji_df.iloc[i]['angka']):04d}"
+                skor = 0
                 for j in range(4):
                     if int(actual[j]) in prediksi[j]:
                         benar += 1
+                        skor += 1
                 total += 4
+                list_akurasi.append(skor / 4 * 100)
 
             if total > 0:
                 akurasi_total = (benar / total) * 100
                 st.info(f"📈 Akurasi per digit (dari {len(uji_df)} data): {akurasi_total:.2f}%")
             else:
                 st.warning("⚠️ Tidak cukup data untuk menghitung akurasi.")
+
+        # --- Grafik Tren Akurasi
+        if list_akurasi:
+            with st.expander("📊 Grafik Akurasi per Data Uji"):
+                chart_df = pd.DataFrame({
+                    "Akurasi per Angka (%)": list_akurasi
+                }, index=[f"Uji-{i+1}" for i in range(len(list_akurasi))])
+                st.line_chart(chart_df)
