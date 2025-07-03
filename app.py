@@ -8,14 +8,13 @@ from ai_model import top5_lstm
 from urllib.parse import unquote
 import streamlit.components.v1 as components
 
-# Load API Key
 load_dotenv()
 TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
 
 st.set_page_config(page_title="Prediksi Togel AI + Chat", layout="centered")
 st.markdown("<h4>🎰 Prediksi Togel 4 Digit - AI & Markov + Chat</h4>", unsafe_allow_html=True)
 
-# Pasaran (Lokasi)
+# ======================= PASARAN ========================
 lokasi_list = [
     "ARMENIA", "ATLANTIC DAY", "ATLANTIC MORNING", "ATLANTIC NIGHT", "AZERBAIJAN",
     "BAHRAIN", "BARCELONA", "BATAVIA", "BHUTAN", "BIRMINGHAM", "BRISBANE",
@@ -59,43 +58,33 @@ hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 
 selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
-putaran = st.slider("🔁 Jumlah Putaran (Ambil dari API)", 1, 1000, 10)
+putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
 jumlah_uji = st.slider("📊 Jumlah Data Uji Akurasi", 1, 1000, 5)
 
-# Ambil data dari API
+# ======================= AMBIL DATA ========================
 angka_list = []
 riwayat_input = ""
-
 if selected_lokasi and selected_hari:
     try:
         url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&showpasaran=yes&showtgl=yes&format=json&urut=asc"
         headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
         response = requests.get(url, headers=headers)
         data = response.json()
-        angka_list = [
-            item["result"]
-            for item in data.get("data", [])
-            if isinstance(item, dict) and len(item["result"]) == 4 and item["result"].isdigit()
-        ]
+        angka_list = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
         riwayat_input = "\n".join(angka_list)
         st.success(f"✅ {len(angka_list)} angka berhasil diambil dari API.")
-        with st.expander("📥 Lihat Angka dari API"):
+        with st.expander("📥 Lihat Data"):
             st.code(riwayat_input)
     except Exception as e:
         st.error(f"❌ Gagal ambil data API: {e}")
 
-# Parse data
 data_lines = [x.strip() for x in riwayat_input.split("\n") if x.strip().isdigit() and len(x.strip()) == 4]
 df = pd.DataFrame({"angka": data_lines})
 with st.expander("✅ Daftar Angka Valid"):
     st.code("\n".join(data_lines))
 
-# Pilih metode
+# ======================= PREDIKSI ========================
 metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
-hasil = None
-akurasi_total = None
-
-# Prediksi
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan.")
@@ -113,23 +102,16 @@ if st.button("🔮 Prediksi"):
         for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
             st.markdown(f"**{label}:** {', '.join(str(d) for d in hasil[i])}")
 
-        # Uji akurasi
         list_akurasi = []
         uji_df = df.tail(min(jumlah_uji, len(df)))
         total = benar = 0
-
         for i in range(len(uji_df)):
             subset_df = df.iloc[:-(len(uji_df) - i)]
-            if len(subset_df) < 11:
-                continue
-            if metode == "Markov":
-                pred = top5_markov(subset_df)
-            elif metode == "Markov Order-2":
-                pred = top5_markov_order2(subset_df)
-            elif metode == "Markov Gabungan":
-                pred = top5_markov_hybrid(subset_df)
-            else:
-                pred = top5_lstm(subset_df)
+            if len(subset_df) < 11: continue
+            pred = top5_markov(subset_df) if metode == "Markov" else \
+                   top5_markov_order2(subset_df) if metode == "Markov Order-2" else \
+                   top5_markov_hybrid(subset_df) if metode == "Markov Gabungan" else \
+                   top5_lstm(subset_df)
             actual = f"{int(uji_df.iloc[i]['angka']):04d}"
             skor = sum(int(actual[j]) in pred[j] for j in range(4))
             total += 4
@@ -139,12 +121,11 @@ if st.button("🔮 Prediksi"):
         if total > 0:
             akurasi_total = (benar / total) * 100
             st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
-
         if list_akurasi:
-            with st.expander("📊 Grafik Akurasi per Data"):
+            with st.expander("📊 Grafik Akurasi"):
                 st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
 
-# Floating Chat Assistant
+# ======================= FLOATING CHAT ========================
 components.html("""
 <style>
 #open-chat-btn {
@@ -185,24 +166,20 @@ components.html("""
     border-radius: 5px;
 }
 </style>
-
 <button id="open-chat-btn">💬</button>
 <div id="chat-box">
     <div><b>AI Assistant</b></div>
     <div id="chat-log" style="font-size:14px; margin: 10px 0; max-height:300px; overflow-y:auto;"></div>
     <textarea id="chat-input" rows="2" placeholder="Tulis pertanyaan..."></textarea>
 </div>
-
 <script>
 const chatBox = document.getElementById("chat-box");
 const chatBtn = document.getElementById("open-chat-btn");
 const chatInput = document.getElementById("chat-input");
 const chatLog = document.getElementById("chat-log");
-
 chatBtn.onclick = () => {
     chatBox.style.display = chatBox.style.display === "none" ? "flex" : "none";
 };
-
 chatInput.addEventListener("keydown", async function(event) {
     if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
@@ -219,7 +196,6 @@ chatInput.addEventListener("keydown", async function(event) {
 </script>
 """, height=0)
 
-# Endpoint chat
 if "q" in st.query_params:
     q = st.query_params["q"]
     try:
