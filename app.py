@@ -25,33 +25,38 @@ angka_list = []
 if selected_lokasi and selected_hari:
     with st.spinner(f"🔄 Mengambil data dari pasaran '{selected_lokasi}' ({selected_hari})..."):
         try:
-            # URL dan Header Authorization
-            url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&showpasaran=yes&showtgl=yes&format=json"
+            url = f"https://wysiwygscan.com/api.php?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&showpasaran=yes&showtgl=yes&format=json"
             headers = {
                 "Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"
             }
             response = requests.get(url, headers=headers)
             if response.status_code == 200:
                 data = response.json()
-                angka_list = [item["number"] for item in data.get("result", []) if len(item["number"]) == 4 and item["number"].isdigit()]
-                if angka_list:
-                    riwayat_input = "\n".join(angka_list)
-                    st.success(f"✅ {len(angka_list)} angka berhasil diambil dari API.")
-                    with st.expander("📥 Hasil Angka dari API"):
-                        st.code(riwayat_input)
+                if "data" in data and isinstance(data["data"], list):
+                    angka_list = [
+                        item["result"]
+                        for item in data["data"]
+                        if isinstance(item, dict) and "result" in item and len(item["result"]) == 4 and item["result"].isdigit()
+                    ]
+                    if angka_list:
+                        riwayat_input = "\n".join(angka_list)
+                        st.success(f"✅ {len(angka_list)} angka berhasil diambil dari API.")
+                        with st.expander("📥 Hasil Angka dari API"):
+                            st.code(riwayat_input)
+                    else:
+                        st.warning("⚠️ Tidak ada angka 4 digit valid ditemukan di 'data'.")
                 else:
-                    st.warning("⚠️ Tidak ada angka 4 digit valid ditemukan.")
+                    st.warning("⚠️ Format JSON tidak sesuai (tidak ada key 'data').")
             else:
                 st.error(f"❌ Gagal ambil data dari API. Status: {response.status_code}")
         except Exception as e:
             st.error(f"❌ Error saat akses API: {e}")
 
-# --- Text Area Input ---
+# --- Input Text Area
 riwayat_input = st.text_area("🧾 Masukkan data history togel (1 angka per baris):", value=riwayat_input, height=200)
 data_lines = [line.strip() for line in riwayat_input.split("\n") if line.strip().isdigit() and len(line.strip()) == 4]
 df = pd.DataFrame({"angka": data_lines})
 
-# --- Tampilkan Angka Valid ---
 with st.expander("✅ Daftar Angka Valid"):
     if data_lines:
         st.code("\n".join(data_lines))
@@ -59,15 +64,16 @@ with st.expander("✅ Daftar Angka Valid"):
     else:
         st.warning("Belum ada angka valid.")
 
-# --- Input Prediksi dan Metode ---
+# --- Input Tambahan
 jumlah_uji = st.number_input("📊 Jumlah data uji terakhir:", min_value=1, max_value=500, value=5, step=1)
 metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
 
-# --- Tombol Prediksi ---
+# --- Tombol Prediksi
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan untuk prediksi.")
     else:
+        # Prediksi berdasarkan metode
         if metode == "Markov":
             hasil = top5_markov(df)
         elif metode == "Markov Order-2":
@@ -77,12 +83,11 @@ if st.button("🔮 Prediksi"):
         else:
             hasil = top5_lstm(df)
 
-        # Tampilkan hasil prediksi
         st.subheader("🎯 Prediksi Posisi (Top 5 Alternatif per Digit):")
         for i, posisi in enumerate(["Digit 1 (Ribuan)", "Digit 2 (Ratusan)", "Digit 3 (Puluhan)", "Digit 4 (Satuan)"]):
             st.markdown(f"**{posisi}:** {', '.join(str(d) for d in hasil[i])}")
 
-        # --- Uji Akurasi ---
+        # --- Uji Akurasi
         uji_df = df.tail(jumlah_uji)
         total, benar = 0, 0
 
