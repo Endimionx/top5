@@ -1,66 +1,244 @@
-import numpy as np
+import streamlit as st
+import pandas as pd
+import requests
 import os
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import LSTM, Dense
-from tensorflow.keras.utils import to_categorical
+from dotenv import load_dotenv
+from markov_model import top5_markov, top5_markov_order2, top5_markov_hybrid
+from ai_model import top5_lstm, train_and_save_lstm
+from urllib.parse import unquote
+import streamlit.components.v1 as components
+from pathlib import Path
 
-MODEL_DIR = "models"
-os.makedirs(MODEL_DIR, exist_ok=True)
+load_dotenv()
+TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
+MODEL_DIR = Path("saved_models")
+MODEL_DIR.mkdir(exist_ok=True)
 
-# ======================= PREPARE =======================
+st.set_page_config(page_title="Prediksi Togel AI + Chat", layout="centered")
+st.markdown("<h4>Prediksi Togel 4D - AI & Markov</h4>", unsafe_allow_html=True)
 
-def prepare_lstm_data(df):
-    data = df['angka'].dropna().apply(lambda x: [int(d) for d in f"{int(x):04d}"]).tolist()
-    data = np.array(data)
-    if len(data) < 11:
-        return None, None
-    X, y = [], []
-    for i in range(len(data) - 10):
-        X.append(data[i:i+10])
-        y.append(data[i+10])
-    return np.array(X), np.array(y)
+# ======================= LOKASI =======================
+#lokasi_list = [...]  # GUNAKAN daftar lengkap dari jawaban sebelumnya untuk mengisi ini
+lokasi_list = [
+    "ARMENIA", "ATLANTIC DAY", "ATLANTIC MORNING", "ATLANTIC NIGHT", "AZERBAIJAN",
+    "BAHRAIN", "BARCELONA", "BATAVIA", "BHUTAN", "BIRMINGHAM", "BRISBANE",
+    "BRITANIA", "BRUNEI", "BUCHAREST", "BUDAPEST", "BULLSEYE", "CALIFORNIA",
+    "CAMBODIA", "CAMBRIDGE", "CANBERRA", "CHILE", "CHINA", "COLOMBIA",
+    "COLORADO DAY", "COLORADO EVENING", "COLORADO MORNING", "COPENHAGEN",
+    "CYPRUS", "DARWIN", "DELAWARE DAY", "DELAWARE NIGHT", "DUBLIN DAY",
+    "DUBLIN MORNING", "DUBLIN NIGHT", "EMIRATES DAY", "EMIRATES NIGHT", "EURO",
+    "FLORIDA EVENING", "FLORIDA MIDDAY", "GEORGIA EVENING", "GEORGIA MIDDAY",
+    "GEORGIA NIGHT", "GERMANY PLUS5", "GREENLAND", "HELSINKI", "HONGKONG",
+    "HONGKONG LOTTO", "HOUSTON", "ILLINOIS EVENING", "ILLINOIS MIDDAY",
+    "INDIANA EVENING", "INDIANA MIDDAY", "IVORY COAST", "JAPAN", "JORDAN",
+    "KENTUCKY EVENING", "KENTUCKY MIDDAY", "KUWAIT", "LAOS", "LEBANON",
+    "MAGNUM4D", "MANHATTAN DAY", "MANHATTAN NIGHT", "MARYLAND EVENING",
+    "MARYLAND MIDDAY", "MASSACHUSETTS EVENING", "MASSACHUSETTS MIDDAY",
+    "MICHIGAN EVENING", "MICHIGAN MIDDAY", "MIDWAY", "MILAN", "MISSOURI EVENING",
+    "MISSOURI MIDDAY", "MONACO", "MOROCCO QUATRO 00:00", "MOROCCO QUATRO 01:00",
+    "MOROCCO QUATRO 02:00", "MOROCCO QUATRO 03:00", "MOROCCO QUATRO 04:00",
+    "MOROCCO QUATRO 05:00", "MOROCCO QUATRO 06:00", "MOROCCO QUATRO 15:00",
+    "MOROCCO QUATRO 16:00", "MOROCCO QUATRO 17:00", "MOROCCO QUATRO 18:00",
+    "MOROCCO QUATRO 19:00", "MOROCCO QUATRO 20:00", "MOROCCO QUATRO 21:00",
+    "MOROCCO QUATRO 22:00", "MOROCCO QUATRO 23:00", "MUNICH", "MYANMAR",
+    "NAMIBIA", "NEVADA", "NEVADA DAY", "NEVADA EVENING", "NEVADA MORNING",
+    "NEW JERSEY EVENING", "NEW JERSEY MIDDAY", "NEW YORK EVENING",
+    "NEW YORK MIDDAY", "NICOSIA", "NORTH CAROLINA DAY", "NORTH CAROLINA EVENING",
+    "OHIO EVENING", "OHIO MIDDAY", "OKLAHOMA DAY", "OKLAHOMA EVENING",
+    "OKLAHOMA MORNING", "OMAN", "OREGON 1", "OREGON 2", "OREGON 3", "OREGON 4",
+    "ORLANDO", "OSLO", "PACIFIC", "PCSO", "PENNSYLVANIA DAY",
+    "PENNSYLVANIA EVENING", "QATAR", "QUEENSLAND", "RHODE ISLAND MIDDAY",
+    "ROTTERDAM", "SINGAPORE", "SINGAPORE 6D", "SOUTH CAROLINA MIDDAY",
+    "STOCKHOLM", "SYDNEY", "SYDNEY LOTTO", "TAIWAN", "TENNESSE EVENING",
+    "TENNESSE MIDDAY", "TENNESSE MORNING", "TEXAS DAY", "TEXAS EVENING",
+    "TEXAS MORNING", "TEXAS NIGHT", "THAILAND", "TOTO MACAU 00:00",
+    "TOTO MACAU 13:00", "TOTO MACAU 16:00", "TOTO MACAU 19:00",
+    "TOTO MACAU 22:00", "TURKEY", "UAE", "USA DAY", "USA NIGHT", "UTAH DAY",
+    "UTAH EVENING", "UTAH MORNING", "VENEZIA", "VIRGINIA DAY", "VIRGINIA NIGHT",
+    "WASHINGTON DC EVENING", "WASHINGTON DC MIDDAY", "WEST VIRGINIA",
+    "WISCONSIN", "YAMAN", "ZURICH"
+]
+hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 
-# ======================= LATIH MODEL =======================
+# ======================= INPUT =======================
+selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
+selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
+putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
+jumlah_uji = st.slider("📊 Jumlah Data Uji Akurasi", 1, 1000, 5)
 
-def train_lstm_model(X, y):
-    y_encoded = np.array([to_categorical(d, num_classes=10) for d in y])
-    y_encoded = y_encoded.reshape(-1, 40)
+# ======================= AMBIL DATA =======================
+angka_list = []
+riwayat_input = ""
+try:
+    url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json"
+    headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
+    response = requests.get(url, headers=headers)
+    data = response.json()
+    angka_list = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
+    riwayat_input = "\n".join(angka_list)
+    st.success(f"✅ {len(angka_list)} angka berhasil diambil dari API.")
+except Exception as e:
+    st.error(f"❌ Gagal ambil data API: {e}")
 
-    model = Sequential()
-    model.add(LSTM(128, input_shape=(10, 4)))
-    model.add(Dense(40, activation='softmax'))
-    model.compile(optimizer='adam', loss='categorical_crossentropy')
-
-    model.fit(X, y_encoded, epochs=50, batch_size=16, verbose=0, validation_split=0.1)
-    return model
-
-# ======================= SIMPAN & LOAD =======================
-
-def save_model(model, lokasi):
-    model.save(os.path.join(MODEL_DIR, f"model_lstm_{lokasi}.h5"))
-
-def load_saved_model(lokasi):
-    path = os.path.join(MODEL_DIR, f"model_lstm_{lokasi}.h5")
-    return load_model(path) if os.path.exists(path) else None
+data_lines = [x.strip() for x in riwayat_input.split("\n") if x.strip().isdigit() and len(x.strip()) == 4]
+df = pd.DataFrame({"angka": data_lines})
+with st.expander("📥 Data Angka Valid"):
+    st.code("\n".join(data_lines))
 
 # ======================= PREDIKSI =======================
+metode = st.selectbox("🧠 Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
 
-def top5_lstm(df, lokasi="default"):
-    X, y = prepare_lstm_data(df)
-    if X is None or y is None or len(X) == 0:
-        return None
+# ========== SIMPAN / MUAT MODEL ==========
+model_path = MODEL_DIR / f"model_lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
+if metode == "LSTM AI":
+    if model_path.exists():
+        st.success("📁 Model ditemukan untuk pasaran ini.")
+    else:
+        st.warning("⚠️ Model belum tersedia untuk pasaran ini.")
 
-    model = load_saved_model(lokasi)
-    if model is None:
-        model = train_lstm_model(X, y)
-        save_model(model, lokasi)
+    if st.button("💾 Latih & Simpan Model"):
+        if len(df) < 11:
+            st.warning("❌ Minimal 11 data diperlukan untuk pelatihan.")
+        else:
+            train_and_save_lstm(df, lokasi=selected_lokasi)
+            st.success("✅ Model berhasil dilatih & disimpan.")
 
-    input_seq = X[-1].reshape(1, 10, 4)
-    pred = model.predict(input_seq, verbose=0)[0].reshape(4, 10)
+if st.button("🔮 Prediksi"):
+    if len(df) < 11:
+        st.warning("❌ Minimal 11 data diperlukan.")
+    else:
+        if metode == "Markov":
+            hasil = top5_markov(df)
+        elif metode == "Markov Order-2":
+            hasil = top5_markov_order2(df)
+        elif metode == "Markov Gabungan":
+            hasil = top5_markov_hybrid(df)
+        else:
+            hasil = top5_lstm(df, lokasi=selected_lokasi, use_saved_model=True)
 
-    top5 = []
-    for i in range(4):
-        top = list(np.argsort(-pred[i])[:5])
-        top5.append(top)
+        if hasil:
+            st.markdown("### 🎯 Prediksi Top-5")
+            for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+                st.markdown(f"**{label}:** {', '.join(str(x) for x in hasil[i])}")
 
-    return top5
+            # ========== HITUNG AKURASI ==========
+            uji_df = df.tail(min(jumlah_uji, len(df)))
+            benar = total = 0
+            list_akurasi = []
+            for i in range(len(uji_df)):
+                subset_df = df.iloc[:-(len(uji_df) - i)]
+                if len(subset_df) < 11: continue
+                pred = (
+                    top5_markov(subset_df) if metode == "Markov" else
+                    top5_markov_order2(subset_df) if metode == "Markov Order-2" else
+                    top5_markov_hybrid(subset_df) if metode == "Markov Gabungan" else
+                    top5_lstm(subset_df, lokasi=selected_lokasi, use_saved_model=True)
+                )
+                if pred is None: continue
+                actual = f"{int(uji_df.iloc[i]['angka']):04d}"
+                skor = sum(int(actual[j]) in pred[j] for j in range(4))
+                total += 4
+                benar += skor
+                list_akurasi.append(skor / 4 * 100)
+
+            if total > 0:
+                akurasi_total = (benar / total) * 100
+                st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
+                with st.expander("📊 Grafik Akurasi"):
+                    st.line_chart(pd.DataFrame({"Akurasi": list_akurasi}))
+        else:
+            st.error("❌ Gagal memproses prediksi.")
+
+# ======================= FLOATING CHAT =======================
+components.html("""
+<style>
+#open-chat-btn {
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    background-color: #25d366;
+    color: white;
+    padding: 14px;
+    border: none;
+    border-radius: 50%;
+    font-size: 22px;
+    cursor: pointer;
+    z-index: 9999;
+}
+#chat-box {
+    position: fixed;
+    bottom: 90px;
+    right: 25px;
+    width: 320px;
+    max-height: 400px;
+    background-color: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    display: none;
+    flex-direction: column;
+    z-index: 9999;
+    padding: 10px;
+    overflow-y: auto;
+}
+#chat-box textarea {
+    width: 100%;
+    border: none;
+    border-top: 1px solid #ccc;
+    resize: none;
+    padding: 8px;
+    margin-top: 5px;
+    border-radius: 5px;
+}
+</style>
+<button id="open-chat-btn">💬</button>
+<div id="chat-box">
+    <div><b>AI Assistant</b></div>
+    <div id="chat-log" style="font-size:14px; margin: 10px 0; max-height:300px; overflow-y:auto;"></div>
+    <textarea id="chat-input" rows="2" placeholder="Tulis pertanyaan..."></textarea>
+</div>
+<script>
+const chatBox = document.getElementById("chat-box");
+const chatBtn = document.getElementById("open-chat-btn");
+const chatInput = document.getElementById("chat-input");
+const chatLog = document.getElementById("chat-log");
+chatBtn.onclick = () => {
+    chatBox.style.display = chatBox.style.display === "none" ? "flex" : "none";
+};
+chatInput.addEventListener("keydown", async function(event) {
+    if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        const msg = chatInput.value.trim();
+        if (!msg) return;
+        chatLog.innerHTML += `<div style='text-align:right;'>🧑‍💬 ${msg}</div>`;
+        chatInput.value = "...";
+        const response = await fetch(`/chat?q=${encodeURIComponent(msg)}`);
+        const result = await response.text();
+        chatLog.innerHTML += `<div style='text-align:left;'>🤖 ${result}</div>`;
+        chatInput.value = "";
+    }
+});
+</script>
+""", height=0)
+
+if "q" in st.query_params:
+    q = st.query_params["q"]
+    try:
+        headers = {
+            "Authorization": f"Bearer {TOGETHER_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "mistralai/Mistral-7B-Instruct-v0.1",
+            "messages": [
+                {"role": "system", "content": "Kamu adalah asisten AI statistik dan prediksi angka."},
+                {"role": "user", "content": unquote(q)}
+            ],
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "max_tokens": 512
+        }
+        res = requests.post("https://api.together.ai/v1/chat/completions", headers=headers, json=payload)
+        st.write(res.json()["choices"][0]["message"]["content"])
+    except Exception as e:
+        st.write(f"[Error]: {e}")
+    st.stop()
