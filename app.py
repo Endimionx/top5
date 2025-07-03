@@ -118,7 +118,7 @@ if st.button("🔮 Prediksi"):
             benar += skor
             list_akurasi.append(skor / 4 * 100)
 
-        if total => 0:
+        if total >= 0:
             akurasi_total = (benar / total) * 100
             st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
         if list_akurasi:
