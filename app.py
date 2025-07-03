@@ -12,7 +12,7 @@ load_dotenv()
 TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
 
 st.set_page_config(page_title="Prediksi Togel AI + Chat", layout="centered")
-st.markdown("<h4>🎰 Prediksi Togel 4 Digit - AI & Markov + Chat</h4>", unsafe_allow_html=True)
+st.markdown("<h4>Prediksi Togel 4 Digit - AI & Markov + Chat</h4>", unsafe_allow_html=True)
 
 # ======================= PASARAN ========================
 lokasi_list = [
