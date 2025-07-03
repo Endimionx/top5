@@ -16,7 +16,7 @@ hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 
 selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
-putaran = st.slider("🔁 Jumlah Putaran", min_value=1, max_value=500, value=5)
+putaran = st.slider("🔁 Jumlah Putaran", min_value=1, max_value=1000, value=5)
 
 # --- Hit API dan Ambil Data ---
 riwayat_input = ""
@@ -25,7 +25,7 @@ angka_list = []
 if selected_lokasi and selected_hari:
     with st.spinner(f"🔄 Mengambil data dari pasaran '{selected_lokasi}' ({selected_hari})..."):
         try:
-            url = f"https://wysiwygscan.com/api.php?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&showpasaran=yes&showtgl=yes&format=json"
+            url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&showpasaran=yes&showtgl=yes&format=json"
             headers = {
                 "Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"
             }
