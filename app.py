@@ -18,6 +18,10 @@ MODEL_DIR.mkdir(exist_ok=True)
 st.set_page_config(page_title="Prediksi Togel AI + Chat", layout="centered")
 st.markdown("<h4>Prediksi Togel 4 Digit - AI & Markov + Chat</h4>", unsafe_allow_html=True)
 
+# ======================= INISIALISASI STATE ========================
+if "show_model_manager" not in st.session_state:
+    st.session_state.show_model_manager = False
+
 # ======================= PASARAN ========================
 lokasi_list = [
     "ARMENIA", "ATLANTIC DAY", "ATLANTIC MORNING", "ATLANTIC NIGHT", "AZERBAIJAN",
@@ -103,36 +107,57 @@ if metode == "LSTM AI":
             train_and_save_lstm(df, lokasi=selected_lokasi)
             st.success("✅ Model berhasil dilatih & disimpan.")
 
+    if st.button("⚙️ Manajemen Model"):
+        st.session_state.show_model_manager = not st.session_state.show_model_manager
+
+    if st.session_state.show_model_manager:
+        st.markdown("### 📁 Manajemen Model Tersimpan")
+        model_files = list(MODEL_DIR.glob("*.h5"))
+        if not model_files:
+            st.info("Tidak ada model tersimpan di folder `saved_models/`.")
+        else:
+            for model_file in model_files:
+                col1, col2, col3 = st.columns([3, 2, 2])
+                with col1:
+                    st.markdown(f"📄 **{model_file.name}**")
+                with col2:
+                    with open(model_file, "rb") as f:
+                        st.download_button("⬇️ Download", f, file_name=model_file.name,
+                                           mime="application/octet-stream", key=f"dl-{model_file.name}")
+                with col3:
+                    if st.button("🗑️ Hapus", key=f"del-{model_file.name}"):
+                        try:
+                            os.remove(model_file)
+                            st.success(f"{model_file.name} dihapus.")
+                            st.experimental_rerun()
+                        except Exception as e:
+                            st.error(f"Gagal hapus: {e}")
+
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan.")
     else:
-        hasil = None
-        if metode == "Markov":
-            hasil = top5_markov(df)
-        elif metode == "Markov Order-2":
-            hasil = top5_markov_order2(df)
-        elif metode == "Markov Gabungan":
-            hasil = top5_markov_hybrid(df)
-        else:
-            hasil = top5_lstm(df, lokasi=selected_lokasi)
+        hasil = (
+            top5_markov(df) if metode == "Markov" else
+            top5_markov_order2(df) if metode == "Markov Order-2" else
+            top5_markov_hybrid(df) if metode == "Markov Gabungan" else
+            top5_lstm(df, lokasi=selected_lokasi)
+        )
 
         if hasil is None:
-            st.error("❌ Gagal memproses prediksi. Cek apakah model sudah dilatih.")
+            st.error("❌ Gagal memproses prediksi.")
             st.stop()
 
         st.markdown("#### 🎯 Prediksi Top-5 Digit")
         for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
             st.markdown(f"**{label}:** {', '.join(str(d) for d in hasil[i])}")
 
-        # Hitung Akurasi
         list_akurasi = []
         uji_df = df.tail(min(jumlah_uji, len(df)))
         total = benar = 0
         for i in range(len(uji_df)):
             subset_df = df.iloc[:-(len(uji_df) - i)]
-            if len(subset_df) < 11:
-                continue
+            if len(subset_df) < 11: continue
             pred = (
                 top5_markov(subset_df) if metode == "Markov" else
                 top5_markov_order2(subset_df) if metode == "Markov Order-2" else
@@ -149,35 +174,9 @@ if st.button("🔮 Prediksi"):
         if total > 0:
             akurasi_total = (benar / total) * 100
             st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
-        else:
-            st.warning("⚠️ Tidak cukup data untuk hitung akurasi.")
-
         if list_akurasi:
             with st.expander("📊 Grafik Akurasi"):
                 st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
-
-# ======================= MANAJEMEN MODEL ========================
-if metode == "LSTM AI":
-    st.markdown("## 📁 Manajemen Model Tersimpan")
-    model_files = list(MODEL_DIR.glob("*.h5"))
-    if not model_files:
-        st.info("Tidak ada model tersimpan di folder `saved_models/`.")
-    else:
-        for model_file in model_files:
-            col1, col2, col3 = st.columns([3, 2, 2])
-            with col1:
-                st.markdown(f"📄 **{model_file.name}**")
-            with col2:
-                with open(model_file, "rb") as f:
-                    st.download_button("⬇️ Download", f, file_name=model_file.name, mime="application/octet-stream", key=f"dl-{model_file.name}")
-            with col3:
-                if st.button("🗑️ Hapus", key=f"del-{model_file.name}"):
-                    try:
-                        os.remove(model_file)
-                        st.success(f"{model_file.name} dihapus.")
-                        st.experimental_rerun()
-                    except Exception as e:
-                        st.error(f"Gagal hapus: {e}")
 
 # ======================= FLOATING CHAT ========================
 components.html("""
