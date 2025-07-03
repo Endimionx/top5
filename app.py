@@ -5,14 +5,10 @@ import os
 from dotenv import load_dotenv
 from markov_model import top5_markov, top5_markov_order2, top5_markov_hybrid
 from ai_model import top5_lstm, train_and_save_lstm, model_exists
-from urllib.parse import unquote
-import streamlit.components.v1 as components
 
 load_dotenv()
-TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
-
-st.set_page_config(page_title="Prediksi Togel AI + Chat", layout="wide")
-st.markdown("<h4>Prediksi Togel 4D - AI, Markov & Chat</h4>", unsafe_allow_html=True)
+st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
+st.markdown("<h4>Prediksi Togel 4D - AI & Markov</h4>", unsafe_allow_html=True)
 
 # ======================= PASARAN ========================
 lokasi_list = sorted(set([
@@ -103,6 +99,7 @@ if metode == "LSTM AI":
                 os.remove(model_path)
                 st.warning("🗑 Model berhasil dihapus.")
 
+# ======================= Prediksi dan Akurasi ========================
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan.")
@@ -148,74 +145,3 @@ if st.button("🔮 Prediksi"):
                     st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
             else:
                 st.warning("⚠️ Tidak cukup data valid untuk evaluasi akurasi.")
-
-# ======================= FLOATING CHAT ========================
-components.html("""
-<style>
-#open-chat-btn {
-    position: fixed;
-    bottom: 25px;
-    right: 25px;
-    background-color: #25d366;
-    color: white;
-    padding: 14px;
-    border: none;
-    border-radius: 50%;
-    font-size: 22px;
-    cursor: pointer;
-    z-index: 9999;
-}
-#chat-box {
-    position: fixed;
-    bottom: 90px;
-    right: 25px;
-    width: 320px;
-    max-height: 400px;
-    background-color: white;
-    border-radius: 15px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    display: none;
-    flex-direction: column;
-    z-index: 9999;
-    padding: 10px;
-    overflow-y: auto;
-}
-#chat-box textarea {
-    width: 100%;
-    border: none;
-    border-top: 1px solid #ccc;
-    resize: none;
-    padding: 8px;
-    margin-top: 5px;
-    border-radius: 5px;
-}
-</style>
-<button id="open-chat-btn">💬</button>
-<div id="chat-box">
-    <div><b>AI Assistant</b></div>
-    <div id="chat-log" style="font-size:14px; margin: 10px 0; max-height:300px; overflow-y:auto;"></div>
-    <textarea id="chat-input" rows="2" placeholder="Tulis pertanyaan..."></textarea>
-</div>
-<script>
-const chatBox = document.getElementById("chat-box");
-const chatBtn = document.getElementById("open-chat-btn");
-const chatInput = document.getElementById("chat-input");
-const chatLog = document.getElementById("chat-log");
-chatBtn.onclick = () => {
-    chatBox.style.display = chatBox.style.display === "none" ? "flex" : "none";
-};
-chatInput.addEventListener("keydown", async function(event) {
-    if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        const msg = chatInput.value.trim();
-        if (!msg) return;
-        chatLog.innerHTML += `<div style='text-align:right;'>🧑‍💬 ${msg}</div>`;
-        chatInput.value = "...";
-        const response = await fetch(`/chat?q=${encodeURIComponent(msg)}`);
-        const result = await response.text();
-        chatLog.innerHTML += `<div style='text-align:left;'>🤖 ${result}</div>`;
-        chatInput.value = "";
-    }
-});
-</script>
-""", height=0)
