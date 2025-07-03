@@ -119,10 +119,36 @@ if st.button("🔮 Prediksi"):
             with st.expander("📊 Grafik Akurasi per Data"):
                 st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
 
+# --- Fungsi chat balloon UI
+def bubble_message(content, is_user=True):
+    align = "right" if is_user else "left"
+    bg_color = "#dcf8c6" if is_user else "#f1f0f0"
+    text_color = "#000000"
+    return f"""
+    <div style='
+        display: flex;
+        justify-content: {align};
+        margin: 5px 0;
+    '>
+        <div style='
+            background-color: {bg_color};
+            color: {text_color};
+            padding: 10px 15px;
+            border-radius: 20px;
+            max-width: 70%;
+            font-family: sans-serif;
+            font-size: 15px;
+            box-shadow: 1px 1px 5px rgba(0,0,0,0.1);
+        '>
+            {content}
+        </div>
+    </div>
+    """
+
 # -----------------------------
-# Together AI Chat Assistant
+# Together AI Chat Assistant (Bubble UI)
 st.markdown("---")
-st.markdown("### 💬 Chat Assistant (via Together.ai)")
+st.markdown("### 💬 Chat Assistant (via Together.ai - Bubble UI)")
 
 if not TOGETHER_API_KEY:
     st.error("❌ API Key Together.ai tidak ditemukan di file .env.")
@@ -130,11 +156,11 @@ else:
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
     prompt = st.chat_input("Tanya soal prediksi, akurasi, metode...")
+
+    # Tampilkan riwayat chat sebagai bubble
+    for msg in st.session_state.messages:
+        st.markdown(bubble_message(msg["content"], is_user=(msg["role"] == "user")), unsafe_allow_html=True)
 
     if prompt:
         st.session_state.messages.append({"role": "user", "content": prompt})
@@ -148,30 +174,28 @@ else:
         Satuan: {hasil[3] if hasil else []}
         Akurasi: {akurasi_total if akurasi_total else 'Belum tersedia'}
         """
+        with st.spinner("🤖 Menjawab dari Together.ai..."):
+            try:
+                headers = {
+                    "Authorization": f"Bearer {TOGETHER_API_KEY}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": "mistralai/Mistral-7B-Instruct-v0.1",
+                    "messages": [
+                        {"role": "system", "content": "Kamu adalah asisten AI untuk prediksi angka dan analisis statistik."},
+                        {"role": "user", "content": f"{context}\n\nPertanyaan: {prompt}"}
+                    ],
+                    "temperature": 0.7,
+                    "top_p": 0.9,
+                    "max_tokens": 512
+                }
 
-        with st.chat_message("assistant"):
-            with st.spinner("🤖 Menjawab dari Together.ai..."):
-                try:
-                    headers = {
-                        "Authorization": f"Bearer {TOGETHER_API_KEY}",
-                        "Content-Type": "application/json"
-                    }
-                    payload = {
-                        "model": "mistralai/Mistral-7B-Instruct-v0.1",
-                        "messages": [
-                            {"role": "system", "content": "Kamu adalah asisten AI untuk prediksi angka dan analisis statistik."},
-                            {"role": "user", "content": f"{context}\n\nPertanyaan: {prompt}"}
-                        ],
-                        "temperature": 0.7,
-                        "top_p": 0.9,
-                        "max_tokens": 512
-                    }
+                response = requests.post("https://api.together.ai/v1/chat/completions", headers=headers, json=payload)
+                response.raise_for_status()
+                reply = response.json()["choices"][0]["message"]["content"]
 
-                    response = requests.post("https://api.together.ai/v1/chat/completions", headers=headers, json=payload)
-                    response.raise_for_status()
-                    reply = response.json()["choices"][0]["message"]["content"]
-
-                    st.markdown(reply)
-                    st.session_state.messages.append({"role": "assistant", "content": reply})
-                except Exception as e:
-                    st.error(f"❌ Gagal menjawab dari Together.ai: {e}")
+                st.session_state.messages.append({"role": "assistant", "content": reply})
+                st.markdown(bubble_message(reply, is_user=False), unsafe_allow_html=True)
+            except Exception as e:
+                st.error(f"❌ Gagal menjawab dari Together.ai: {e}")
