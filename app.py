@@ -16,7 +16,7 @@ hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 
 selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
-putaran = st.slider("🔁 Jumlah Putaran", min_value=1, max_value=1000, value=5)
+putaran = st.slider("🔁 Jumlah Putaran & Uji Akurasi", min_value=1, max_value=1000, value=5)
 
 # --- Hit API dan Ambil Data ---
 riwayat_input = ""
@@ -73,7 +73,7 @@ if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan untuk prediksi.")
     else:
-        # Prediksi
+        # Prediksi penuh
         if metode == "Markov":
             hasil = top5_markov(df)
         elif metode == "Markov Order-2":
@@ -87,13 +87,15 @@ if st.button("🔮 Prediksi"):
         for i, posisi in enumerate(["Digit 1 (Ribuan)", "Digit 2 (Ratusan)", "Digit 3 (Puluhan)", "Digit 4 (Satuan)"]):
             st.markdown(f"**{posisi}:** {', '.join(str(d) for d in hasil[i])}")
 
-        # --- Uji Akurasi berdasarkan jumlah putaran
-        uji_df = df.tail(putaran)
+        # --- Uji Akurasi
+        max_uji = min(putaran, len(df))
+        uji_df = df.tail(max_uji)
         total, benar = 0, 0
 
         for i in range(len(uji_df)):
             subset_df = df.iloc[:-(len(uji_df) - i)]
             if len(subset_df) >= 11:
+                # Hit prediksi per subset
                 if metode == "LSTM AI":
                     prediksi = top5_lstm(subset_df)
                 elif metode == "Markov Order-2":
@@ -103,14 +105,22 @@ if st.button("🔮 Prediksi"):
                 else:
                     prediksi = top5_markov(subset_df)
 
+                # Validasi hasil prediksi
+                if not prediksi or len(prediksi) != 4:
+                    st.warning(f"⚠️ Prediksi gagal untuk iterasi ke-{i+1}")
+                    continue
+
                 actual = f"{int(uji_df.iloc[i]['angka']):04d}"
                 for j in range(4):
-                    if int(actual[j]) in prediksi[j]:
-                        benar += 1
+                    try:
+                        if int(actual[j]) in prediksi[j]:
+                            benar += 1
+                    except:
+                        continue
                 total += 4
 
         if total > 0:
             akurasi_total = (benar / total) * 100
             st.info(f"📈 Akurasi per digit (dari {len(uji_df)} data): {akurasi_total:.2f}%")
         else:
-            st.warning("⚠️ Tidak cukup data untuk menghitung akurasi.")
+            st.warning("⚠️ Tidak cukup data atau prediksi gagal untuk menghitung akurasi.")
