@@ -5,14 +5,14 @@ import os
 from dotenv import load_dotenv
 from markov_model import top5_markov, top5_markov_order2, top5_markov_hybrid
 from ai_model import top5_lstm
+from urllib.parse import unquote
 
-# Load API key dari .env
+# Load API key
 load_dotenv()
 TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
 
-# Konfigurasi halaman
-st.set_page_config(page_title="Prediksi Togel AI + Chat", layout="centered")
-st.title("🎰 Prediksi Togel 4 Digit - AI & Markov + Chat Assistant")
+st.set_page_config(page_title="Prediksi Togel AI", layout="centered")
+st.title("🎰 Prediksi Togel 4D - AI + Markov + Chat")
 
 # Pilihan Pasaran dan Hari
 lokasi_list = ["GERMANY", "HONGKONG", "SINGAPORE", "MAGNUM4D", "TOTO MACAU 00:00"]
@@ -30,9 +30,7 @@ riwayat_input = ""
 if selected_lokasi and selected_hari:
     try:
         url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&showpasaran=yes&showtgl=yes&format=json&urut=asc"
-        headers = {
-            "Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"
-        }
+        headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
         response = requests.get(url, headers=headers)
         data = response.json()
         angka_list = [
@@ -47,19 +45,18 @@ if selected_lokasi and selected_hari:
     except Exception as e:
         st.error(f"❌ Gagal ambil data API: {e}")
 
-# Parse Data
+# Parse angka menjadi DataFrame
 data_lines = [x.strip() for x in riwayat_input.split("\n") if x.strip().isdigit() and len(x.strip()) == 4]
 df = pd.DataFrame({"angka": data_lines})
 
 with st.expander("✅ Daftar Angka Valid"):
     st.code("\n".join(data_lines))
 
-# Pilih Metode
-metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
+# Pilih metode prediksi
+metode = st.selectbox("🧠 Pilih Metode", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
 hasil = None
 akurasi_total = None
 
-# Prediksi dan Akurasi
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan.")
@@ -77,51 +74,41 @@ if st.button("🔮 Prediksi"):
         for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
             st.markdown(f"**{label}:** {', '.join(str(d) for d in hasil[i])}")
 
-        # Uji Akurasi
+        # Uji akurasi
         list_akurasi = []
-        if metode == "LSTM AI":
-            if len(df) >= jumlah_uji + 11:
-                uji_df = df.tail(jumlah_uji)
-                train_df = df.iloc[:-jumlah_uji]
-                prediksi = top5_lstm(train_df)
-                if prediksi:
-                    total = benar = 0
-                    for i in range(len(uji_df)):
-                        actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-                        skor = sum(int(actual[j]) in prediksi[j] for j in range(4))
-                        total += 4
-                        benar += skor
-                        list_akurasi.append(skor / 4 * 100)
-                    akurasi_total = (benar / total) * 100
-                    st.info(f"📈 Akurasi LSTM AI: {akurasi_total:.2f}%")
-        else:
-            uji_df = df.tail(min(jumlah_uji, len(df)))
-            total = benar = 0
-            for i in range(len(uji_df)):
-                subset_df = df.iloc[:-(len(uji_df) - i)]
-                if len(subset_df) < 11:
-                    continue
-                if metode == "Markov":
-                    pred = top5_markov(subset_df)
-                elif metode == "Markov Order-2":
-                    pred = top5_markov_order2(subset_df)
-                elif metode == "Markov Gabungan":
-                    pred = top5_markov_hybrid(subset_df)
-                actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-                skor = sum(int(actual[j]) in pred[j] for j in range(4))
-                total += 4
-                benar += skor
-                list_akurasi.append(skor / 4 * 100)
-            if total > 0:
-                akurasi_total = (benar / total) * 100
-                st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
+        uji_df = df.tail(min(jumlah_uji, len(df)))
+        total = benar = 0
+
+        for i in range(len(uji_df)):
+            subset_df = df.iloc[:-(len(uji_df) - i)]
+            if len(subset_df) < 11:
+                continue
+
+            if metode == "Markov":
+                pred = top5_markov(subset_df)
+            elif metode == "Markov Order-2":
+                pred = top5_markov_order2(subset_df)
+            elif metode == "Markov Gabungan":
+                pred = top5_markov_hybrid(subset_df)
+            elif metode == "LSTM AI":
+                pred = top5_lstm(subset_df)
+
+            actual = f"{int(uji_df.iloc[i]['angka']):04d}"
+            skor = sum(int(actual[j]) in pred[j] for j in range(4))
+            total += 4
+            benar += skor
+            list_akurasi.append(skor / 4 * 100)
+
+        if total > 0:
+            akurasi_total = (benar / total) * 100
+            st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
 
         if list_akurasi:
-            with st.expander("📊 Grafik Akurasi per Data"):
+            with st.expander("📊 Grafik Akurasi"):
                 st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
 
-# Chat Assistant Melayang (HTML + JS + Together AI)
-st.markdown(\"\"\"
+# Chat Assistant Melayang
+st.markdown("""
 <style>
 #open-chat-btn {
     position: fixed;
@@ -193,11 +180,9 @@ chatInput.addEventListener("keydown", async function(event) {
     }
 });
 </script>
-\"\"\", unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
-# Endpoint Chat AI Together
-from urllib.parse import unquote
-
+# Endpoint untuk Chat Assistant
 if "q" in st.experimental_get_query_params():
     q = st.experimental_get_query_params()["q"][0]
     try:
