@@ -18,7 +18,7 @@ st.markdown("🎰 Prediksi Togel 4D - AI + Markov + Chat")
 lokasi_list = ["GERMANY", "HONGKONG", "SINGAPORE", "MAGNUM4D", "TOTO MACAU 00:00"]
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 
-selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
+selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list, key="lokasi")
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
 putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
 jumlah_uji = st.slider("📊 Jumlah Data Uji Akurasi", 1, 1000, 5)
