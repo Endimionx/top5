@@ -183,8 +183,8 @@ chatInput.addEventListener("keydown", async function(event) {
 """, unsafe_allow_html=True)
 
 # Endpoint untuk Chat Assistant
-if "q" in st.experimental_get_query_params():
-    q = st.experimental_get_query_params()["q"][0]
+if "q" in st.query_params:
+    q = st.query_params["q"]
     try:
         headers = {
             "Authorization": f"Bearer {TOGETHER_API_KEY}",
