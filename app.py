@@ -138,11 +138,7 @@ if st.button("🔮 Prediksi"):
                 total += 4
                 benar += skor
                 list_akurasi.append(skor / 4 * 100)
-                akurasi_total = (benar / total) * 100
-                st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
-                with st.expander("📊 Grafik Akurasi"):
-                    st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
-            
+                
             if total > 0:
                 akurasi_total = (benar / total) * 100
                 st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
