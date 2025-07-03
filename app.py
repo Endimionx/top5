@@ -65,7 +65,7 @@ with st.expander("✅ Daftar Angka Valid"):
         st.warning("Belum ada angka valid.")
 
 # --- Input Tambahan
-jumlah_uji = st.number_input("📊 Jumlah data uji terakhir:", min_value=1, max_value=500, value=5, step=1)
+jumlah_uji = st.number_input("📊 Jumlah data uji terakhir:", min_value=1, max_value=1000, value=5, step=1)
 metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
 
 # --- Tombol Prediksi
