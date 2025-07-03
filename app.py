@@ -12,7 +12,7 @@ load_dotenv()
 TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
 
 st.set_page_config(page_title="Prediksi Togel AI", layout="centered")
-st.title("<h3>🎰 Prediksi Togel 4D - AI + Markov + Chat<h3>")
+st.markdown("<h3>🎰 Prediksi Togel 4D - AI + Markov + Chat<h3>")
 
 # Pilihan Pasaran dan Hari
 lokasi_list = ["GERMANY", "HONGKONG", "SINGAPORE", "MAGNUM4D", "TOTO MACAU 00:00"]
