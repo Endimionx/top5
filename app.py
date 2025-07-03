@@ -26,7 +26,7 @@ if selected_lokasi and selected_hari:
     with st.spinner(f"🔄 Mengambil data dari pasaran '{selected_lokasi}' ({selected_hari})..."):
         try:
             # URL dan Header Authorization
-            url = f"https://wysiwygscan.com/api.php?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&showpasaran=yes&showtgl=yes&format=json"
+            url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&showpasaran=yes&showtgl=yes&format=json"
             headers = {
                 "Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"
             }
