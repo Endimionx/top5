@@ -1,201 +1,147 @@
-import streamlit as st
-import pandas as pd
-import requests
-import os
-from dotenv import load_dotenv
-from markov_model import top5_markov, top5_markov_order2, top5_markov_hybrid
-from ai_model import top5_lstm
+import streamlit as st import pandas as pd import requests import os from dotenv import load_dotenv from markov_model import top5_markov, top5_markov_order2, top5_markov_hybrid from ai_model import top5_lstm
 
-# Load API key dari .env
-load_dotenv()
-TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
+Load API key
 
-# Konfigurasi halaman
-st.set_page_config(page_title="Prediksi Togel AI + Chat", layout="centered")
-st.title("🎰 Prediksi Togel 4 Digit - AI & Markov + Together.ai Assistant")
+load_dotenv() TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
 
-# --- Pilihan Pasaran dan Hari
-lokasi_list = ["GERMANY", "HONGKONG", "SINGAPORE", "MAGNUM4D", "TOTO MACAU 00:00"]
-hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
+st.set_page_config(page_title="Prediksi Togel AI + Chat", layout="centered") st.title("🎰 Prediksi Togel 4 Digit - AI & Markov + Chat Assistant")
 
-selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
-selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
-putaran = st.slider("🔁 Jumlah Putaran (Ambil dari API)", 1, 1000, 10)
-jumlah_uji = st.slider("📊 Jumlah Data Uji Akurasi", 1, 1000, 5)
+lokasi_list = ["GERMANY", "HONGKONG", "SINGAPORE", "MAGNUM4D", "TOTO MACAU 00:00"] hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 
-# --- Ambil Data dari API
-angka_list = []
-riwayat_input = ""
+selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list) selected_hari = st.selectbox("📅 Pilih Hari", hari_list) putaran = st.slider("🔁 Jumlah Putaran (Ambil dari API)", 1, 1000, 10) jumlah_uji = st.slider("📊 Jumlah Data Uji Akurasi", 1, 1000, 5)
 
-if selected_lokasi and selected_hari:
-    try:
-        url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&showpasaran=yes&showtgl=yes&format=json&urut=asc"
-        headers = {
-            "Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"
-        }
-        response = requests.get(url, headers=headers)
-        data = response.json()
-        angka_list = [
-            item["result"]
-            for item in data.get("data", [])
-            if isinstance(item, dict) and len(item["result"]) == 4 and item["result"].isdigit()
-        ]
-        riwayat_input = "\n".join(angka_list)
-        st.success(f"✅ {len(angka_list)} angka berhasil diambil dari API.")
-        with st.expander("📥 Lihat Angka dari API"):
-            st.code(riwayat_input)
-    except Exception as e:
-        st.error(f"❌ Gagal ambil data API: {e}")
+angka_list = [] riwayat_input = ""
 
-# --- Parse Data
-data_lines = [x.strip() for x in riwayat_input.split("\n") if x.strip().isdigit() and len(x.strip()) == 4]
-df = pd.DataFrame({"angka": data_lines})
+if selected_lokasi and selected_hari: try: url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&showpasaran=yes&showtgl=yes&format=json&urut=asc" headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"} response = requests.get(url, headers=headers) data = response.json() angka_list = [item["result"] for item in data.get("data", []) if isinstance(item, dict) and len(item["result"]) == 4 and item["result"].isdigit()] riwayat_input = "\n".join(angka_list) st.success(f"✅ {len(angka_list)} angka berhasil diambil dari API.") with st.expander("📥 Lihat Angka dari API"): st.code(riwayat_input) except Exception as e: st.error(f"❌ Gagal ambil data API: {e}")
 
-with st.expander("✅ Daftar Angka Valid"):
-    st.code("\n".join(data_lines))
+data_lines = [x.strip() for x in riwayat_input.split("\n") if x.strip().isdigit() and len(x.strip()) == 4] df = pd.DataFrame({"angka": data_lines})
 
-# --- Pilih Metode
-metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
-hasil = None
-akurasi_total = None
+with st.expander("✅ Daftar Angka Valid"): st.code("\n".join(data_lines))
 
-# --- Prediksi & Akurasi
-if st.button("🔮 Prediksi"):
-    if len(df) < 11:
-        st.warning("❌ Minimal 11 data diperlukan.")
-    else:
-        if metode == "Markov":
-            hasil = top5_markov(df)
-        elif metode == "Markov Order-2":
-            hasil = top5_markov_order2(df)
-        elif metode == "Markov Gabungan":
-            hasil = top5_markov_hybrid(df)
-        else:
-            hasil = top5_lstm(df)
+metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"]) hasil = None akurasi_total = None
 
-        st.markdown("#### 🎯 Prediksi Top-5 Digit")
-        for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
-            st.markdown(f"**{label}:** {', '.join(str(d) for d in hasil[i])}")
+if st.button("🔮 Prediksi"): if len(df) < 11: st.warning("❌ Minimal 11 data diperlukan.") else: if metode == "Markov": hasil = top5_markov(df) elif metode == "Markov Order-2": hasil = top5_markov_order2(df) elif metode == "Markov Gabungan": hasil = top5_markov_hybrid(df) else: hasil = top5_lstm(df)
 
-        # --- Uji Akurasi
-        list_akurasi = []
-        if metode == "LSTM AI":
-            if len(df) >= jumlah_uji + 11:
-                uji_df = df.tail(jumlah_uji)
-                train_df = df.iloc[:-jumlah_uji]
-                prediksi = top5_lstm(train_df)
-                if prediksi:
-                    total = benar = 0
-                    for i in range(len(uji_df)):
-                        actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-                        skor = sum(int(actual[j]) in prediksi[j] for j in range(4))
-                        total += 4
-                        benar += skor
-                        list_akurasi.append(skor / 4 * 100)
-                    akurasi_total = (benar / total) * 100
-                    st.info(f"📈 Akurasi LSTM AI: {akurasi_total:.2f}%")
-        else:
-            uji_df = df.tail(min(jumlah_uji, len(df)))
-            total = benar = 0
-            for i in range(len(uji_df)):
-                subset_df = df.iloc[:-(len(uji_df) - i)]
-                if len(subset_df) < 11: continue
-                if metode == "Markov":
-                    pred = top5_markov(subset_df)
-                elif metode == "Markov Order-2":
-                    pred = top5_markov_order2(subset_df)
-                elif metode == "Markov Gabungan":
-                    pred = top5_markov_hybrid(subset_df)
-                actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-                skor = sum(int(actual[j]) in pred[j] for j in range(4))
-                total += 4
-                benar += skor
-                list_akurasi.append(skor / 4 * 100)
-            if total > 0:
+st.markdown("#### 🎯 Prediksi Top-5 Digit")
+    for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+        st.markdown(f"**{label}:** {', '.join(str(d) for d in hasil[i])}")
+
+    list_akurasi = []
+    if metode == "LSTM AI":
+        if len(df) >= jumlah_uji + 11:
+            uji_df = df.tail(jumlah_uji)
+            train_df = df.iloc[:-jumlah_uji]
+            prediksi = top5_lstm(train_df)
+            if prediksi:
+                total = benar = 0
+                for i in range(len(uji_df)):
+                    actual = f"{int(uji_df.iloc[i]['angka']):04d}"
+                    skor = sum(int(actual[j]) in prediksi[j] for j in range(4))
+                    total += 4
+                    benar += skor
+                    list_akurasi.append(skor / 4 * 100)
                 akurasi_total = (benar / total) * 100
-                st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
+                st.info(f"📈 Akurasi LSTM AI: {akurasi_total:.2f}%")
+    else:
+        uji_df = df.tail(min(jumlah_uji, len(df)))
+        total = benar = 0
+        for i in range(len(uji_df)):
+            subset_df = df.iloc[:-(len(uji_df) - i)]
+            if len(subset_df) < 11: continue
+            if metode == "Markov":
+                pred = top5_markov(subset_df)
+            elif metode == "Markov Order-2":
+                pred = top5_markov_order2(subset_df)
+            elif metode == "Markov Gabungan":
+                pred = top5_markov_hybrid(subset_df)
+            actual = f"{int(uji_df.iloc[i]['angka']):04d}"
+            skor = sum(int(actual[j]) in pred[j] for j in range(4))
+            total += 4
+            benar += skor
+            list_akurasi.append(skor / 4 * 100)
+        if total > 0:
+            akurasi_total = (benar / total) * 100
+            st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
 
-        if list_akurasi:
-            with st.expander("📊 Grafik Akurasi per Data"):
-                st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
+    if list_akurasi:
+        with st.expander("📊 Grafik Akurasi per Data"):
+            st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
 
-# --- Fungsi chat balloon UI
-def bubble_message(content, is_user=True):
-    align = "right" if is_user else "left"
-    bg_color = "#dcf8c6" if is_user else "#f1f0f0"
-    text_color = "#000000"
-    return f"""
-    <div style='
-        display: flex;
-        justify-content: {align};
-        margin: 5px 0;
-    '>
-        <div style='
-            background-color: {bg_color};
-            color: {text_color};
-            padding: 10px 15px;
-            border-radius: 20px;
-            max-width: 70%;
-            font-family: sans-serif;
-            font-size: 15px;
-            box-shadow: 1px 1px 5px rgba(0,0,0,0.1);
-        '>
-            {content}
-        </div>
-    </div>
-    """
+Floating Chat Assistant
 
-# -----------------------------
-# Together AI Chat Assistant (Bubble UI)
-st.markdown("---")
-st.markdown("### 💬 Chat Assistant (via Together.ai - Bubble UI)")
+st.markdown("""
 
-if not TOGETHER_API_KEY:
-    st.error("❌ API Key Together.ai tidak ditemukan di file .env.")
-else:
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+<style>
+#open-chat-btn {
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    background-color: #25d366;
+    color: white;
+    padding: 14px;
+    border: none;
+    border-radius: 50%;
+    font-size: 22px;
+    cursor: pointer;
+    z-index: 100;
+}
+#chat-box {
+    position: fixed;
+    bottom: 90px;
+    right: 25px;
+    width: 320px;
+    max-height: 400px;
+    background-color: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    display: none;
+    flex-direction: column;
+    z-index: 100;
+    padding: 10px;
+    overflow-y: auto;
+}
+#chat-box textarea {
+    width: 100%;
+    border: none;
+    border-top: 1px solid #ccc;
+    resize: none;
+    padding: 8px;
+    margin-top: 5px;
+    border-radius: 5px;
+}
+</style><button id="open-chat-btn">💬</button>
 
-    prompt = st.chat_input("Tanya soal prediksi, akurasi, metode...")
+<div id="chat-box">
+    <div><b>AI Assistant</b></div>
+    <div id="chat-log" style="font-size:14px; margin: 10px 0; max-height:300px; overflow-y:auto;"></div>
+    <textarea id="chat-input" rows="2" placeholder="Tulis pertanyaan..."></textarea>
+</div><script>
+const chatBox = document.getElementById("chat-box");
+const chatBtn = document.getElementById("open-chat-btn");
+const chatInput = document.getElementById("chat-input");
+const chatLog = document.getElementById("chat-log");
 
-    # Tampilkan riwayat chat sebagai bubble
-    for msg in st.session_state.messages:
-        st.markdown(bubble_message(msg["content"], is_user=(msg["role"] == "user")), unsafe_allow_html=True)
+chatBtn.onclick = () => {
+    chatBox.style.display = chatBox.style.display === "none" ? "flex" : "none";
+};
 
-    if prompt:
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        context = f"""
-        Jumlah data: {len(df)}
-        Metode: {metode}
-        Prediksi:
-        Ribuan: {hasil[0] if hasil else []}
-        Ratusan: {hasil[1] if hasil else []}
-        Puluhan: {hasil[2] if hasil else []}
-        Satuan: {hasil[3] if hasil else []}
-        Akurasi: {akurasi_total if akurasi_total else 'Belum tersedia'}
-        """
-        with st.spinner("🤖 Menjawab dari Together.ai..."):
-            try:
-                headers = {
-                    "Authorization": f"Bearer {TOGETHER_API_KEY}",
-                    "Content-Type": "application/json"
-                }
-                payload = {
-                    "model": "mistralai/Mistral-7B-Instruct-v0.1",
-                    "messages": [
-                        {"role": "system", "content": "Kamu adalah asisten AI untuk prediksi angka dan analisis statistik."},
-                        {"role": "user", "content": f"{context}\n\nPertanyaan: {prompt}"}
-                    ],
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                    "max_tokens": 512
-                }
+chatInput.addEventListener("keydown", async function(event) {
+    if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        const msg = chatInput.value.trim();
+        if (!msg) return;
+        chatLog.innerHTML += `<div style='text-align:right;'>🧑‍💬 ${msg}</div>`;
+        chatInput.value = "...";
 
-                response = requests.post("https://api.together.ai/v1/chat/completions", headers=headers, json=payload)
-                response.raise_for_status()
-                reply = response.json()["choices"][0]["message"]["content"]
+        const response = await fetch("/chat?q=" + encodeURIComponent(msg));
+        const result = await response.text();
+        chatLog.innerHTML += `<div style='text-align:left;'>🤖 ${result}</div>`;
+        chatInput.value = "";
+    }
+});
+</script>""", unsafe_allow_html=True)
 
-                st.session_state.messages.append({"role": "assistant", "content": reply})
-                st.markdown(bubble_message(reply, is_user=False), unsafe_allow_html=True)
-            except Exception as e:
-                st.error(f"❌ Gagal menjawab dari Together.ai: {e}")
+Endpoint respon Together.ai
+
+from urllib.parse import unquote if "q" in st.experimental_get_query_params(): import json q = st.experimental_get_query_params()["q"][0] try: headers = { "Authorization": f"Bearer {TOGETHER_API_KEY}", "Content-Type": "application/json" } payload = { "model": "mistralai/Mistral-7B-Instruct-v0.1", "messages": [ {"role": "system", "content": "Kamu adalah asisten AI statistik dan prediksi angka."}, {"role": "user", "content": unquote(q)} ], "temperature": 0.7, "top_p": 0.9, "max_tokens": 512 } response = requests.post("https://api.together.ai/v1/chat/completions", headers=headers, json=payload) reply = response.json()["choices"][0]["message"]["content"] st.write(reply) except Exception as e: st.write(f"[Error] {e}") st.stop()
+
