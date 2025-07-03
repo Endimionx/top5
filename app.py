@@ -7,35 +7,42 @@ from ai_model import top5_lstm
 st.set_page_config(page_title="Prediksi Togel AI", layout="centered")
 st.title("🎰 Prediksi Togel 4 Digit - AI & Markov")
 
-# --- Pilihan Pasaran dan Parameter API ---
+# --- Pasaran dan Hari Pilihan ---
 lokasi_list = [
     "GERMANY", "HONGKONG", "SINGAPORE", "MAGNUM4D", "TOTO MACAU 00:00",
     "USA DAY", "USA NIGHT", "SYDNEY", "PCSO", "BRUNEI", "CAMBODIA"
 ]
-
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 
 selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
 putaran = st.slider("🔁 Jumlah Putaran", min_value=1, max_value=500, value=5)
 
-# --- Ambil data dari API ---
+# --- Ambil Data dari API ---
 riwayat_input = ""
+angka_list = []
+
 if selected_lokasi and selected_hari:
     with st.spinner(f"🔄 Mengambil data dari pasaran '{selected_lokasi}' ({selected_hari})..."):
         try:
-            url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&showpasaran=yes&showtgl=yes&format=json"
-            response = requests.get(url)
+            # URL dan Header Authorization
+            url = f"https://wysiwygscan.com/api.php?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&showpasaran=yes&showtgl=yes&format=json"
+            headers = {
+                "Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"
+            }
+            response = requests.get(url, headers=headers)
             if response.status_code == 200:
                 data = response.json()
                 angka_list = [item["number"] for item in data.get("result", []) if len(item["number"]) == 4 and item["number"].isdigit()]
                 if angka_list:
                     riwayat_input = "\n".join(angka_list)
-                    st.success(f"✅ Ditemukan {len(angka_list)} angka dari pasaran {selected_lokasi}")
+                    st.success(f"✅ {len(angka_list)} angka berhasil diambil dari API.")
+                    with st.expander("📥 Hasil Angka dari API"):
+                        st.code(riwayat_input)
                 else:
-                    st.warning("⚠️ Tidak ada angka valid ditemukan.")
+                    st.warning("⚠️ Tidak ada angka 4 digit valid ditemukan.")
             else:
-                st.error(f"❌ Gagal mengambil data (status: {response.status_code})")
+                st.error(f"❌ Gagal ambil data dari API. Status: {response.status_code}")
         except Exception as e:
             st.error(f"❌ Error saat akses API: {e}")
 
@@ -52,7 +59,7 @@ with st.expander("✅ Daftar Angka Valid"):
     else:
         st.warning("Belum ada angka valid.")
 
-# --- Input Prediksi ---
+# --- Input Prediksi dan Metode ---
 jumlah_uji = st.number_input("📊 Jumlah data uji terakhir:", min_value=1, max_value=500, value=5, step=1)
 metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
 
