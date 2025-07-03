@@ -4,18 +4,21 @@ import requests
 import os
 from dotenv import load_dotenv
 from markov_model import top5_markov, top5_markov_order2, top5_markov_hybrid
-from ai_model import top5_lstm, prepare_lstm_data, train_lstm_model
+from ai_model import top5_lstm, train_and_save_lstm
+from urllib.parse import unquote
 import streamlit.components.v1 as components
+from pathlib import Path
 
 load_dotenv()
 TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
+MODEL_DIR = Path("saved_models")
+MODEL_DIR.mkdir(exist_ok=True)
 
 st.set_page_config(page_title="Prediksi Togel AI + Chat", layout="centered")
-st.markdown("<h4>Prediksi Togel 4 Digit - AI & Markov + Chat</h4>", unsafe_allow_html=True)
+st.markdown("<h4>Prediksi Togel 4D - AI & Markov</h4>", unsafe_allow_html=True)
 
-menu = st.sidebar.radio("📂 Menu", ["Prediksi", "Latih Model"])
-
-# ======================= PASARAN ========================
+# ======================= LOKASI =======================
+#lokasi_list = [...]  # GUNAKAN daftar lengkap dari jawaban sebelumnya untuk mengisi ini
 lokasi_list = [
     "ARMENIA", "ATLANTIC DAY", "ATLANTIC MORNING", "ATLANTIC NIGHT", "AZERBAIJAN",
     "BAHRAIN", "BARCELONA", "BATAVIA", "BHUTAN", "BIRMINGHAM", "BRISBANE",
@@ -55,70 +58,83 @@ lokasi_list = [
     "WASHINGTON DC EVENING", "WASHINGTON DC MIDDAY", "WEST VIRGINIA",
     "WISCONSIN", "YAMAN", "ZURICH"
 ]
-
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 
+# ======================= INPUT =======================
 selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
 putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
 jumlah_uji = st.slider("📊 Jumlah Data Uji Akurasi", 1, 1000, 5)
 
-# ======================= AMBIL DATA ========================
+# ======================= AMBIL DATA =======================
 angka_list = []
 riwayat_input = ""
-if selected_lokasi and selected_hari:
-    try:
-        url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json"
-        headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
-        response = requests.get(url, headers=headers)
-        data = response.json()
-        angka_list = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
-        riwayat_input = "\n".join(angka_list)
-        st.success(f"✅ {len(angka_list)} angka berhasil diambil.")
-        with st.expander("📥 Lihat Data"):
-            st.code(riwayat_input)
-    except Exception as e:
-        st.error(f"❌ Gagal ambil data API: {e}")
+try:
+    url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json"
+    headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
+    response = requests.get(url, headers=headers)
+    data = response.json()
+    angka_list = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
+    riwayat_input = "\n".join(angka_list)
+    st.success(f"✅ {len(angka_list)} angka berhasil diambil dari API.")
+except Exception as e:
+    st.error(f"❌ Gagal ambil data API: {e}")
 
 data_lines = [x.strip() for x in riwayat_input.split("\n") if x.strip().isdigit() and len(x.strip()) == 4]
 df = pd.DataFrame({"angka": data_lines})
+with st.expander("📥 Data Angka Valid"):
+    st.code("\n".join(data_lines))
 
-# ======================= MENU ========================
-if menu == "Prediksi":
-    metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
-    if st.button("🔮 Prediksi"):
+# ======================= PREDIKSI =======================
+metode = st.selectbox("🧠 Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
+
+# ========== SIMPAN / MUAT MODEL ==========
+model_path = MODEL_DIR / f"model_lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
+if metode == "LSTM AI":
+    if model_path.exists():
+        st.success("📁 Model ditemukan untuk pasaran ini.")
+    else:
+        st.warning("⚠️ Model belum tersedia untuk pasaran ini.")
+
+    if st.button("💾 Latih & Simpan Model"):
         if len(df) < 11:
-            st.warning("❌ Minimal 11 data diperlukan.")
+            st.warning("❌ Minimal 11 data diperlukan untuk pelatihan.")
         else:
-            if metode == "Markov":
-                hasil = top5_markov(df)
-            elif metode == "Markov Order-2":
-                hasil = top5_markov_order2(df)
-            elif metode == "Markov Gabungan":
-                hasil = top5_markov_hybrid(df)
-            else:
-                hasil = top5_lstm(df)
-                if hasil is None:
-                    st.error("❌ Prediksi LSTM gagal. Data tidak mencukupi.")
-                    st.stop()
+            train_and_save_lstm(df, lokasi=selected_lokasi)
+            st.success("✅ Model berhasil dilatih & disimpan.")
 
-            st.markdown("#### 🎯 Prediksi Top-5 Digit")
+if st.button("🔮 Prediksi"):
+    if len(df) < 11:
+        st.warning("❌ Minimal 11 data diperlukan.")
+    else:
+        if metode == "Markov":
+            hasil = top5_markov(df)
+        elif metode == "Markov Order-2":
+            hasil = top5_markov_order2(df)
+        elif metode == "Markov Gabungan":
+            hasil = top5_markov_hybrid(df)
+        else:
+            hasil = top5_lstm(df, lokasi=selected_lokasi, use_saved_model=True)
+
+        if hasil:
+            st.markdown("### 🎯 Prediksi Top-5")
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
-                st.markdown(f"**{label}:** {', '.join(str(d) for d in hasil[i])}")
+                st.markdown(f"**{label}:** {', '.join(str(x) for x in hasil[i])}")
 
-            list_akurasi = []
+            # ========== HITUNG AKURASI ==========
             uji_df = df.tail(min(jumlah_uji, len(df)))
-            total = benar = 0
+            benar = total = 0
+            list_akurasi = []
             for i in range(len(uji_df)):
                 subset_df = df.iloc[:-(len(uji_df) - i)]
-                if len(subset_df) < 11:
-                    continue
-                pred = top5_markov(subset_df) if metode == "Markov" else \
-                       top5_markov_order2(subset_df) if metode == "Markov Order-2" else \
-                       top5_markov_hybrid(subset_df) if metode == "Markov Gabungan" else \
-                       top5_lstm(subset_df)
-                if pred is None:
-                    continue
+                if len(subset_df) < 11: continue
+                pred = (
+                    top5_markov(subset_df) if metode == "Markov" else
+                    top5_markov_order2(subset_df) if metode == "Markov Order-2" else
+                    top5_markov_hybrid(subset_df) if metode == "Markov Gabungan" else
+                    top5_lstm(subset_df, lokasi=selected_lokasi, use_saved_model=True)
+                )
+                if pred is None: continue
                 actual = f"{int(uji_df.iloc[i]['angka']):04d}"
                 skor = sum(int(actual[j]) in pred[j] for j in range(4))
                 total += 4
@@ -126,20 +142,14 @@ if menu == "Prediksi":
                 list_akurasi.append(skor / 4 * 100)
 
             if total > 0:
-                st.info(f"📈 Akurasi {metode}: {benar / total * 100:.2f}%")
-            if list_akurasi:
+                akurasi_total = (benar / total) * 100
+                st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
                 with st.expander("📊 Grafik Akurasi"):
-                    st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
+                    st.line_chart(pd.DataFrame({"Akurasi": list_akurasi}))
+        else:
+            st.error("❌ Gagal memproses prediksi.")
 
-elif menu == "Latih Model":
-    if len(df) < 20:
-        st.warning("❌ Minimal 20 data diperlukan untuk pelatihan.")
-    else:
-        X, y = prepare_lstm_data(df)
-        model = train_lstm_model(X, y)
-        st.success("✅ Model LSTM berhasil dilatih.")
-
-# ======================= FLOATING CHAT ========================
+# ======================= FLOATING CHAT =======================
 components.html("""
 <style>
 #open-chat-btn {
@@ -194,5 +204,41 @@ const chatLog = document.getElementById("chat-log");
 chatBtn.onclick = () => {
     chatBox.style.display = chatBox.style.display === "none" ? "flex" : "none";
 };
+chatInput.addEventListener("keydown", async function(event) {
+    if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        const msg = chatInput.value.trim();
+        if (!msg) return;
+        chatLog.innerHTML += `<div style='text-align:right;'>🧑‍💬 ${msg}</div>`;
+        chatInput.value = "...";
+        const response = await fetch(`/chat?q=${encodeURIComponent(msg)}`);
+        const result = await response.text();
+        chatLog.innerHTML += `<div style='text-align:left;'>🤖 ${result}</div>`;
+        chatInput.value = "";
+    }
+});
 </script>
 """, height=0)
+
+if "q" in st.query_params:
+    q = st.query_params["q"]
+    try:
+        headers = {
+            "Authorization": f"Bearer {TOGETHER_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "mistralai/Mistral-7B-Instruct-v0.1",
+            "messages": [
+                {"role": "system", "content": "Kamu adalah asisten AI statistik dan prediksi angka."},
+                {"role": "user", "content": unquote(q)}
+            ],
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "max_tokens": 512
+        }
+        res = requests.post("https://api.together.ai/v1/chat/completions", headers=headers, json=payload)
+        st.write(res.json()["choices"][0]["message"]["content"])
+    except Exception as e:
+        st.write(f"[Error]: {e}")
+    st.stop()
