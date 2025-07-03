@@ -18,11 +18,11 @@ MODEL_DIR.mkdir(exist_ok=True)
 st.set_page_config(page_title="Prediksi Togel AI + Chat", layout="centered")
 st.markdown("<h4>Prediksi Togel 4 Digit - AI & Markov + Chat</h4>", unsafe_allow_html=True)
 
-# ======================= INISIALISASI STATE ========================
+# ======================= INIT STATE ========================
 if "show_model_manager" not in st.session_state:
     st.session_state.show_model_manager = False
 
-# ======================= PASARAN ========================
+# ======================= LOKASI & HARI ========================
 lokasi_list = [
     "ARMENIA", "ATLANTIC DAY", "ATLANTIC MORNING", "ATLANTIC NIGHT", "AZERBAIJAN",
     "BAHRAIN", "BARCELONA", "BATAVIA", "BHUTAN", "BIRMINGHAM", "BRISBANE",
@@ -91,7 +91,7 @@ df = pd.DataFrame({"angka": data_lines})
 with st.expander("✅ Daftar Angka Valid"):
     st.code("\n".join(data_lines))
 
-# ======================= PREDIKSI ========================
+# ======================= METODE & LATIHAN ========================
 metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
 
 if metode == "LSTM AI":
@@ -133,6 +133,7 @@ if metode == "LSTM AI":
                         except Exception as e:
                             st.error(f"Gagal hapus: {e}")
 
+# ======================= PREDIKSI & AKURASI ========================
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan.")
@@ -158,6 +159,7 @@ if st.button("🔮 Prediksi"):
         for i in range(len(uji_df)):
             subset_df = df.iloc[:-(len(uji_df) - i)]
             if len(subset_df) < 11: continue
+
             pred = (
                 top5_markov(subset_df) if metode == "Markov" else
                 top5_markov_order2(subset_df) if metode == "Markov Order-2" else
@@ -165,6 +167,7 @@ if st.button("🔮 Prediksi"):
                 top5_lstm(subset_df, lokasi=selected_lokasi)
             )
             if pred is None: continue
+
             actual = f"{int(uji_df.iloc[i]['angka']):04d}"
             skor = sum(int(actual[j]) in pred[j] for j in range(4))
             total += 4
@@ -174,6 +177,7 @@ if st.button("🔮 Prediksi"):
         if total > 0:
             akurasi_total = (benar / total) * 100
             st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
+
         if list_akurasi:
             with st.expander("📊 Grafik Akurasi"):
                 st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
