@@ -88,39 +88,56 @@ if st.button("🔮 Prediksi"):
             st.markdown(f"**{posisi}:** {', '.join(str(d) for d in hasil[i])}")
 
         # --- Uji Akurasi
-        max_uji = min(putaran, len(df))
-        uji_df = df.tail(max_uji)
-        total, benar, gagal = 0, 0, 0
-
-        for i in range(len(uji_df)):
-            subset_df = df.iloc[:-(len(uji_df) - i)]
-            if len(subset_df) < 11:
-                gagal += 1
-                continue
-
-            if metode == "LSTM AI":
-                prediksi = top5_lstm(subset_df)
-            elif metode == "Markov Order-2":
-                prediksi = top5_markov_order2(subset_df)
-            elif metode == "Markov Gabungan":
-                prediksi = top5_markov_hybrid(subset_df)
+        if metode == "LSTM AI":
+            if len(df) < putaran + 11:
+                st.warning("❌ Tidak cukup data untuk uji akurasi LSTM AI. Tambahkan lebih banyak data.")
             else:
-                prediksi = top5_markov(subset_df)
+                uji_df = df.tail(putaran)
+                train_df = df.iloc[:-putaran]
 
-            if not prediksi or len(prediksi) != 4:
-                st.warning(f"⚠️ Prediksi gagal di iterasi ke-{i+1}")
-                gagal += 1
-                continue
+                prediksi = top5_lstm(train_df)
+                if prediksi is None or len(prediksi) != 4:
+                    st.warning("⚠️ Prediksi LSTM gagal.")
+                else:
+                    total = benar = 0
+                    for i in range(len(uji_df)):
+                        actual = f"{int(uji_df.iloc[i]['angka']):04d}"
+                        for j in range(4):
+                            if int(actual[j]) in prediksi[j]:
+                                benar += 1
+                        total += 4
 
-            actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-            for j in range(4):
-                if int(actual[j]) in prediksi[j]:
-                    benar += 1
-            total += 4
-
-        # Tampilkan hasil uji
-        if total > 0:
-            akurasi_total = (benar / total) * 100
-            st.info(f"📈 Akurasi per digit (dari {len(uji_df)} data): {akurasi_total:.2f}%")
+                    akurasi_total = (benar / total) * 100
+                    st.info(f"📈 Akurasi LSTM AI (dari {len(uji_df)} data): {akurasi_total:.2f}%")
         else:
-            st.warning("⚠️ Tidak cukup data yang valid untuk menghitung akurasi.\nCoba kurangi jumlah putaran atau masukkan lebih banyak data.")
+            # Markov-based akurasi evaluasi per subset
+            max_uji = min(putaran, len(df))
+            uji_df = df.tail(max_uji)
+            total, benar = 0, 0
+
+            for i in range(len(uji_df)):
+                subset_df = df.iloc[:-(len(uji_df) - i)]
+                if len(subset_df) < 11:
+                    continue
+
+                if metode == "Markov":
+                    prediksi = top5_markov(subset_df)
+                elif metode == "Markov Order-2":
+                    prediksi = top5_markov_order2(subset_df)
+                elif metode == "Markov Gabungan":
+                    prediksi = top5_markov_hybrid(subset_df)
+
+                if not prediksi or len(prediksi) != 4:
+                    continue
+
+                actual = f"{int(uji_df.iloc[i]['angka']):04d}"
+                for j in range(4):
+                    if int(actual[j]) in prediksi[j]:
+                        benar += 1
+                total += 4
+
+            if total > 0:
+                akurasi_total = (benar / total) * 100
+                st.info(f"📈 Akurasi per digit (dari {len(uji_df)} data): {akurasi_total:.2f}%")
+            else:
+                st.warning("⚠️ Tidak cukup data untuk menghitung akurasi.")
