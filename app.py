@@ -167,7 +167,7 @@ else:
                         "top_p": 0.9
                     }
 
-                    response = requests.post("https://api.together.xyz/v1/chat/completions", headers=headers, json=payload)
+                    response = requests.post("https://api.together.ai/v1/chat/completions", headers=headers, json=payload)
                     response.raise_for_status()
                     reply = response.json()["choices"][0]["message"]["content"]
 
