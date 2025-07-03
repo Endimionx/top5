@@ -1,83 +1,70 @@
 import streamlit as st
 import pandas as pd
 import requests
+import openai
+import os
+from dotenv import load_dotenv
 from markov_model import top5_markov, top5_markov_order2, top5_markov_hybrid
 from ai_model import top5_lstm
 
-st.set_page_config(page_title="Prediksi Togel AI", layout="centered")
-st.title("🎰 Prediksi Togel 4 Digit - AI & Markov")
+# Load API key dari .env
+load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# --- Pilihan Pasaran dan Hari ---
-lokasi_list = [
-    "GERMANY", "HONGKONG", "SINGAPORE", "MAGNUM4D", "TOTO MACAU 00:00",
-    "USA DAY", "USA NIGHT", "SYDNEY", "PCSO", "BRUNEI", "CAMBODIA"
-]
+# Konfigurasi halaman
+st.set_page_config(page_title="Prediksi Togel AI + Chat", layout="centered")
+st.title("🎰 Prediksi Togel 4 Digit - AI & Markov + GPT Assistant")
+
+# --- Pilihan Pasaran dan Hari
+lokasi_list = ["GERMANY", "HONGKONG", "SINGAPORE", "MAGNUM4D", "TOTO MACAU 00:00"]
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 
 selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
-putaran = st.slider("🔁 Jumlah Putaran (Ambil dari API)", min_value=1, max_value=1000, value=10)
-jumlah_uji = st.slider("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=500, value=5)
+putaran = st.slider("🔁 Jumlah Putaran (Ambil dari API)", 1, 1000, 10)
+jumlah_uji = st.slider("📊 Jumlah Data Uji Akurasi", 1, 1000, 5)
 
 # --- Ambil Data dari API
-riwayat_input = ""
 angka_list = []
+riwayat_input = ""
 
 if selected_lokasi and selected_hari:
-    with st.spinner(f"🔄 Mengambil data dari pasaran '{selected_lokasi}' ({selected_hari})..."):
-        try:
-            url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&showpasaran=yes&showtgl=yes&format=json&urut=asc"
-            headers = {
-                "Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"
-            }
-            response = requests.get(url, headers=headers)
-            if response.status_code == 200:
-                data = response.json()
-                if "data" in data and isinstance(data["data"], list):
-                    angka_list = [
-                        item["result"]
-                        for item in data["data"]
-                        if isinstance(item, dict) and "result" in item and len(item["result"]) == 4 and item["result"].isdigit()
-                    ]
-                    if angka_list:
-                        riwayat_input = "\n".join(angka_list)
-                        st.success(f"✅ {len(angka_list)} angka berhasil diambil dari API.")
-                        with st.expander("📥 Hasil Angka dari API"):
-                            st.code(riwayat_input)
-                    else:
-                        st.warning("⚠️ Tidak ada angka valid ditemukan di field 'result'.")
-                else:
-                    st.warning("⚠️ Format respons tidak valid: tidak ada key 'data'.")
-            else:
-                st.error(f"❌ Gagal mengakses API. Status code: {response.status_code}")
-        except Exception as e:
-            st.error(f"❌ Terjadi error saat request API: {e}")
-
-# --- Text Area disembunyikan dalam Expander
-with st.expander("🧾 Data History (opsional)"):
-    riwayat_input = st.text_area("Edit atau masukkan data manual (1 angka per baris):", value=riwayat_input, height=200)
+    try:
+        url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&showpasaran=yes&showtgl=yes&format=json&urut=asc"
+        headers = {
+            "Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"
+        }
+        response = requests.get(url, headers=headers)
+        data = response.json()
+        angka_list = [
+            item["result"]
+            for item in data.get("data", [])
+            if isinstance(item, dict) and len(item["result"]) == 4 and item["result"].isdigit()
+        ]
+        riwayat_input = "\n".join(angka_list)
+        st.success(f"✅ {len(angka_list)} angka berhasil diambil dari API.")
+        with st.expander("📥 Lihat Angka dari API"):
+            st.code(riwayat_input)
+    except Exception as e:
+        st.error(f"❌ Gagal ambil data API: {e}")
 
 # --- Parse Data
-data_lines = [line.strip() for line in riwayat_input.split("\n") if line.strip().isdigit() and len(line.strip()) == 4]
+data_lines = [x.strip() for x in riwayat_input.split("\n") if x.strip().isdigit() and len(x.strip()) == 4]
 df = pd.DataFrame({"angka": data_lines})
 
-# --- Tampilkan Data Valid
 with st.expander("✅ Daftar Angka Valid"):
-    if data_lines:
-        st.code("\n".join(data_lines))
-        st.success(f"Total: {len(data_lines)} data valid.")
-    else:
-        st.warning("Belum ada angka valid.")
+    st.code("\n".join(data_lines))
 
 # --- Pilih Metode
 metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
+hasil = None
+akurasi_total = None
 
-# --- Prediksi & Uji Akurasi
+# --- Prediksi & Akurasi
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
-        st.warning("❌ Minimal 11 data diperlukan untuk prediksi.")
+        st.warning("❌ Minimal 11 data diperlukan.")
     else:
-        # Prediksi utama
         if metode == "Markov":
             hasil = top5_markov(df)
         elif metode == "Markov Order-2":
@@ -87,77 +74,94 @@ if st.button("🔮 Prediksi"):
         else:
             hasil = top5_lstm(df)
 
-        st.subheader("🎯 Prediksi Posisi (Top 5 Alternatif per Digit):")
-        for i, posisi in enumerate(["Digit 1 (Ribuan)", "Digit 2 (Ratusan)", "Digit 3 (Puluhan)", "Digit 4 (Satuan)"]):
-            st.markdown(f"**{posisi}:** {', '.join(str(d) for d in hasil[i])}")
+        st.markdown("#### 🎯 Prediksi Top-5 Digit")
+        for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+            st.markdown(f"**{label}:** {', '.join(str(d) for d in hasil[i])}")
 
         # --- Uji Akurasi
         list_akurasi = []
-
         if metode == "LSTM AI":
-            if len(df) < jumlah_uji + 11:
-                st.warning("❌ Tidak cukup data untuk uji akurasi LSTM AI.")
-            else:
+            if len(df) >= jumlah_uji + 11:
                 uji_df = df.tail(jumlah_uji)
                 train_df = df.iloc[:-jumlah_uji]
-
                 prediksi = top5_lstm(train_df)
-                if prediksi is None or len(prediksi) != 4:
-                    st.warning("⚠️ Prediksi LSTM gagal.")
-                else:
+                if prediksi:
                     total = benar = 0
                     for i in range(len(uji_df)):
                         actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-                        skor = 0
-                        for j in range(4):
-                            if int(actual[j]) in prediksi[j]:
-                                benar += 1
-                                skor += 1
+                        skor = sum(int(actual[j]) in prediksi[j] for j in range(4))
                         total += 4
+                        benar += skor
                         list_akurasi.append(skor / 4 * 100)
-
                     akurasi_total = (benar / total) * 100
-                    st.info(f"📈 Akurasi LSTM AI (dari {len(uji_df)} data): {akurasi_total:.2f}%")
-
+                    st.info(f"📈 Akurasi LSTM AI: {akurasi_total:.2f}%")
         else:
-            max_uji = min(jumlah_uji, len(df))
-            uji_df = df.tail(max_uji)
-            total, benar = 0, 0
-
+            uji_df = df.tail(min(jumlah_uji, len(df)))
+            total = benar = 0
             for i in range(len(uji_df)):
                 subset_df = df.iloc[:-(len(uji_df) - i)]
-                if len(subset_df) < 11:
-                    continue
-
+                if len(subset_df) < 11: continue
                 if metode == "Markov":
-                    prediksi = top5_markov(subset_df)
+                    pred = top5_markov(subset_df)
                 elif metode == "Markov Order-2":
-                    prediksi = top5_markov_order2(subset_df)
+                    pred = top5_markov_order2(subset_df)
                 elif metode == "Markov Gabungan":
-                    prediksi = top5_markov_hybrid(subset_df)
-
-                if not prediksi or len(prediksi) != 4:
-                    continue
-
+                    pred = top5_markov_hybrid(subset_df)
                 actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-                skor = 0
-                for j in range(4):
-                    if int(actual[j]) in prediksi[j]:
-                        benar += 1
-                        skor += 1
+                skor = sum(int(actual[j]) in pred[j] for j in range(4))
                 total += 4
+                benar += skor
                 list_akurasi.append(skor / 4 * 100)
-
             if total > 0:
                 akurasi_total = (benar / total) * 100
-                st.info(f"📈 Akurasi per digit (dari {len(uji_df)} data): {akurasi_total:.2f}%")
-            else:
-                st.warning("⚠️ Tidak cukup data untuk menghitung akurasi.")
+                st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
 
-        # --- Grafik Tren Akurasi
         if list_akurasi:
-            with st.expander("📊 Grafik Akurasi per Data Uji"):
-                chart_df = pd.DataFrame({
-                    "Akurasi per Angka (%)": list_akurasi
-                }, index=[f"Uji-{i+1}" for i in range(len(list_akurasi))])
-                st.line_chart(chart_df)
+            with st.expander("📊 Grafik Akurasi per Data"):
+                st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
+
+# -----------------------------
+# GPT Chat Assistant
+st.markdown("---")
+st.markdown("### 💬 Chat Assistant")
+
+if not openai.api_key:
+    st.error("❌ API Key tidak ditemukan di file .env.")
+else:
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    prompt = st.chat_input("Tanya soal prediksi, akurasi, metode...")
+
+    if prompt:
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        context = f"""
+        Jumlah data: {len(df)}
+        Metode: {metode}
+        Prediksi:
+        Ribuan: {hasil[0] if hasil else []}
+        Ratusan: {hasil[1] if hasil else []}
+        Puluhan: {hasil[2] if hasil else []}
+        Satuan: {hasil[3] if hasil else []}
+        Akurasi: {akurasi_total if akurasi_total else 'Belum tersedia'}
+        """
+
+        with st.chat_message("assistant"):
+            with st.spinner("🤖 Menjawab..."):
+                try:
+                    res = openai.ChatCompletion.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "Kamu adalah asisten AI untuk prediksi angka togel."},
+                            {"role": "user", "content": f"{context}\n\nPertanyaan: {prompt}"}
+                        ]
+                    )
+                    reply = res["choices"][0]["message"]["content"]
+                    st.markdown(reply)
+                    st.session_state.messages.append({"role": "assistant", "content": reply})
+                except Exception as e:
+                    st.error(f"Gagal menjawab: {e}")
