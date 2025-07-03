@@ -1,19 +1,18 @@
 import streamlit as st
 import pandas as pd
 import requests
-import openai
 import os
 from dotenv import load_dotenv
 from markov_model import top5_markov, top5_markov_order2, top5_markov_hybrid
 from ai_model import top5_lstm
 
-# Load API key dari .env
+# --- Load API Key dari .env
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
 
-# Konfigurasi halaman
+# --- Konfigurasi Halaman
 st.set_page_config(page_title="Prediksi Togel AI + Chat", layout="centered")
-st.title("🎰 Prediksi Togel 4 Digit - AI & Markov + GPT Assistant")
+st.title("🎰 Prediksi Togel 4 Digit - AI & Markov + Together.ai Assistant")
 
 # --- Pilihan Pasaran dan Hari
 lokasi_list = ["GERMANY", "HONGKONG", "SINGAPORE", "MAGNUM4D", "TOTO MACAU 00:00"]
@@ -121,12 +120,12 @@ if st.button("🔮 Prediksi"):
                 st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
 
 # -----------------------------
-# GPT Chat Assistant
+# Together AI Chat Assistant
 st.markdown("---")
-st.markdown("### 💬 Chat Assistant")
+st.markdown("### 💬 Chat Assistant (via Together.ai)")
 
-if not openai.api_key:
-    st.error("❌ API Key tidak ditemukan di file .env.")
+if not TOGETHER_API_KEY:
+    st.error("❌ API Key Together.ai tidak ditemukan di file .env.")
 else:
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -151,17 +150,28 @@ else:
         """
 
         with st.chat_message("assistant"):
-            with st.spinner("🤖 Menjawab..."):
+            with st.spinner("🤖 Menjawab dari Together.ai..."):
                 try:
-                    res = openai.ChatCompletion.create(
-                        model="gpt-3.5-turbo",
-                        messages=[
-                            {"role": "system", "content": "Kamu adalah asisten AI untuk prediksi angka togel."},
+                    headers = {
+                        "Authorization": f"Bearer {TOGETHER_API_KEY}",
+                        "Content-Type": "application/json"
+                    }
+                    payload = {
+                        "model": "mistral-7b-instruct",
+                        "messages": [
+                            {"role": "system", "content": "Kamu adalah asisten AI untuk prediksi angka dan analisis statistik."},
                             {"role": "user", "content": f"{context}\n\nPertanyaan: {prompt}"}
-                        ]
-                    )
-                    reply = res["choices"][0]["message"]["content"]
+                        ],
+                        "temperature": 0.7,
+                        "max_tokens": 512,
+                        "top_p": 0.9
+                    }
+
+                    response = requests.post("https://api.together.xyz/v1/chat/completions", headers=headers, json=payload)
+                    response.raise_for_status()
+                    reply = response.json()["choices"][0]["message"]["content"]
+
                     st.markdown(reply)
                     st.session_state.messages.append({"role": "assistant", "content": reply})
                 except Exception as e:
-                    st.error(f"Gagal menjawab: {e}")
+                    st.error(f"❌ Gagal menjawab dari Together.ai: {e}")
