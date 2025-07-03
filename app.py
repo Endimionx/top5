@@ -19,7 +19,6 @@ st.set_page_config(page_title="Prediksi Togel AI + Chat", layout="centered")
 st.markdown("<h4>Prediksi Togel 4 Digit - AI & Markov + Chat</h4>", unsafe_allow_html=True)
 
 # ======================= PASARAN ========================
-#lokasi_list = [...]  # Ganti dengan lokasi_list lengkap (lihat bawah)
 lokasi_list = [
     "ARMENIA", "ATLANTIC DAY", "ATLANTIC MORNING", "ATLANTIC NIGHT", "AZERBAIJAN",
     "BAHRAIN", "BARCELONA", "BATAVIA", "BHUTAN", "BIRMINGHAM", "BRISBANE",
@@ -91,7 +90,6 @@ with st.expander("✅ Daftar Angka Valid"):
 # ======================= PREDIKSI ========================
 metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
 
-# ===== Latih model khusus LSTM =====
 if metode == "LSTM AI":
     if model_exists(selected_lokasi):
         st.success("📁 Model tersedia untuk pasaran ini.")
@@ -105,7 +103,6 @@ if metode == "LSTM AI":
             train_and_save_lstm(df, lokasi=selected_lokasi)
             st.success("✅ Model berhasil dilatih & disimpan.")
 
-# ===== Tombol prediksi =====
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan.")
@@ -160,26 +157,27 @@ if st.button("🔮 Prediksi"):
                 st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
 
 # ======================= MANAJEMEN MODEL ========================
-st.markdown("## 📁 Manajemen Model Tersimpan")
-model_files = list(MODEL_DIR.glob("*.h5"))
-if not model_files:
-    st.info("Tidak ada model tersimpan di folder `saved_models/`.")
-else:
-    for model_file in model_files:
-        col1, col2, col3 = st.columns([3, 2, 2])
-        with col1:
-            st.markdown(f"📄 **{model_file.name}**")
-        with col2:
-            with open(model_file, "rb") as f:
-                st.download_button("⬇️ Download", f, file_name=model_file.name, mime="application/octet-stream", key=f"dl-{model_file.name}")
-        with col3:
-            if st.button("🗑️ Hapus", key=f"del-{model_file.name}"):
-                try:
-                    os.remove(model_file)
-                    st.success(f"{model_file.name} dihapus.")
-                    st.experimental_rerun()
-                except Exception as e:
-                    st.error(f"Gagal hapus: {e}")
+if metode == "LSTM AI":
+    st.markdown("## 📁 Manajemen Model Tersimpan")
+    model_files = list(MODEL_DIR.glob("*.h5"))
+    if not model_files:
+        st.info("Tidak ada model tersimpan di folder `saved_models/`.")
+    else:
+        for model_file in model_files:
+            col1, col2, col3 = st.columns([3, 2, 2])
+            with col1:
+                st.markdown(f"📄 **{model_file.name}**")
+            with col2:
+                with open(model_file, "rb") as f:
+                    st.download_button("⬇️ Download", f, file_name=model_file.name, mime="application/octet-stream", key=f"dl-{model_file.name}")
+            with col3:
+                if st.button("🗑️ Hapus", key=f"del-{model_file.name}"):
+                    try:
+                        os.remove(model_file)
+                        st.success(f"{model_file.name} dihapus.")
+                        st.experimental_rerun()
+                    except Exception as e:
+                        st.error(f"Gagal hapus: {e}")
 
 # ======================= FLOATING CHAT ========================
 components.html("""
@@ -230,7 +228,6 @@ chatInput.addEventListener("keydown", async function(event) {
 </script>
 """, height=0)
 
-# ======================= API Assistant Response ========================
 if "q" in st.query_params:
     q = st.query_params["q"]
     try:
