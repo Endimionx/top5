@@ -141,8 +141,8 @@ if st.button("🔮 Prediksi"):
                 
             if total > 0:
                 akurasi_total = (benar / total) * 100
-                st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
+                    st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
                 with st.expander("📊 Grafik Akurasi"):
-                st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
+                    st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
             else:
                 st.warning("⚠️ Tidak cukup data valid untuk evaluasi akurasi.")
