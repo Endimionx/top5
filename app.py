@@ -57,6 +57,7 @@ selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
 putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
 jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=1000, value=5, step=1)
+
 # ======================= AMBIL DATA ========================
 angka_list = []
 riwayat_input = ""
@@ -79,7 +80,6 @@ df = pd.DataFrame({"angka": angka_list})
 # ======================= PREDIKSI ========================
 metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
 
-# ======= Manajemen Model LSTM =======
 if metode == "LSTM AI":
     with st.expander("🛠️ Manajemen Model LSTM"):
         if st.button("📚 Latih & Simpan Model"):
@@ -98,7 +98,7 @@ if metode == "LSTM AI":
                 os.remove(model_path)
                 st.warning("🗑 Model berhasil dihapus.")
 
-# ======================= Prediksi dan Akurasi ========================
+# ======================= PREDIKSI ========================
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan.")
@@ -116,9 +116,9 @@ if st.button("🔮 Prediksi"):
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                 st.markdown(f"**{label}:** {', '.join(str(d) for d in pred[i])}")
 
-            # Evaluasi akurasi
+            # ============ Akurasi ============
             list_akurasi = []
-            uji_df = df.tail(min(jumlah_uji, len(df)))
+            uji_df = df.tail(min(jumlah_uji, len(df) - 10))
             total = benar = 0
             for i in range(len(uji_df)):
                 subset_df = df.iloc[:-(len(uji_df) - i)]
@@ -138,13 +138,9 @@ if st.button("🔮 Prediksi"):
                 benar += skor
                 list_akurasi.append(skor / 4 * 100)
 
+            st.write(f"✅ Total = {total}, Benar = {benar}, Jumlah Uji: {jumlah_uji}")
             if total > 0:
                 akurasi_total = (benar / total) * 100
-
-                # ✅ DEBUG
-                st.write("🛠️ Debug Info")
-                st.write(f"Total: {total}, Benar: {benar}, Akurasi: {akurasi_total:.2f}%")
-
                 st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
                 with st.expander("📊 Grafik Akurasi"):
                     st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
