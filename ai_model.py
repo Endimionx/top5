@@ -4,17 +4,12 @@ from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense
 from tensorflow.keras.utils import to_categorical
 
-MODEL_DIR = "saved_models"
-os.makedirs(MODEL_DIR, exist_ok=True)
-
-def model_exists(lokasi):
-    model_path = os.path.join(MODEL_DIR, f"lstm_{lokasi.lower().replace(' ', '_')}.h5")
-    return os.path.exists(model_path)
-
-def train_and_save_lstm(df, lokasi="default"):
+def prepare_lstm_data(df):
     data = df['angka'].dropna().apply(lambda x: [int(d) for d in f"{int(x):04d}"]).tolist()
     data = np.array(data)
-    if len(data) < 20: return None
+
+    if len(data) < 11:
+        return None, None
 
     X, y = [], []
     for i in range(len(data) - 10):
@@ -22,36 +17,59 @@ def train_and_save_lstm(df, lokasi="default"):
         y.append(data[i+10])
     X, y = np.array(X), np.array(y)
 
+    if len(X) == 0 or len(y) == 0:
+        return None, None
+
     y_encoded = np.array([to_categorical(d, num_classes=10) for d in y])
     y_encoded = y_encoded.reshape(-1, 40)
 
-    model = Sequential()
-    model.add(LSTM(128, return_sequences=False, input_shape=(10, 4)))
-    model.add(Dense(40, activation='softmax'))
-    model.compile(optimizer='adam', loss='categorical_crossentropy')
-    model.fit(X, y_encoded, epochs=50, batch_size=16, verbose=0)
+    return X, y_encoded
 
-    model_path = os.path.join(MODEL_DIR, f"lstm_{lokasi.lower().replace(' ', '_')}.h5")
-    model.save(model_path)
+def model_exists(lokasi):
+    filename = f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5"
+    return os.path.exists(filename)
 
-def top5_lstm(df, lokasi="default"):
-    try:
-        data = df['angka'].dropna().apply(lambda x: [int(d) for d in f"{int(x):04d}"]).tolist()
-        data = np.array(data)
-        if len(data) < 11: return None
+def train_and_save_lstm(df, lokasi):
+    os.makedirs("saved_models", exist_ok=True)
+    filename = f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5"
 
-        model_path = os.path.join(MODEL_DIR, f"lstm_{lokasi.lower().replace(' ', '_')}.h5")
-        if not os.path.exists(model_path): return None
+    X, y = prepare_lstm_data(df)
+    if X is None or y is None:
+        return
 
-        model = load_model(model_path)
-        input_seq = np.array(data[-10:]).reshape(1, 10, 4)
-        pred = model.predict(input_seq, verbose=0).reshape(4, 10)
+    if os.path.exists(filename):
+        print(f"🧠 Fine-tuning model untuk {lokasi}")
+        model = load_model(filename)
+    else:
+        print(f"🧠 Membuat model baru untuk {lokasi}")
+        model = Sequential()
+        model.add(LSTM(128, return_sequences=False, input_shape=(10, 4)))
+        model.add(Dense(40, activation='softmax'))
+        model.compile(optimizer='adam', loss='categorical_crossentropy')
 
-        top5 = []
-        for i in range(4):
-            top = list(np.argsort(-pred[i])[:5])
-            top5.append(top)
-        return top5
-    except Exception as e:
-        print(f"[ERROR top5_lstm]: {e}")
+    val_split = 0.1 if len(X) >= 10 else 0
+    model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=val_split)
+
+    model.save(filename)
+
+def top5_lstm(df, lokasi=None):
+    filename = f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5"
+    if not os.path.exists(filename):
         return None
+
+    data = df['angka'].dropna().apply(lambda x: [int(d) for d in f"{int(x):04d}"]).tolist()
+    data = np.array(data)
+
+    if len(data) < 10:
+        return None
+
+    model = load_model(filename)
+    input_seq = np.array(data[-10:]).reshape(1, 10, 4)
+    pred = model.predict(input_seq, verbose=0)[0].reshape(4, 10)
+
+    top5 = []
+    for i in range(4):
+        top = list(np.argsort(-pred[i])[:5])
+        top5.append(top)
+
+    return top5
