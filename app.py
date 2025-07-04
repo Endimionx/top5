@@ -80,7 +80,7 @@ df = pd.DataFrame({"angka": angka_list})
 # ======================= PREDIKSI ========================
 metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
 
-# ======= Khusus Manajemen Model LSTM =======
+# ======= Manajemen Model LSTM =======
 if metode == "LSTM AI":
     with st.expander("🛠️ Manajemen Model LSTM"):
         if st.button("📚 Latih & Simpan Model"):
@@ -117,7 +117,7 @@ if st.button("🔮 Prediksi"):
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                 st.markdown(f"**{label}:** {', '.join(str(d) for d in pred[i])}")
 
-            # Akurasi
+            # Evaluasi akurasi
             list_akurasi = []
             uji_df = df.tail(min(jumlah_uji, len(df)))
             total = benar = 0
@@ -138,10 +138,14 @@ if st.button("🔮 Prediksi"):
                 total += 4
                 benar += skor
                 list_akurasi.append(skor / 4 * 100)
-                st.info(f"total : {total}")
-                
+
             if total > 0:
                 akurasi_total = (benar / total) * 100
+
+                # ✅ DEBUG
+                st.write("🛠️ Debug Info")
+                st.write(f"Total: {total}, Benar: {benar}, Akurasi: {akurasi_total:.2f}%")
+
                 st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
                 with st.expander("📊 Grafik Akurasi"):
                     st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
