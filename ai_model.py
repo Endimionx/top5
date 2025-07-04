@@ -22,7 +22,6 @@ def prepare_lstm_data(df):
 
     y_encoded = np.array([to_categorical(d, num_classes=10) for d in y])
     y_encoded = y_encoded.reshape(-1, 40)
-
     return X, y_encoded
 
 def model_exists(lokasi):
@@ -32,16 +31,13 @@ def model_exists(lokasi):
 def train_and_save_lstm(df, lokasi):
     os.makedirs("saved_models", exist_ok=True)
     filename = f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5"
-
     X, y = prepare_lstm_data(df)
     if X is None or y is None:
         return
 
     if os.path.exists(filename):
-        print(f"🧠 Fine-tuning model untuk {lokasi}")
         model = load_model(filename)
     else:
-        print(f"🧠 Membuat model baru untuk {lokasi}")
         model = Sequential()
         model.add(LSTM(128, return_sequences=False, input_shape=(10, 4)))
         model.add(Dense(40, activation='softmax'))
@@ -49,10 +45,9 @@ def train_and_save_lstm(df, lokasi):
 
     val_split = 0.1 if len(X) >= 10 else 0
     model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=val_split)
-
     model.save(filename)
 
-def top5_lstm(df, lokasi=None):
+def top6_lstm(df, lokasi=None):
     filename = f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5"
     if not os.path.exists(filename):
         return None
@@ -69,7 +64,7 @@ def top5_lstm(df, lokasi=None):
 
     top6 = []
     for i in range(4):
-        top = list(np.argsort(-pred[i])[:6])  # Ubah dari 5 menjadi 6 prediksi teratas
+        top = list(np.argsort(-pred[i])[:6])  # Ambil Top-6
         top6.append(top)
 
     return top6
