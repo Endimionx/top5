@@ -3,46 +3,54 @@ import pandas as pd
 import numpy as np
 import requests
 import os
+import time
 from dotenv import load_dotenv
 from markov_model import top6_markov, top6_markov_order2, top6_markov_hybrid
 from ai_model import top6_lstm, train_and_save_lstm, model_exists
-import time
+from tensorflow.keras.models import load_model
 
 load_dotenv()
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
 st.markdown("<h4>Prediksi Togel 4D - AI & Markov</h4>", unsafe_allow_html=True)
 
-# ======================= PASARAN ========================
 lokasi_list = sorted(set([
     "ARMENIA", "ATLANTIC DAY", "ATLANTIC MORNING", "ATLANTIC NIGHT", "AZERBAIJAN",
-    "BAHRAIN", "BARCELONA", "BATAVIA", "BHUTAN", "BIRMINGHAM", "BRISBANE", "BRITANIA",
-    "BRUNEI", "BUCHAREST", "BUDAPEST", "BULLSEYE", "CALIFORNIA", "CAMBODIA", "CAMBRIDGE",
-    "CANBERRA", "CHILE", "CHINA", "COLOMBIA", "COLORADO DAY", "COLORADO EVENING",
-    "COLORADO MORNING", "COPENHAGEN", "CYPRUS", "DARWIN", "DELAWARE DAY", "DELAWARE NIGHT",
-    "DUBLIN DAY", "DUBLIN MORNING", "DUBLIN NIGHT", "EMIRATES DAY", "EMIRATES NIGHT", "EURO",
-    "FLORIDA EVENING", "FLORIDA MIDDAY", "GEORGIA EVENING", "GEORGIA MIDDAY", "GEORGIA NIGHT",
-    "GERMANY PLUS5", "GREENLAND", "HELSINKI", "HONGKONG", "HONGKONG LOTTO", "HOUSTON",
-    "ILLINOIS EVENING", "ILLINOIS MIDDAY", "INDIANA EVENING", "INDIANA MIDDAY", "IVORY COAST",
-    "JAPAN", "JORDAN", "KENTUCKY EVENING", "KENTUCKY MIDDAY", "KUWAIT", "LAOS", "LEBANON",
-    "MAGNUM4D", "MANHATTAN DAY", "MANHATTAN NIGHT", "MARYLAND EVENING", "MARYLAND MIDDAY",
-    "MASSACHUSETTS EVENING", "MASSACHUSETTS MIDDAY", "MICHIGAN EVENING", "MICHIGAN MIDDAY",
-    "MIDWAY", "MILAN", "MISSOURI EVENING", "MISSOURI MIDDAY", "MONACO", "MOROCCO QUATRO 00:00",
-    "MOROCCO QUATRO 01:00", "MOROCCO QUATRO 02:00", "MOROCCO QUATRO 03:00", "MOROCCO QUATRO 04:00",
-    "MOROCCO QUATRO 05:00", "MOROCCO QUATRO 06:00", "MOROCCO QUATRO 15:00", "MOROCCO QUATRO 16:00",
-    "MOROCCO QUATRO 17:00", "MOROCCO QUATRO 18:00", "MOROCCO QUATRO 19:00", "MOROCCO QUATRO 20:00",
-    "MOROCCO QUATRO 21:00", "MOROCCO QUATRO 22:00", "MOROCCO QUATRO 23:00", "MUNICH", "MYANMAR",
-    "NAMIBIA", "NEVADA", "NEVADA DAY", "NEVADA EVENING", "NEVADA MORNING", "NEW JERSEY EVENING",
-    "NEW JERSEY MIDDAY", "NEW YORK EVENING", "NEW YORK MIDDAY", "NICOSIA", "NORTH CAROLINA DAY",
-    "NORTH CAROLINA EVENING", "OHIO EVENING", "OHIO MIDDAY", "OKLAHOMA DAY", "OKLAHOMA EVENING",
-    "OKLAHOMA MORNING", "OMAN", "OREGON 1", "OREGON 2", "OREGON 3", "OREGON 4", "ORLANDO", "OSLO",
-    "PACIFIC", "PCSO", "PENNSYLVANIA DAY", "PENNSYLVANIA EVENING", "QATAR", "QUEENSLAND",
-    "RHODE ISLAND MIDDAY", "ROTTERDAM", "SINGAPORE", "SINGAPORE 6D", "SOUTH CAROLINA MIDDAY",
-    "STOCKHOLM", "SYDNEY", "SYDNEY LOTTO", "TAIWAN", "TENNESSE EVENING", "TENNESSE MIDDAY",
-    "TENNESSE MORNING", "TEXAS DAY", "TEXAS EVENING", "TEXAS MORNING", "TEXAS NIGHT", "THAILAND",
-    "TOTO MACAU 00:00", "TOTO MACAU 13:00", "TOTO MACAU 16:00", "TOTO MACAU 19:00",
-    "TOTO MACAU 22:00", "TURKEY", "UAE", "USA DAY", "USA NIGHT", "UTAH DAY", "UTAH EVENING",
-    "UTAH MORNING", "VENEZIA", "VIRGINIA DAY", "VIRGINIA NIGHT", "WASHINGTON DC EVENING",
-    "WASHINGTON DC MIDDAY", "WEST VIRGINIA", "WISCONSIN", "YAMAN", "ZURICH"
+    "BAHRAIN", "BARCELONA", "BATAVIA", "BHUTAN", "BIRMINGHAM", "BRISBANE",
+    "BRITANIA", "BRUNEI", "BUCHAREST", "BUDAPEST", "BULLSEYE", "CALIFORNIA",
+    "CAMBODIA", "CAMBRIDGE", "CANBERRA", "CHILE", "CHINA", "COLOMBIA",
+    "COLORADO DAY", "COLORADO EVENING", "COLORADO MORNING", "COPENHAGEN",
+    "CYPRUS", "DARWIN", "DELAWARE DAY", "DELAWARE NIGHT", "DUBLIN DAY",
+    "DUBLIN MORNING", "DUBLIN NIGHT", "EMIRATES DAY", "EMIRATES NIGHT", "EURO",
+    "FLORIDA EVENING", "FLORIDA MIDDAY", "GEORGIA EVENING", "GEORGIA MIDDAY",
+    "GEORGIA NIGHT", "GERMANY PLUS5", "GREENLAND", "HELSINKI", "HONGKONG",
+    "HONGKONG LOTTO", "HOUSTON", "ILLINOIS EVENING", "ILLINOIS MIDDAY",
+    "INDIANA EVENING", "INDIANA MIDDAY", "IVORY COAST", "JAPAN", "JORDAN",
+    "KENTUCKY EVENING", "KENTUCKY MIDDAY", "KUWAIT", "LAOS", "LEBANON",
+    "MAGNUM4D", "MANHATTAN DAY", "MANHATTAN NIGHT", "MARYLAND EVENING",
+    "MARYLAND MIDDAY", "MASSACHUSETTS EVENING", "MASSACHUSETTS MIDDAY",
+    "MICHIGAN EVENING", "MICHIGAN MIDDAY", "MIDWAY", "MILAN", "MISSOURI EVENING",
+    "MISSOURI MIDDAY", "MONACO", "MOROCCO QUATRO 00:00", "MOROCCO QUATRO 01:00",
+    "MOROCCO QUATRO 02:00", "MOROCCO QUATRO 03:00", "MOROCCO QUATRO 04:00",
+    "MOROCCO QUATRO 05:00", "MOROCCO QUATRO 06:00", "MOROCCO QUATRO 15:00",
+    "MOROCCO QUATRO 16:00", "MOROCCO QUATRO 17:00", "MOROCCO QUATRO 18:00",
+    "MOROCCO QUATRO 19:00", "MOROCCO QUATRO 20:00", "MOROCCO QUATRO 21:00",
+    "MOROCCO QUATRO 22:00", "MOROCCO QUATRO 23:00", "MUNICH", "MYANMAR",
+    "NAMIBIA", "NEVADA", "NEVADA DAY", "NEVADA EVENING", "NEVADA MORNING",
+    "NEW JERSEY EVENING", "NEW JERSEY MIDDAY", "NEW YORK EVENING",
+    "NEW YORK MIDDAY", "NICOSIA", "NORTH CAROLINA DAY", "NORTH CAROLINA EVENING",
+    "OHIO EVENING", "OHIO MIDDAY", "OKLAHOMA DAY", "OKLAHOMA EVENING",
+    "OKLAHOMA MORNING", "OMAN", "OREGON 1", "OREGON 2", "OREGON 3", "OREGON 4",
+    "ORLANDO", "OSLO", "PACIFIC", "PCSO", "PENNSYLVANIA DAY",
+    "PENNSYLVANIA EVENING", "QATAR", "QUEENSLAND", "RHODE ISLAND MIDDAY",
+    "ROTTERDAM", "SINGAPORE", "SINGAPORE 6D", "SOUTH CAROLINA MIDDAY",
+    "STOCKHOLM", "SYDNEY", "SYDNEY LOTTO", "TAIWAN", "TENNESSE EVENING",
+    "TENNESSE MIDDAY", "TENNESSE MORNING", "TEXAS DAY", "TEXAS EVENING",
+    "TEXAS MORNING", "TEXAS NIGHT", "THAILAND", "TOTO MACAU 00:00",
+    "TOTO MACAU 13:00", "TOTO MACAU 16:00", "TOTO MACAU 19:00",
+    "TOTO MACAU 22:00", "TURKEY", "UAE", "USA DAY", "USA NIGHT", "UTAH DAY",
+    "UTAH EVENING", "UTAH MORNING", "VENEZIA", "VIRGINIA DAY", "VIRGINIA NIGHT",
+    "WASHINGTON DC EVENING", "WASHINGTON DC MIDDAY", "WEST VIRGINIA",
+    "WISCONSIN", "YAMAN", "ZURICH"
 ]))
 
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
@@ -50,9 +58,9 @@ hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
 putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
-jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=1000, value=5, step=1)
+jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", 1, 1000, 5)
 
-# ======================= AMBIL DATA ========================
+# Ambil Data
 angka_list = []
 riwayat_input = ""
 if selected_lokasi and selected_hari:
@@ -70,15 +78,19 @@ if selected_lokasi and selected_hari:
         st.error(f"❌ Gagal ambil data API: {e}")
 
 df = pd.DataFrame({"angka": angka_list})
-
-# ======================= PREDIKSI ========================
 metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
 
-# ======= Manajemen Model LSTM =======
+# ===== LSTM Manajemen Model =====
 if metode == "LSTM AI":
     with st.expander("🛠️ Manajemen Model LSTM"):
-        model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
+        if st.button("📚 Latih & Simpan Model"):
+            if len(df) < 20:
+                st.warning("Minimal 20 data untuk latih model.")
+            else:
+                train_and_save_lstm(df, selected_lokasi)
+                st.success("✅ Model berhasil dilatih dan disimpan.")
 
+        model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
         if os.path.exists(model_path):
             st.success(f"📁 Model ditemukan: {model_path}")
             with open(model_path, "rb") as f:
@@ -87,40 +99,35 @@ if metode == "LSTM AI":
                 os.remove(model_path)
                 st.warning("🗑 Model berhasil dihapus.")
         else:
-            uploaded_file = st.file_uploader("📤 Upload Model LSTM (.h5)", type=["h5"])
-            if uploaded_file is not None:
+            uploaded = st.file_uploader("📤 Upload Model LSTM (.h5)", type=["h5"])
+            if uploaded:
                 os.makedirs("saved_models", exist_ok=True)
                 with open(model_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
+                    f.write(uploaded.getbuffer())
                 st.success("✅ Model berhasil diunggah.")
+                time.sleep(0.5)
                 st.experimental_rerun()
 
-        if st.button("📚 Latih & Simpan Model"):
-            if len(df) < 20:
-                st.warning("Minimal 20 data untuk latih model.")
-            else:
-                train_and_save_lstm(df, selected_lokasi)
-                st.success("✅ Model berhasil dilatih dan disimpan.")
-
-# ======================= Prediksi ========================
+# ===== Prediksi & Akurasi =====
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan.")
     else:
-        with st.spinner("⏳ Menghitung prediksi dan akurasi..."):
-            pred = (
-                top6_markov(df) if metode == "Markov" else
-                top6_markov_order2(df) if metode == "Markov Order-2" else
-                top6_markov_hybrid(df) if metode == "Markov Gabungan" else
-                top6_lstm(df, lokasi=selected_lokasi)
-            )
-            if pred is None:
-                st.error("❌ Gagal prediksi.")
-            else:
-                st.markdown("#### 🎯 Prediksi Top-6 Digit")
-                for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
-                    st.markdown(f"**{label}:** {', '.join(str(d) for d in pred[i])}")
+        pred = (
+            top6_markov(df) if metode == "Markov" else
+            top6_markov_order2(df) if metode == "Markov Order-2" else
+            top6_markov_hybrid(df) if metode == "Markov Gabungan" else
+            top6_lstm(df, lokasi=selected_lokasi)
+        )
+        if pred is None:
+            st.error("❌ Gagal prediksi.")
+        else:
+            st.markdown("#### 🎯 Prediksi Top-6 Digit")
+            for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+                st.markdown(f"**{label}:** {', '.join(map(str, pred[i]))}")
 
+            # Akurasi
+            with st.spinner("⏳ Menghitung akurasi..."):
                 list_akurasi = []
                 uji_df = df.tail(min(jumlah_uji, len(df)))
                 total = benar = 0
