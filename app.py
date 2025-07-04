@@ -7,7 +7,7 @@ from markov_model import top6_markov, top6_markov_order2, top6_markov_hybrid
 from ai_model import top6_lstm, train_and_save_lstm, model_exists
 
 load_dotenv()
-st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
+st.set_page_config(page_title="Prediksi 4D AI", layout="wide")
 st.markdown("<h4>Prediksi 4D - AI & Markov</h4>", unsafe_allow_html=True)
 
 # ======================= PASARAN ========================
@@ -113,7 +113,7 @@ if st.button("🔮 Prediksi"):
         if pred is None:
             st.error("❌ Gagal prediksi.")
         else:
-            st.markdown("<h4>Prediksi Top-6 Digit</h4>")
+            st.markdown("Prediksi Top-6 Digit")
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                 st.markdown(f"**{label}:** {', '.join(str(d) for d in pred[i])}")
 
