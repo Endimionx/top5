@@ -51,7 +51,8 @@ lokasi_list = sorted(set([
     "UTAH EVENING", "UTAH MORNING", "VENEZIA", "VIRGINIA DAY", "VIRGINIA NIGHT",
     "WASHINGTON DC EVENING", "WASHINGTON DC MIDDAY", "WEST VIRGINIA",
     "WISCONSIN", "YAMAN", "ZURICH"
-]))hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
+]))
+hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 
 selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
