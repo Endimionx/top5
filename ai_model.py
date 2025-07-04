@@ -67,9 +67,9 @@ def top5_lstm(df, lokasi=None):
     input_seq = np.array(data[-10:]).reshape(1, 10, 4)
     pred = model.predict(input_seq, verbose=0)[0].reshape(4, 10)
 
-    top5 = []
+    top6 = []
     for i in range(4):
-        top = list(np.argsort(-pred[i])[:5])
-        top5.append(top)
+        top = list(np.argsort(-pred[i])[:6])  # Ubah dari 5 menjadi 6 prediksi teratas
+        top6.append(top)
 
-    return top5
+    return top6
