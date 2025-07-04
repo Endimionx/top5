@@ -126,7 +126,7 @@ if st.button("🔮 Prediksi"):
             st.error("❌ Gagal prediksi.")
         else:
             st.markdown("#### 🎯 Prediksi Top-6 Digit")
-            for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+            for i, label in enumerate(["A", "C", "K", "E"]):
                 st.markdown(f"**{label}:** {', '.join(str(d) for d in pred[i])}")
 
             # Hitung Akurasi
