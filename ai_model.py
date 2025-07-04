@@ -100,3 +100,25 @@ def anti_top6_lstm(df, lokasi=None):
         anti_top6.append(lowest6)
 
     return anti_top6
+
+def low6_lstm(df, lokasi=None):
+    filename = f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5"
+    if not os.path.exists(filename):
+        return None
+
+    data = df['angka'].dropna().apply(lambda x: [int(d) for d in f"{int(x):04d}"]).tolist()
+    data = np.array(data)
+
+    if len(data) < 10:
+        return None
+
+    model = load_model(filename)
+    input_seq = np.array(data[-10:]).reshape(1, 10, 4)
+    pred = model.predict(input_seq, verbose=0)[0].reshape(4, 10)
+
+    low6 = []
+    for i in range(4):
+        low = list(np.argsort(pred[i])[:6])
+        low6.append(low)
+
+    return low6
