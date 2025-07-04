@@ -11,7 +11,7 @@ st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
 st.markdown("<h4>Prediksi Togel 4D - AI & Markov</h4>", unsafe_allow_html=True)
 
 # ======================= PASARAN ========================
-lokasi_list = sorted(set([
+lokasi_list = [
     "ARMENIA", "ATLANTIC DAY", "ATLANTIC MORNING", "ATLANTIC NIGHT", "AZERBAIJAN",
     "BAHRAIN", "BARCELONA", "BATAVIA", "BHUTAN", "BIRMINGHAM", "BRISBANE",
     "BRITANIA", "BRUNEI", "BUCHAREST", "BUDAPEST", "BULLSEYE", "CALIFORNIA",
@@ -49,20 +49,21 @@ lokasi_list = sorted(set([
     "UTAH EVENING", "UTAH MORNING", "VENEZIA", "VIRGINIA DAY", "VIRGINIA NIGHT",
     "WASHINGTON DC EVENING", "WASHINGTON DC MIDDAY", "WEST VIRGINIA",
     "WISCONSIN", "YAMAN", "ZURICH"
-]))
+]
 
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 
 selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
 putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
-jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=1000, value=5)
+jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=1000, value=5, step=1)
 
+# ======================= AMBIL DATA ========================
 angka_list = []
 riwayat_input = ""
 if selected_lokasi and selected_hari:
     try:
-        url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&showpasaran=yes&showtgl=yes&format=json&urut=asc"
+        url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
         headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
         response = requests.get(url, headers=headers)
         data = response.json()
@@ -75,8 +76,11 @@ if selected_lokasi and selected_hari:
         st.error(f"❌ Gagal ambil data API: {e}")
 
 df = pd.DataFrame({"angka": angka_list})
+
+# ======================= PREDIKSI ========================
 metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
 
+# ======= Manajemen Model LSTM =======
 if metode == "LSTM AI":
     with st.expander("🛠️ Manajemen Model LSTM"):
         if st.button("📚 Latih & Simpan Model"):
@@ -95,21 +99,30 @@ if metode == "LSTM AI":
                 os.remove(model_path)
                 st.warning("🗑 Model berhasil dihapus.")
 
+        uploaded_file = st.file_uploader("📤 Upload Model LSTM (.h5)", type=["h5"])
+        if uploaded_file is not None:
+            save_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
+            with open(save_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            st.success("✅ Model berhasil diunggah.")
+
+# ======================= Prediksi dan Akurasi ========================
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan.")
     else:
-        with st.spinner("⏳ Sedang memproses prediksi dan akurasi..."):
+        with st.spinner("⏳ Menjalankan prediksi dan evaluasi..."):
             pred = (
                 top6_markov(df) if metode == "Markov" else
                 top6_markov_order2(df) if metode == "Markov Order-2" else
                 top6_markov_hybrid(df) if metode == "Markov Gabungan" else
                 top6_lstm(df, lokasi=selected_lokasi)
             )
+
             if pred is None:
                 st.error("❌ Gagal prediksi.")
             else:
-                st.markdown("#### 🎯 Prediksi Top-6 Digit per Posisi")
+                st.markdown("#### 🎯 Prediksi Top-6 Digit")
                 for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                     st.markdown(f"**{label}:** {', '.join(str(d) for d in pred[i])}")
 
