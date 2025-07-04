@@ -1,9 +1,9 @@
 import os
 import numpy as np
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.layers import Input, LSTM, Dense, Dropout
 from tensorflow.keras.utils import to_categorical
-from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 
 def prepare_lstm_data(df):
     data = df['angka'].dropna().apply(lambda x: [int(d) for d in f"{int(x):04d}"]).tolist()
@@ -21,8 +21,7 @@ def prepare_lstm_data(df):
     if len(X) == 0 or len(y) == 0:
         return None, None
 
-    y_encoded = np.array([to_categorical(d, num_classes=10) for d in y])
-    y_encoded = y_encoded.reshape(-1, 40)
+    y_encoded = [to_categorical(y[:, i], num_classes=10) for i in range(4)]
 
     return X, y_encoded
 
@@ -43,17 +42,20 @@ def train_and_save_lstm(df, lokasi):
         model = load_model(filename)
     else:
         print(f"🧠 Membuat model baru untuk {lokasi}")
-        model = Sequential()
-        model.add(LSTM(128, return_sequences=True, input_shape=(10, 4)))
-        model.add(Dropout(0.2))
-        model.add(LSTM(64))
-        model.add(Dense(40, activation='softmax'))
+        inputs = Input(shape=(10, 4))
+        x = LSTM(128, return_sequences=True)(inputs)
+        x = Dropout(0.2)(x)
+        x = LSTM(64)(x)
+        outputs = [Dense(10, activation='softmax', name=f'output_{i}')(x) for i in range(4)]
+        model = Model(inputs=inputs, outputs=outputs)
         model.compile(optimizer='adam', loss='categorical_crossentropy')
 
-    callbacks = [EarlyStopping(monitor='loss', patience=5, restore_best_weights=True)]
+    callbacks = [
+        EarlyStopping(monitor='loss', patience=5, restore_best_weights=True),
+        ReduceLROnPlateau(monitor='loss', factor=0.5, patience=3, verbose=0)
+    ]
 
     model.fit(X, y, epochs=50, batch_size=16, verbose=0, callbacks=callbacks)
-
     model.save(filename)
 
 def top6_lstm(df, lokasi=None):
@@ -63,19 +65,17 @@ def top6_lstm(df, lokasi=None):
 
     data = df['angka'].dropna().apply(lambda x: [int(d) for d in f"{int(x):04d}"]).tolist()
     data = np.array(data)
-
     if len(data) < 10:
         return None
 
     model = load_model(filename)
     input_seq = np.array(data[-10:]).reshape(1, 10, 4)
-    pred = model.predict(input_seq, verbose=0)[0].reshape(4, 10)
+    preds = model.predict(input_seq, verbose=0)
 
     top6 = []
     for i in range(4):
-        top = list(np.argsort(-pred[i])[:6])
+        top = list(np.argsort(-preds[i][0])[:6])
         top6.append(top)
-
     return top6
 
 def anti_top6_lstm(df, lokasi=None):
@@ -85,40 +85,19 @@ def anti_top6_lstm(df, lokasi=None):
 
     data = df['angka'].dropna().apply(lambda x: [int(d) for d in f"{int(x):04d}"]).tolist()
     data = np.array(data)
-
     if len(data) < 10:
         return None
 
     model = load_model(filename)
     input_seq = np.array(data[-10:]).reshape(1, 10, 4)
-    pred = model.predict(input_seq, verbose=0)[0].reshape(4, 10)
+    preds = model.predict(input_seq, verbose=0)
 
     anti_top6 = []
     for i in range(4):
-        sorted_idx = np.argsort(pred[i])  # ascending
-        lowest6 = list(sorted_idx[:6])
-        anti_top6.append(lowest6)
-
+        bottom = list(np.argsort(preds[i][0])[:6])
+        anti_top6.append(bottom)
     return anti_top6
 
 def low6_lstm(df, lokasi=None):
-    filename = f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5"
-    if not os.path.exists(filename):
-        return None
-
-    data = df['angka'].dropna().apply(lambda x: [int(d) for d in f"{int(x):04d}"]).tolist()
-    data = np.array(data)
-
-    if len(data) < 10:
-        return None
-
-    model = load_model(filename)
-    input_seq = np.array(data[-10:]).reshape(1, 10, 4)
-    pred = model.predict(input_seq, verbose=0)[0].reshape(4, 10)
-
-    low6 = []
-    for i in range(4):
-        low = list(np.argsort(pred[i])[:6])
-        low6.append(low)
-
-    return low6
+    # Sama dengan anti_top6_lstm untuk kompatibilitas lama
+    return anti_top6_lstm(df, lokasi)
