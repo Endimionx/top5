@@ -7,8 +7,8 @@ from markov_model import top6_markov, top6_markov_order2, top6_markov_hybrid
 from ai_model import top6_lstm, train_and_save_lstm, model_exists
 
 load_dotenv()
-st.set_page_config(page_title="Prediksi 4D AI", layout="wide")
-st.markdown("<h4>Prediksi 4D - AI & Markov</h4>", unsafe_allow_html=True)
+st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
+st.markdown("<h4>Prediksi Togel 4D - AI & Markov</h4>", unsafe_allow_html=True)
 
 # ======================= PASARAN ========================
 lokasi_list = sorted(set([
@@ -56,7 +56,7 @@ hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
 putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
-jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", 1, 1000, 5)
+jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=1000, value=5)
 
 # ======================= AMBIL DATA ========================
 angka_list = []
@@ -80,8 +80,19 @@ df = pd.DataFrame({"angka": angka_list})
 # ======================= PREDIKSI ========================
 metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
 
+# ======= Khusus Manajemen Model LSTM =======
 if metode == "LSTM AI":
     with st.expander("🛠️ Manajemen Model LSTM"):
+        save_dir = os.path.join(os.getcwd(), "saved_models")
+        os.makedirs(save_dir, exist_ok=True)
+        model_path = os.path.join(save_dir, f"lstm_{selected_lokasi.lower().replace(' ', '_')}.h5")
+
+        uploaded = st.file_uploader("📤 Upload Model (.h5)", type=["h5"])
+        if uploaded is not None:
+            with open(model_path, "wb") as f:
+                f.write(uploaded.read())
+            st.success("✅ Model berhasil diunggah.")
+
         if st.button("📚 Latih & Simpan Model"):
             if len(df) < 20:
                 st.warning("Minimal 20 data untuk latih model.")
@@ -89,7 +100,6 @@ if metode == "LSTM AI":
                 train_and_save_lstm(df, selected_lokasi)
                 st.success("✅ Model berhasil dilatih dan disimpan.")
 
-        model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
         if os.path.exists(model_path):
             st.success(f"📁 Model ditemukan: {model_path}")
             with open(model_path, "rb") as f:
@@ -97,8 +107,10 @@ if metode == "LSTM AI":
             if st.button("🗑 Hapus Model"):
                 os.remove(model_path)
                 st.warning("🗑 Model berhasil dihapus.")
+        else:
+            st.warning("⚠️ Model belum tersedia. Silakan latih atau upload.")
 
-# ======================= Prediksi & Akurasi ========================
+# ======================= Prediksi dan Akurasi ========================
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan.")
@@ -109,15 +121,13 @@ if st.button("🔮 Prediksi"):
             top6_markov_hybrid(df) if metode == "Markov Gabungan" else
             top6_lstm(df, lokasi=selected_lokasi)
         )
-
         if pred is None:
             st.error("❌ Gagal prediksi.")
         else:
-            st.markdown("Prediksi Top-6 Digit")
+            st.markdown("#### 🎯 Prediksi Top-6 Digit per Posisi")
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                 st.markdown(f"**{label}:** {', '.join(str(d) for d in pred[i])}")
 
-            # Akurasi
             list_akurasi = []
             uji_df = df.tail(min(jumlah_uji, len(df)))
             total = benar = 0
@@ -138,6 +148,7 @@ if st.button("🔮 Prediksi"):
                 total += 4
                 benar += skor
                 list_akurasi.append(skor / 4 * 100)
+
             if total > 0:
                 akurasi_total = (benar / total) * 100
                 st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
