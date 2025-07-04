@@ -3,8 +3,8 @@ import pandas as pd
 import requests
 import os
 from dotenv import load_dotenv
-from markov_model import top5_markov, top5_markov_order2, top5_markov_hybrid
-from ai_model import top5_lstm, train_and_save_lstm, model_exists
+from markov_model import top6_markov, top6_markov_order2, top6_markov_hybrid
+from ai_model import top6_lstm, train_and_save_lstm, model_exists
 
 load_dotenv()
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
@@ -56,7 +56,7 @@ hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
 putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
-jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=1000, value=5, step=1)
+jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", 1, 1000, 5)
 
 # ======================= AMBIL DATA ========================
 angka_list = []
@@ -98,37 +98,38 @@ if metode == "LSTM AI":
                 os.remove(model_path)
                 st.warning("🗑 Model berhasil dihapus.")
 
-# ======================= PREDIKSI ========================
+# ======================= Prediksi & Akurasi ========================
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan.")
     else:
         pred = (
-            top5_markov(df) if metode == "Markov" else
-            top5_markov_order2(df) if metode == "Markov Order-2" else
-            top5_markov_hybrid(df) if metode == "Markov Gabungan" else
-            top5_lstm(df, lokasi=selected_lokasi)
+            top6_markov(df) if metode == "Markov" else
+            top6_markov_order2(df) if metode == "Markov Order-2" else
+            top6_markov_hybrid(df) if metode == "Markov Gabungan" else
+            top6_lstm(df, lokasi=selected_lokasi)
         )
+
         if pred is None:
             st.error("❌ Gagal prediksi.")
         else:
-            st.markdown("#### 🎯 Prediksi Top-5 Digit")
+            st.markdown("#### 🎯 Prediksi Top-6 Digit")
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                 st.markdown(f"**{label}:** {', '.join(str(d) for d in pred[i])}")
 
-            # ============ Akurasi ============
+            # Akurasi
             list_akurasi = []
-            uji_df = df.tail(min(jumlah_uji, len(df) - 10))
+            uji_df = df.tail(min(jumlah_uji, len(df)))
             total = benar = 0
             for i in range(len(uji_df)):
                 subset_df = df.iloc[:-(len(uji_df) - i)]
                 if len(subset_df) < 11:
                     continue
                 pred_uji = (
-                    top5_markov(subset_df) if metode == "Markov" else
-                    top5_markov_order2(subset_df) if metode == "Markov Order-2" else
-                    top5_markov_hybrid(subset_df) if metode == "Markov Gabungan" else
-                    top5_lstm(subset_df, lokasi=selected_lokasi)
+                    top6_markov(subset_df) if metode == "Markov" else
+                    top6_markov_order2(subset_df) if metode == "Markov Order-2" else
+                    top6_markov_hybrid(subset_df) if metode == "Markov Gabungan" else
+                    top6_lstm(subset_df, lokasi=selected_lokasi)
                 )
                 if pred_uji is None:
                     continue
@@ -137,8 +138,6 @@ if st.button("🔮 Prediksi"):
                 total += 4
                 benar += skor
                 list_akurasi.append(skor / 4 * 100)
-
-            st.write(f"✅ Total = {total}, Benar = {benar}, Jumlah Uji: {jumlah_uji}")
             if total > 0:
                 akurasi_total = (benar / total) * 100
                 st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
