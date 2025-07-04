@@ -56,8 +56,8 @@ hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 
 selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
-putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
-jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", 1, 1000, 5)
+putaran = st.slider("🔁 Jumlah Putaran", 1, 2000, 10)
+jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", 1, 2000, 5)
 
 # ============== AMBIL DATA ==============
 angka_list = []
