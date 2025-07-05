@@ -25,7 +25,6 @@ def load_lottieurl(url):
         return None
     return r.json()
 
-# Animasi Header
 lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
 st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
@@ -43,7 +42,7 @@ with st.sidebar:
     jumlah_uji = st.number_input("📊 Data Uji Akurasi", min_value=1, max_value=200, value=10)
     metode = st.selectbox("🧠 Metode Prediksi", metode_list)
 
-# Ambil Data dari API
+# Ambil Data
 angka_list = []
 riwayat_input = ""
 if selected_lokasi and selected_hari:
@@ -63,7 +62,7 @@ if selected_lokasi and selected_hari:
 
 df = pd.DataFrame({"angka": angka_list})
 
-# Manajemen LSTM
+# Manajemen Model LSTM
 if metode == "LSTM AI":
     with st.expander("⚙️ Manajemen Model LSTM"):
         model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
@@ -111,22 +110,21 @@ if st.button("🔮 Prediksi"):
         if result is None:
             st.error("❌ Gagal melakukan prediksi.")
         else:
-            st.subheader("🎯 Prediksi Top 6 Angka per Posisi")
-            col1, col2 = st.columns(2)
-            for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
-                with (col1 if i % 2 == 0 else col2):
-                    st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
+            with st.expander("🎯 Hasil Prediksi Top 6 Digit"):
+                col1, col2 = st.columns(2)
+                for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+                    with (col1 if i % 2 == 0 else col2):
+                        st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
 
-            # Kombinasi 4D
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
                     top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10)
                     if top_komb:
-                        st.subheader("💡 Simulasi Kombinasi 4D Terbaik")
-                        sim_col = st.columns(2)
-                        for i, (komb, score) in enumerate(top_komb):
-                            with sim_col[i % 2]:
-                                st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
+                        with st.expander("💡 Simulasi Kombinasi 4D Terbaik"):
+                            sim_col = st.columns(2)
+                            for i, (komb, score) in enumerate(top_komb):
+                                with sim_col[i % 2]:
+                                    st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
 
         # Evaluasi Akurasi
         with st.spinner("📏 Menghitung akurasi..."):
@@ -160,13 +158,12 @@ if st.button("🔮 Prediksi"):
 
             if total > 0:
                 st.success(f"📈 Akurasi {metode}: {benar / total * 100:.2f}%")
-                st.line_chart(pd.DataFrame({"Akurasi (%)": akurasi_list}))
-
-                # Heatmap Akurasi
-                st.subheader("🔥 Heatmap Akurasi per Digit")
-                heat_df = pd.DataFrame({k: [sum(v)/len(v)*100 if v else 0] for k, v in digit_acc.items()})
-                fig, ax = plt.subplots()
-                sns.heatmap(heat_df, annot=True, fmt=".1f", cmap="YlGnBu", ax=ax)
-                st.pyplot(fig)
+                with st.expander("📊 Grafik Akurasi"):
+                    st.line_chart(pd.DataFrame({"Akurasi (%)": akurasi_list}))
+                with st.expander("🔥 Heatmap Akurasi per Digit"):
+                    heat_df = pd.DataFrame({k: [sum(v)/len(v)*100 if v else 0] for k, v in digit_acc.items()})
+                    fig, ax = plt.subplots()
+                    sns.heatmap(heat_df, annot=True, fmt=".1f", cmap="YlGnBu", ax=ax)
+                    st.pyplot(fig)
             else:
                 st.warning("⚠️ Tidak cukup data untuk evaluasi akurasi.")
