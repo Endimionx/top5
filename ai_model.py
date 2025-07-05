@@ -1,11 +1,33 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, Attention, Concatenate
+from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, Attention, Concatenate, Embedding, Layer
 from tensorflow.keras.callbacks import CSVLogger
 import os
 import pandas as pd
 from markov_model import top6_markov
+
+# Positional Encoding layer
+class PositionalEncoding(Layer):
+    def call(self, inputs):
+        position = tf.range(tf.shape(inputs)[1], dtype=tf.float32)
+        pos_enc = tf.expand_dims(position, axis=0)
+        return inputs + pos_enc
+
+def augment_data(df, n_aug=2):
+    angka = df["angka"].tolist()
+    augmented = []
+    for a in angka:
+        a = f"{int(a):04d}"
+        digits = list(a)
+        for _ in range(n_aug):
+            idx = np.random.randint(0, 4)
+            new_digit = str(np.random.randint(0, 10))
+            digits_aug = digits.copy()
+            digits_aug[idx] = new_digit
+            augmented.append("".join(digits_aug))
+    df_aug = pd.DataFrame({"angka": angka + augmented})
+    return df_aug
 
 def preprocess_data(df):
     sequences = []
@@ -19,9 +41,11 @@ def preprocess_data(df):
     y = [np.array(t) for t in targets]
     return X, y
 
-def build_lstm_model(attention=False):
+def build_lstm_model(attention=False, positional=False):
     inputs = Input(shape=(3,))
-    x = tf.keras.layers.Embedding(input_dim=10, output_dim=8)(inputs)
+    x = Embedding(input_dim=10, output_dim=8)(inputs)
+    if positional:
+        x = PositionalEncoding()(x)
     x = Bidirectional(LSTM(64, return_sequences=True))(x)
     x = Dropout(0.2)(x)
     if attention:
@@ -37,8 +61,9 @@ def build_lstm_model(attention=False):
 def train_and_save_lstm(df, lokasi):
     if len(df) < 20:
         return
-    X, y = preprocess_data(df)
-    model = build_lstm_model(attention=True)
+    df_aug = augment_data(df)
+    X, y = preprocess_data(df_aug)
+    model = build_lstm_model(attention=True, positional=True)
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
     log_path = f"training_logs/history_{lokasi.lower().replace(' ', '_')}.csv"
@@ -49,7 +74,12 @@ def train_and_save_lstm(df, lokasi):
 def model_exists(lokasi):
     return os.path.exists(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5")
 
-def top6_lstm(df, lokasi=None, return_probs=False):
+def apply_temperature_scaling(probs, temp=1.5):
+    scaled = np.log(probs + 1e-9) / temp
+    scaled = np.exp(scaled) / np.sum(np.exp(scaled))
+    return scaled
+
+def top6_lstm(df, lokasi=None, return_probs=False, temp=1.5):
     try:
         model = load_model(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5", compile=False)
         sequences = []
@@ -62,9 +92,10 @@ def top6_lstm(df, lokasi=None, return_probs=False):
         probs = []
         for out in y_pred:
             avg_probs = np.mean(out, axis=0)
-            top_idx = avg_probs.argsort()[-6:][::-1]
+            temp_scaled = apply_temperature_scaling(avg_probs, temp=temp)
+            top_idx = temp_scaled.argsort()[-6:][::-1]
             top6.append(list(top_idx))
-            probs.append(avg_probs[top_idx])
+            probs.append(temp_scaled[top_idx])
         if return_probs:
             return top6, probs
         return top6
@@ -90,17 +121,20 @@ def kombinasi_4d(df, lokasi, top_n=10):
     topk = sorted(scores, key=lambda x: -x[1])[:top_n]
     return topk
 
-def top6_ensemble(df, lokasi):
+def top6_ensemble(df, lokasi, weight_lstm=0.6, weight_markov=0.4):
     lstm_result = top6_lstm(df, lokasi=lokasi)
     markov_result, _ = top6_markov(df)
     if lstm_result is None or markov_result is None:
         return None
     ensemble = []
     for i in range(4):
-        gabung = lstm_result[i] + markov_result[i]
-        frek = {x: gabung.count(x) for x in set(gabung)}
-        top6 = sorted(frek.items(), key=lambda x: -x[1])[:6]
-        ensemble.append([x[0] for x in top6])
+        score_dict = {}
+        for idx, digit in enumerate(lstm_result[i]):
+            score_dict[digit] = score_dict.get(digit, 0) + weight_lstm * (6 - idx)
+        for idx, digit in enumerate(markov_result[i]):
+            score_dict[digit] = score_dict.get(digit, 0) + weight_markov * (6 - idx)
+        top = sorted(score_dict.items(), key=lambda x: -x[1])[:6]
+        ensemble.append([x[0] for x in top])
     return ensemble
 
 def anti_top6_lstm(df, lokasi):
