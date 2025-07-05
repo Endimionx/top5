@@ -15,7 +15,6 @@ def load_lottieurl(url):
         return None
     return r.json()
 
-# Header animasi
 lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
 st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
@@ -33,7 +32,7 @@ with st.sidebar:
     jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=1000, value=5)
     metode = st.selectbox("🧠 Pilih Metode Prediksi", metode_list)
 
-# Ambil data
+# Ambil Data
 angka_list = []
 riwayat_input = ""
 if selected_lokasi and selected_hari:
@@ -53,14 +52,25 @@ if selected_lokasi and selected_hari:
 
 df = pd.DataFrame({"angka": angka_list})
 
-# Manajemen model LSTM
+# LSTM Model Management
 if metode == "LSTM AI":
     with st.expander("⚙️ LSTM AI - Manajemen Model"):
         model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
+
+        # Upload model
+        uploaded_model = st.file_uploader("📤 Upload Model (.h5)", type=["h5"])
+        if uploaded_model is not None:
+            with open(model_path, "wb") as f:
+                f.write(uploaded_model.read())
+            st.success("✅ Model berhasil diupload dan disimpan.")
+
+        # Latih model
         if st.button("📚 Latih & Simpan Model"):
             with st.spinner("🔄 Melatih model..."):
                 train_and_save_lstm(df, selected_lokasi)
             st.success("✅ Model berhasil dilatih dan disimpan.")
+
+        # Download & hapus
         if os.path.exists(model_path):
             with open(model_path, "rb") as f:
                 st.download_button("⬇️ Download Model", f, file_name=os.path.basename(model_path))
@@ -110,7 +120,7 @@ if st.button("🔮 Prediksi"):
                             gabungan = " * ".join([row[0] for row in top_komb])
                             st.code(gabungan, language="text")
 
-        # Evaluasi akurasi
+        # Akurasi
         with st.spinner("📏 Menghitung akurasi..."):
             uji_df = df.tail(min(jumlah_uji, len(df)))
             total = benar = 0
