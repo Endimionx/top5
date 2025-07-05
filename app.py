@@ -148,13 +148,20 @@ if st.button("🔮 Prediksi"):
                 subset_df = df.iloc[:-(len(uji_df) - i)]
                 if len(subset_df) < 11:
                     continue
-                pred = (
-                    top6_markov(subset_df)[0] if metode == "Markov" else
-                    top6_markov_order2(subset_df) if metode == "Markov Order-2" else
-                    top6_markov_hybrid(subset_df) if metode == "Markov Gabungan" else
-                    top6_lstm(subset_df, lokasi=selected_lokasi) if metode == "LSTM AI" else
-                    top6_ensemble(subset_df, lokasi=selected_lokasi)
-                )
+                try:
+                    pred = (
+                        top6_markov(subset_df)[0] if metode == "Markov" else
+                        top6_markov_order2(subset_df) if metode == "Markov Order-2" else
+                        top6_markov_hybrid(subset_df) if metode == "Markov Gabungan" else
+                        top6_lstm(subset_df, lokasi=selected_lokasi) if metode == "LSTM AI" else
+                        top6_ensemble(subset_df, lokasi=selected_lokasi)
+                    )
+                except:
+                    pred = None
+
+                if pred is None:
+                    continue
+
                 actual = f"{int(uji_df.iloc[i]['angka']):04d}"
                 skor = 0
                 for j, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
