@@ -2,8 +2,13 @@ import streamlit as st
 import pandas as pd
 import requests
 import os
+import seaborn as sns
+import matplotlib.pyplot as plt
 from markov_model import top6_markov, top6_markov_order2, top6_markov_hybrid
-from ai_model import top6_lstm, train_and_save_lstm, kombinasi_4d, top6_ensemble, model_exists
+from ai_model import (
+    top6_lstm, train_and_save_lstm, kombinasi_4d, top6_ensemble,
+    model_exists
+)
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
 
@@ -27,7 +32,7 @@ with st.sidebar:
     st.header("⚙️ Pengaturan")
     selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
     selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
-    putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 100)
+    putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 30)
     jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=1000, value=5)
     metode = st.selectbox("🧠 Pilih Metode Prediksi", metode_list)
 
@@ -55,15 +60,15 @@ df = pd.DataFrame({"angka": angka_list})
 if metode == "LSTM AI":
     with st.expander("⚙️ LSTM AI - Manajemen Model"):
         model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
-        if model_exists(selected_lokasi):
-            st.info(f"📁 Model tersedia: `{model_path}`")
-        else:
-            uploaded = st.file_uploader("📤 Upload Model (.h5)", type=["h5"])
-            if uploaded:
-                os.makedirs("saved_models", exist_ok=True)
+
+        if not model_exists(selected_lokasi):
+            uploaded_model = st.file_uploader("📤 Upload Model (.h5)", type=["h5"])
+            if uploaded_model is not None:
                 with open(model_path, "wb") as f:
-                    f.write(uploaded.read())
-                st.success("✅ Model berhasil diupload.")
+                    f.write(uploaded_model.read())
+                st.success("✅ Model berhasil diupload dan disimpan.")
+        else:
+            st.info(f"📁 Model ditemukan: `{model_path}`")
 
         if st.button("📚 Latih & Simpan Model"):
             with st.spinner("🔄 Melatih model..."):
@@ -124,6 +129,9 @@ if st.button("🔮 Prediksi"):
             uji_df = df.tail(min(jumlah_uji, len(df)))
             total = benar = 0
             list_akurasi = []
+            per_digit_akurasi = [0, 0, 0, 0]
+            digit_total = 0
+
             for i in range(len(uji_df)):
                 subset_df = df.iloc[:-(len(uji_df) - i)]
                 if len(subset_df) < 11:
@@ -138,13 +146,27 @@ if st.button("🔮 Prediksi"):
                 if pred is None or len(pred) != 4:
                     continue
                 actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-                skor = sum(int(actual[j]) in pred[j] for j in range(4))
+                skor = 0
+                for j in range(4):
+                    if int(actual[j]) in pred[j]:
+                        skor += 1
+                        per_digit_akurasi[j] += 1
                 total += 4
+                digit_total += 1
                 benar += skor
                 list_akurasi.append(skor / 4 * 100)
+
             if total > 0:
-                st.success(f"📈 Akurasi {metode}: {benar / total * 100:.2f}%")
+                st.success(f"📈 Akurasi Total {metode}: {benar / total * 100:.2f}%")
                 with st.expander("📊 Grafik Akurasi"):
                     st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
+                with st.expander("🌡 Heatmap Akurasi per Digit"):
+                    heatmap_df = pd.DataFrame(
+                        [per_digit_akurasi],
+                        columns=["Ribuan", "Ratusan", "Puluhan", "Satuan"]
+                    )
+                    fig, ax = plt.subplots()
+                    sns.heatmap(heatmap_df / digit_total * 100, annot=True, fmt=".1f", cmap="YlGnBu", ax=ax)
+                    st.pyplot(fig)
             else:
                 st.warning("⚠️ Tidak cukup data untuk evaluasi akurasi.")
