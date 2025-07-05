@@ -7,7 +7,6 @@ from ai_model import top6_lstm, train_and_save_lstm, model_exists, anti_top6_lst
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
 import matplotlib.pyplot as plt
-import json
 
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide", initial_sidebar_state="expanded")
 
@@ -135,6 +134,10 @@ if st.button("🔮 Prediksi"):
                 with st.expander("🔥 Kombinasi 4D Terpopuler"):
                     df_komb = pd.DataFrame(info["kombinasi_populer"], columns=["Kombinasi", "Jumlah"])
                     st.dataframe(df_komb)
+
+                    # Tambahan untuk copy-able text
+                    text_komb = "\n".join([f"{row[0]} = {row[1]}" for row in info["kombinasi_populer"]])
+                    st.text_area("📋 Salin Kombinasi Populer:", text_komb, height=200)
 
                 with st.expander("🔄 Statistik Transisi Digit"):
                     for i, label in enumerate(["Ribuan→Ratusan", "Ratusan→Puluhan", "Puluhan→Satuan"]):
