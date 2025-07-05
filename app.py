@@ -3,7 +3,7 @@ import pandas as pd
 import requests
 import os
 from markov_model import top6_markov, top6_markov_order2, top6_markov_hybrid
-from ai_model import top6_lstm, train_and_save_lstm, kombinasi_4d, top6_ensemble
+from ai_model import top6_lstm, train_and_save_lstm, kombinasi_4d, top6_ensemble, model_exists
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
 
@@ -20,7 +20,6 @@ st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
 st.title("🔮 Prediksi 4D - AI & Markov")
 
-# Sidebar
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
 
@@ -28,7 +27,7 @@ with st.sidebar:
     st.header("⚙️ Pengaturan")
     selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
     selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
-    putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
+    putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 100)
     jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=1000, value=5)
     metode = st.selectbox("🧠 Pilih Metode Prediksi", metode_list)
 
@@ -56,26 +55,27 @@ df = pd.DataFrame({"angka": angka_list})
 if metode == "LSTM AI":
     with st.expander("⚙️ LSTM AI - Manajemen Model"):
         model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
-
-        if os.path.exists(model_path):
-            st.success(f"✅ Model tersedia: `{model_path}`")
-            with open(model_path, "rb") as f:
-                st.download_button("⬇️ Download Model", f, file_name=os.path.basename(model_path))
-            if st.button("🗑 Hapus Model"):
-                os.remove(model_path)
-                st.warning("🗑 Model berhasil dihapus.")
+        if model_exists(selected_lokasi):
+            st.info(f"📁 Model tersedia: `{model_path}`")
         else:
-            uploaded_model = st.file_uploader("📤 Upload Model (.h5)", type=["h5"])
-            if uploaded_model is not None:
+            uploaded = st.file_uploader("📤 Upload Model (.h5)", type=["h5"])
+            if uploaded:
                 os.makedirs("saved_models", exist_ok=True)
                 with open(model_path, "wb") as f:
-                    f.write(uploaded_model.read())
-                st.success("✅ Model berhasil diupload dan disimpan.")
+                    f.write(uploaded.read())
+                st.success("✅ Model berhasil diupload.")
 
         if st.button("📚 Latih & Simpan Model"):
             with st.spinner("🔄 Melatih model..."):
                 train_and_save_lstm(df, selected_lokasi)
             st.success("✅ Model berhasil dilatih dan disimpan.")
+
+        if os.path.exists(model_path):
+            with open(model_path, "rb") as f:
+                st.download_button("⬇️ Download Model", f, file_name=os.path.basename(model_path))
+            if st.button("🗑 Hapus Model"):
+                os.remove(model_path)
+                st.warning("🗑 Model berhasil dihapus.")
 
 # Prediksi
 if st.button("🔮 Prediksi"):
@@ -138,7 +138,7 @@ if st.button("🔮 Prediksi"):
                 if pred is None or len(pred) != 4:
                     continue
                 actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-                skor = sum(int(actual[j]) in pred[j] if isinstance(pred[j], list) else False for j in range(4))
+                skor = sum(int(actual[j]) in pred[j] for j in range(4))
                 total += 4
                 benar += skor
                 list_akurasi.append(skor / 4 * 100)
