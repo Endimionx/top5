@@ -18,20 +18,6 @@ def load_lottieurl(url):
 lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
 st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
-st.markdown("""
-<style>
-#copy-btn {
-  margin-top: 5px;
-  padding: 8px 12px;
-  background-color: #25d366;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-}
-</style>
-""", unsafe_allow_html=True)
-
 st.title("🔮 Prediksi 4D - AI & Markov")
 
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
