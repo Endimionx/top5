@@ -30,6 +30,7 @@ st.markdown("""
             padding-top: 2rem;
             padding-bottom: 2rem;
         }
+        textarea:focus { outline: none !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -135,9 +136,13 @@ if st.button("🔮 Prediksi"):
                     df_komb = pd.DataFrame(info["kombinasi_populer"], columns=["Kombinasi", "Jumlah"])
                     st.dataframe(df_komb)
 
-                    # Tambahan: copy-able kombinasi
                     text_komb = "\n".join([f"{row[0]} = {row[1]}" for row in info["kombinasi_populer"]])
-                    st.text_area("📋 Salin Kombinasi Populer:", text_komb, height=200)
+                    st.markdown(f"""
+                        <div style='display: flex; align-items: center;'>
+                            <textarea id='kombinasiText' readonly style='width:100%; height:150px; background:#222; color:#fff; border:1px solid #444; border-radius:5px; padding:10px;'>{text_komb}</textarea>
+                        </div>
+                        <button onclick="navigator.clipboard.writeText(document.getElementById('kombinasiText').value)" style='margin-top:8px; padding:8px 16px; background:#00cc88; color:white; border:none; border-radius:6px; cursor:pointer;'>📋 Salin</button>
+                    """, unsafe_allow_html=True)
 
                 with st.expander("🔄 Statistik Transisi Digit"):
                     for i, label in enumerate(["Ribuan→Ratusan", "Ratusan→Puluhan", "Puluhan→Satuan"]):
