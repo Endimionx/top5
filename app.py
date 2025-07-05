@@ -5,19 +5,47 @@ import os
 from markov_model import top6_markov, top6_markov_order2, top6_markov_hybrid
 from ai_model import top6_lstm, train_and_save_lstm, model_exists, anti_top6_lstm, low6_lstm, kombinasi_4d, top6_ensemble
 from lokasi_list import lokasi_list
+from streamlit_lottie import st_lottie
 import matplotlib.pyplot as plt
+import json
 
-st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
-st.markdown("<h4>Prediksi Togel 4D - AI & Markov</h4>", unsafe_allow_html=True)
+st.set_page_config(page_title="Prediksi Togel AI", layout="wide", initial_sidebar_state="expanded")
+
+def load_lottieurl(url):
+    r = requests.get(url)
+    if r.status_code != 200:
+        return None
+    return r.json()
+
+lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
+st_lottie(lottie_predict, speed=1, height=200, key="prediksi")
+
+st.markdown("""
+    <style>
+        .main {
+            background-color: #111111;
+            color: white;
+        }
+        .css-1d391kg { background-color: #000000 !important; }
+        .block-container {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+st.title("🔮 Prediksi Togel 4D - AI & Markov")
 
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
 
-selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
-selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
-putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
-jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=1000, value=5, step=1)
-metode = st.selectbox("🧠 Pilih Metode Prediksi", metode_list)
+with st.sidebar:
+    st.header("⚙️ Pengaturan")
+    selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
+    selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
+    putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
+    jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=1000, value=5, step=1)
+    metode = st.selectbox("🧠 Pilih Metode Prediksi", metode_list)
 
 angka_list = []
 riwayat_input = ""
@@ -92,9 +120,11 @@ if st.button("🔮 Prediksi"):
         if result is None:
             st.error("❌ Gagal prediksi.")
         else:
-            st.markdown("### 🎯 Prediksi Top 6 Digit per Posisi")
+            st.subheader("🎯 Prediksi Top 6 Digit per Posisi")
+            col1, col2 = st.columns(2)
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
-                st.markdown(f"**{label}:** {', '.join(str(d) for d in result[i])}")
+                with col1 if i % 2 == 0 else col2:
+                    st.markdown(f"**{label}:** {', '.join(str(d) for d in result[i])}")
 
             if metode == "Markov" and isinstance(info, dict):
                 st.markdown("### 📊 Statistik Tambahan Markov")
@@ -150,7 +180,7 @@ if st.button("🔮 Prediksi"):
 
                 if total > 0:
                     akurasi_total = (benar / total) * 100
-                    st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
+                    st.success(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
                     with st.expander("📊 Grafik Akurasi"):
                         st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
                 else:
