@@ -18,7 +18,7 @@ def load_lottieurl(url):
     return r.json()
 
 lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
-st_lottie(lottie_predict, speed=1, height=200, key="prediksi")
+st_lottie(lottie_predict, speed=1, height=100, key="prediksi")
 
 st.markdown("""
     <style>
