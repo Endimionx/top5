@@ -2,11 +2,16 @@ import streamlit as st
 import pandas as pd
 import requests
 import os
+import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+
 from markov_model import top6_markov, top6_markov_order2, top6_markov_hybrid
 from ai_model import (
-    top6_lstm, train_and_save_lstm, kombinasi_4d, top6_ensemble,
+    top6_lstm,
+    train_and_save_lstm,
+    kombinasi_4d,
+    top6_ensemble,
     model_exists
 )
 from lokasi_list import lokasi_list
@@ -20,11 +25,13 @@ def load_lottieurl(url):
         return None
     return r.json()
 
+# Animasi Header
 lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
-st_lottie(lottie_predict, height=150, key="predict")
+st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
 st.title("🔮 Prediksi 4D - AI & Markov")
 
+# Sidebar
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
 
@@ -32,59 +39,63 @@ with st.sidebar:
     st.header("⚙️ Pengaturan")
     selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
     selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
-    putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
-    jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", 1, 1000, 5)
+    putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 100)
+    jumlah_uji = st.number_input("📊 Data Uji Akurasi", min_value=1, max_value=200, value=10)
     metode = st.selectbox("🧠 Metode Prediksi", metode_list)
 
+# Ambil Data dari API
 angka_list = []
 riwayat_input = ""
 if selected_lokasi and selected_hari:
     try:
-        with st.spinner("🔄 Mengambil data..."):
+        with st.spinner("🔄 Mengambil data dari API..."):
             url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
             headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
-            r = requests.get(url, headers=headers)
-            data = r.json()
-            angka_list = [d["result"] for d in data.get("data", []) if len(d["result"]) == 4 and d["result"].isdigit()]
+            response = requests.get(url, headers=headers)
+            data = response.json()
+            angka_list = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
             riwayat_input = "\n".join(angka_list)
-            st.success(f"✅ {len(angka_list)} data berhasil diambil.")
+            st.success(f"✅ {len(angka_list)} angka berhasil diambil.")
             with st.expander("📥 Lihat Data"):
-                st.code(riwayat_input)
+                st.code(riwayat_input, language="text")
     except Exception as e:
-        st.error(f"❌ Gagal ambil data: {e}")
+        st.error(f"❌ Gagal ambil data API: {e}")
 
 df = pd.DataFrame({"angka": angka_list})
 
-# LSTM Model Tools
+# Manajemen LSTM
 if metode == "LSTM AI":
-    with st.expander("🧠 LSTM AI - Manajemen Model"):
+    with st.expander("⚙️ Manajemen Model LSTM"):
         model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
-        if not model_exists(selected_lokasi):
-            uploaded_model = st.file_uploader("📤 Upload Model (.h5)", type=["h5"])
-            if uploaded_model:
-                with open(model_path, "wb") as f:
-                    f.write(uploaded_model.read())
-                st.success("✅ Model berhasil diupload.")
+        if os.path.exists(model_path):
+            st.info(f"📂 Model ditemukan: `{model_path}`")
+        else:
+            st.warning("⚠️ Model belum tersedia. Silakan latih atau unggah.")
+
+        uploaded_model = st.file_uploader("📤 Upload Model (.h5)", type=["h5"])
+        if uploaded_model is not None:
+            with open(model_path, "wb") as f:
+                f.write(uploaded_model.read())
+            st.success("✅ Model berhasil diupload.")
 
         if st.button("📚 Latih & Simpan Model"):
-            with st.spinner("Melatih model..."):
+            with st.spinner("🔄 Melatih model..."):
                 train_and_save_lstm(df, selected_lokasi)
-            st.success("✅ Model disimpan.")
+            st.success("✅ Model berhasil dilatih dan disimpan.")
 
-        if model_exists(selected_lokasi):
-            st.info(f"📁 Model ditemukan: `{model_path}`")
+        if os.path.exists(model_path):
             with open(model_path, "rb") as f:
                 st.download_button("⬇️ Download Model", f, file_name=os.path.basename(model_path))
             if st.button("🗑 Hapus Model"):
                 os.remove(model_path)
-                st.warning("🗑 Model dihapus.")
+                st.warning("🗑 Model berhasil dihapus.")
 
-# Prediksi
+# Tombol Prediksi
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
-        st.warning("❌ Minimal 11 data dibutuhkan.")
+        st.warning("❌ Minimal 11 data diperlukan.")
     else:
-        with st.spinner("⏳ Memproses prediksi..."):
+        with st.spinner("⏳ Melakukan prediksi..."):
             result, info = None, {}
             if metode == "Markov":
                 result, info = top6_markov(df)
@@ -97,27 +108,35 @@ if st.button("🔮 Prediksi"):
             elif metode == "Ensemble AI + Markov":
                 result = top6_ensemble(df, lokasi=selected_lokasi)
 
-        if result:
-            st.subheader("🎯 Top 6 Digit per Posisi")
+        if result is None:
+            st.error("❌ Gagal melakukan prediksi.")
+        else:
+            st.subheader("🎯 Prediksi Top 6 Angka per Posisi")
             col1, col2 = st.columns(2)
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                 with (col1 if i % 2 == 0 else col2):
                     st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
 
+            # Kombinasi 4D
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
-                with st.spinner("🔢 Menghitung kombinasi 4D..."):
+                with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
                     top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10)
                     if top_komb:
-                        with st.expander("🔢 Top 10 Kombinasi 4D (AI)"):
-                            for angka, skor in top_komb:
-                                st.markdown(f"**{angka}** – Confidence: `{skor:.4f}`")
+                        st.subheader("💡 Simulasi Kombinasi 4D Terbaik")
+                        sim_col = st.columns(2)
+                        for i, (komb, score) in enumerate(top_komb):
+                            with sim_col[i % 2]:
+                                st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
 
         # Evaluasi Akurasi
         with st.spinner("📏 Menghitung akurasi..."):
             uji_df = df.tail(min(jumlah_uji, len(df)))
-            total, benar, akurasi_list = 0, 0, []
+            total, benar = 0, 0
+            akurasi_list = []
+            digit_acc = {"Ribuan": [], "Ratusan": [], "Puluhan": [], "Satuan": []}
+
             for i in range(len(uji_df)):
-                subset_df = df.iloc[:-(len(uji_df)-i)]
+                subset_df = df.iloc[:-(len(uji_df) - i)]
                 if len(subset_df) < 11:
                     continue
                 pred = (
@@ -128,27 +147,26 @@ if st.button("🔮 Prediksi"):
                     top6_ensemble(subset_df, lokasi=selected_lokasi)
                 )
                 actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-                if pred and len(pred) == 4:
-                    skor = sum(int(actual[j]) in pred[j] for j in range(4))
-                    benar += skor
-                    total += 4
-                    akurasi_list.append(skor / 4 * 100)
+                skor = 0
+                for j, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+                    if int(actual[j]) in pred[j]:
+                        skor += 1
+                        digit_acc[label].append(1)
+                    else:
+                        digit_acc[label].append(0)
+                total += 4
+                benar += skor
+                akurasi_list.append(skor / 4 * 100)
 
             if total > 0:
-                akurasi_persen = benar / total * 100
-                st.success(f"📈 Akurasi {metode}: {akurasi_persen:.2f}%")
-                with st.expander("📊 Grafik Akurasi"):
-                    st.line_chart(pd.DataFrame({"Akurasi (%)": akurasi_list}))
-            else:
-                st.warning("⚠️ Data kurang untuk evaluasi akurasi.")
+                st.success(f"📈 Akurasi {metode}: {benar / total * 100:.2f}%")
+                st.line_chart(pd.DataFrame({"Akurasi (%)": akurasi_list}))
 
-        # Simulasi Prediksi
-        if metode in ["LSTM AI", "Ensemble AI + Markov"]:
-            with st.expander("🧪 Simulasi Prediksi 4D"):
-                prediksi_simulasi = kombinasi_4d(df, lokasi=selected_lokasi, top_n=5)
-                if prediksi_simulasi:
-                    hasil_simulasi = []
-                    for combo, score in prediksi_simulasi:
-                        cocok = combo in df["angka"].values
-                        hasil_simulasi.append({"Angka": combo, "Confidence": score, "Tebakan Benar": "✅" if cocok else "❌"})
-                    st.dataframe(pd.DataFrame(hasil_simulasi))
+                # Heatmap Akurasi
+                st.subheader("🔥 Heatmap Akurasi per Digit")
+                heat_df = pd.DataFrame({k: [sum(v)/len(v)*100 if v else 0] for k, v in digit_acc.items()})
+                fig, ax = plt.subplots()
+                sns.heatmap(heat_df, annot=True, fmt=".1f", cmap="YlGnBu", ax=ax)
+                st.pyplot(fig)
+            else:
+                st.warning("⚠️ Tidak cukup data untuk evaluasi akurasi.")
