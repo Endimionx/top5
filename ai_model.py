@@ -1,14 +1,11 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.layers import (Input, LSTM, Dense, Dropout, Bidirectional, 
-                                     Layer, Embedding, MultiHeadAttention, Concatenate)
+from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, Concatenate, Layer, Embedding, Attention
 from tensorflow.keras.callbacks import CSVLogger
 import os
 import pandas as pd
 from markov_model import top6_markov
-
-TEMPERATURE = 1.2  # untuk softmax scaling
 
 class PositionalEncoding(Layer):
     def call(self, inputs):
@@ -44,29 +41,34 @@ def build_lstm_model(attention=True, positional=True):
     if positional:
         x = PositionalEncoding()(x)
     if attention:
-        attn = MultiHeadAttention(num_heads=2, key_dim=64)(x, x)
+        attn = Attention()([x, x])
         x = Concatenate()([x, attn])
     x = Bidirectional(LSTM(64))(x)
     x = Dropout(0.2)(x)
-
-    def scaled_dense(name):
-        return Dense(10, activation=lambda x: tf.nn.softmax(x / TEMPERATURE), name=name)
-
-    outputs = [scaled_dense(f"output_{i}")(x) for i in range(4)]
+    outputs = [Dense(10, activation="softmax", name=f"output_{i}")(x) for i in range(4)]
     model = Model(inputs, outputs)
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
 
 def train_and_save_lstm(df, lokasi):
-    if len(df) < 20: return
+    if len(df) < 20:
+        return
     X, y = preprocess_data(df)
-    model = build_lstm_model()
+    model_path = f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5"
+    model = None
+    if os.path.exists(model_path):
+        try:
+            model = load_model(model_path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
+        except:
+            model = build_lstm_model()
+    else:
+        model = build_lstm_model()
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
     log_path = f"training_logs/history_{lokasi.lower().replace(' ', '_')}.csv"
     csv_logger = CSVLogger(log_path)
     model.fit(X, y, epochs=30, batch_size=16, verbose=0, callbacks=[csv_logger])
-    model.save(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5")
+    model.save(model_path)
 
 def model_exists(lokasi):
     return os.path.exists(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5")
@@ -77,39 +79,33 @@ def top6_lstm(df, lokasi=None, return_probs=False, return_accuracy=False):
                            compile=False,
                            custom_objects={"PositionalEncoding": PositionalEncoding})
         sequences = []
-        true_digits = [[] for _ in range(4)]
+        actual_digits = [[] for _ in range(4)]
         for angka in df["angka"]:
             digits = [int(d) for d in f"{int(angka):04d}"]
             sequences.append(digits[:-1])
             for i in range(4):
-                true_digits[i].append(digits[i])
-
+                actual_digits[i].append(digits[i])
         X = np.array(sequences)
         y_pred = model.predict(X, verbose=0)
         top6 = []
         probs = []
         accs = []
-
-        for i in range(4):
-            avg_probs = np.mean(y_pred[i], axis=0)
+        for i, out in enumerate(y_pred):
+            avg_probs = np.mean(out, axis=0)
             top_idx = avg_probs.argsort()[-6:][::-1]
             top6.append(list(top_idx))
             probs.append(avg_probs[top_idx])
-
             if return_accuracy:
-                correct = sum(np.argmax(y_pred[i], axis=1) == np.array(true_digits[i]))
-                acc = 100 * correct / len(true_digits[i])
+                benar = [1 if d in top_idx else 0 for d in actual_digits[i]]
+                acc = sum(benar) / len(benar) * 100 if benar else 0
                 accs.append(acc)
-
-        # Return sesuai kombinasi argumen
         if return_probs and return_accuracy:
             return top6, probs, accs
-        elif return_accuracy:
+        if return_accuracy:
             return top6, accs
-        elif return_probs:
+        if return_probs:
             return top6, probs
-        else:
-            return top6
+        return top6
     except:
         return None
 
