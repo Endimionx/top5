@@ -15,11 +15,13 @@ def load_lottieurl(url):
         return None
     return r.json()
 
+# Animasi Header
 lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
 st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
 st.title("🔮 Prediksi 4D - AI & Markov")
 
+# Sidebar
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
 
@@ -31,6 +33,7 @@ with st.sidebar:
     jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=1000, value=5)
     metode = st.selectbox("🧠 Pilih Metode Prediksi", metode_list)
 
+# Ambil Data
 angka_list = []
 riwayat_input = ""
 if selected_lokasi and selected_hari:
@@ -50,6 +53,7 @@ if selected_lokasi and selected_hari:
 
 df = pd.DataFrame({"angka": angka_list})
 
+# LSTM Model
 if metode == "LSTM AI":
     with st.expander("⚙️ LSTM AI - Manajemen Model"):
         model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
@@ -64,6 +68,7 @@ if metode == "LSTM AI":
                 os.remove(model_path)
                 st.warning("🗑 Model berhasil dihapus.")
 
+# Prediksi
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan.")
@@ -96,7 +101,7 @@ if st.button("🔮 Prediksi"):
                     if kombinasi_populer:
                         gabung_populer = " * ".join([row[0] for row in kombinasi_populer])
                         st.code(gabung_populer, language="text")
-                        st.download_button("📋 Copy Kombinasi Populer", gabung_populer, file_name="kombinasi_markov.txt")
+                        st.button("📋 Copy Kombinasi Populer", on_click=st.session_state.update({"copy_text": gabung_populer}))
 
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D..."):
@@ -105,8 +110,9 @@ if st.button("🔮 Prediksi"):
                         with st.expander("🔢 Top 10 Kombinasi 4D (AI)"):
                             gabungan = " * ".join([row[0] for row in top_komb])
                             st.code(gabungan, language="text")
-                            st.download_button("📋 Copy Kombinasi AI", gabungan, file_name="kombinasi_ai.txt")
+                            st.button("📋 Copy Kombinasi AI", on_click=st.session_state.update({"copy_text": gabungan}))
 
+        # Akurasi
         with st.spinner("📏 Menghitung akurasi..."):
             uji_df = df.tail(min(jumlah_uji, len(df)))
             total = benar = 0
@@ -132,3 +138,13 @@ if st.button("🔮 Prediksi"):
                     st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
             else:
                 st.warning("⚠️ Tidak cukup data untuk evaluasi akurasi.")
+
+# Inject JS for clipboard copy (requires Streamlit >=1.26)
+if "copy_text" in st.session_state:
+    st.markdown(f"""
+        <script>
+        navigator.clipboard.writeText("{st.session_state['copy_text']}")
+        </script>
+    """, unsafe_allow_html=True)
+    st.success("📋 Kombinasi berhasil disalin ke clipboard!")
+    del st.session_state["copy_text"]
