@@ -5,15 +5,14 @@ import os
 import matplotlib.pyplot as plt
 from dotenv import load_dotenv
 from markov_model import top6_markov, top6_markov_order2, top6_markov_hybrid
-from ai_model import top6_lstm, train_and_save_lstm, model_exists, anti_top6_lstm, low6_lstm
+from ai_model import top6_lstm, combo_4d_lstm, train_and_save_lstm, model_exists
 from lokasi_list import lokasi_list
 
 load_dotenv()
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
-st.markdown("<h4>Prediksi Togel 4D - AI & Markov</h4>", unsafe_allow_html=True)
+st.markdown("<h4>🎲 Prediksi Togel 4D - AI & Markov</h4>", unsafe_allow_html=True)
 
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
-
 selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
 putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
@@ -36,66 +35,66 @@ if selected_lokasi and selected_hari:
         st.error(f"❌ Gagal ambil data API: {e}")
 
 df = pd.DataFrame({"angka": angka_list})
-
 metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
 
+# === Menu Pelatihan & Manajemen Model ===
 if metode == "LSTM AI":
     with st.expander("🛠️ Manajemen Model LSTM"):
         model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
-        log_file = f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}.csv"
 
-        tab1, tab2 = st.tabs(["📚 Latih / Upload Model", "📈 Lihat Training Log"])
-
-        with tab1:
-            if st.button("📚 Latih & Simpan Model"):
-                if len(df) < 20:
-                    st.warning("Minimal 20 data untuk latih model.")
-                else:
+        if st.button("📚 Latih & Simpan Model"):
+            if len(df) < 20:
+                st.warning("Minimal 20 data untuk latih model.")
+            else:
+                with st.spinner("Melatih model..."):
                     train_and_save_lstm(df, selected_lokasi)
-                    st.success("✅ Model berhasil dilatih dan disimpan.")
-                    st.experimental_rerun()
+                st.success("✅ Model berhasil dilatih dan disimpan.")
 
-            if os.path.exists(model_path):
-                st.success(f"📁 Model ditemukan: {model_path}")
-                with open(model_path, "rb") as f:
-                    st.download_button("⬇️ Download Model", f, file_name=os.path.basename(model_path))
-                if st.button("🗑 Hapus Model"):
-                    os.remove(model_path)
-                    st.warning("🗑 Model berhasil dihapus.")
-                    st.experimental_rerun()
-            else:
-                uploaded_model = st.file_uploader("📤 Upload Model (.h5)", type=["h5"])
-                if uploaded_model is not None:
-                    with open(model_path, "wb") as f:
-                        f.write(uploaded_model.read())
-                    st.success("✅ Model berhasil diunggah.")
-                    st.experimental_rerun()
+        if os.path.exists(model_path):
+            st.success(f"📁 Model ditemukan: {model_path}")
+            with open(model_path, "rb") as f:
+                st.download_button("⬇️ Download Model", f, file_name=os.path.basename(model_path))
+            if st.button("🗑 Hapus Model"):
+                os.remove(model_path)
+                st.warning("🗑 Model berhasil dihapus.")
+        else:
+            uploaded_model = st.file_uploader("📤 Upload Model (.h5)", type=["h5"])
+            if uploaded_model is not None:
+                with open(model_path, "wb") as f:
+                    f.write(uploaded_model.read())
+                st.success("✅ Model berhasil diunggah.")
+                st.experimental_rerun()
 
-        with tab2:
-            if os.path.exists(log_file):
-                st.subheader("📉 Grafik Pelatihan Model")
-                df_log = pd.read_csv(log_file)
-                st.line_chart(df_log[["loss", "output_0_accuracy", "output_1_accuracy", "output_2_accuracy", "output_3_accuracy"]])
-                st.caption("output_0 = ribuan, output_1 = ratusan, output_2 = puluhan, output_3 = satuan")
-            else:
-                st.info("📭 Belum ada log pelatihan untuk pasaran ini.")
+        log_file = f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}.csv"
+        if os.path.exists(log_file):
+            st.subheader("📉 Grafik Pelatihan Model")
+            df_log = pd.read_csv(log_file)
+            st.line_chart(df_log[["loss", "output_0_accuracy", "output_1_accuracy", "output_2_accuracy", "output_3_accuracy"]])
+            st.caption("output_0 = ribuan, output_1 = ratusan, output_2 = puluhan, output_3 = satuan")
 
+# === Prediksi ===
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan.")
     else:
-        pred = (
-            top6_markov(df) if metode == "Markov" else
-            top6_markov_order2(df) if metode == "Markov Order-2" else
-            top6_markov_hybrid(df) if metode == "Markov Gabungan" else
-            top6_lstm(df, lokasi=selected_lokasi)
-        )
+        with st.spinner("🔄 Memproses prediksi..."):
+            pred = (
+                top6_markov(df) if metode == "Markov" else
+                top6_markov_order2(df) if metode == "Markov Order-2" else
+                top6_markov_hybrid(df) if metode == "Markov Gabungan" else
+                top6_lstm(df, lokasi=selected_lokasi)
+            )
         if pred is None:
             st.error("❌ Gagal prediksi.")
         else:
-            st.markdown("#### 🎯 Prediksi Top 6 Digit")
+            st.markdown("### 🎯 Prediksi Top-6 Digit per Posisi")
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                 st.markdown(f"**{label}:** {', '.join(str(d) for d in pred[i])}")
+
+            combo_pred = combo_4d_lstm(df, lokasi=selected_lokasi) if metode == "LSTM AI" else None
+            if combo_pred:
+                st.markdown("### 🧩 Prediksi Kombinasi 4D Langsung (Top 20)")
+                st.code("\n".join(combo_pred))
 
             list_akurasi = []
             uji_df = df.tail(min(jumlah_uji, len(df)))
