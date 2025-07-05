@@ -95,15 +95,15 @@ if st.button("🔮 Prediksi"):
         st.warning("❌ Minimal 11 data diperlukan.")
     else:
         with st.spinner("⏳ Melakukan prediksi..."):
-            result, info = None, {}
+            result, accs = None, None
             if metode == "Markov":
-                result, info = top6_markov(df)
+                result, _ = top6_markov(df)
             elif metode == "Markov Order-2":
                 result = top6_markov_order2(df)
             elif metode == "Markov Gabungan":
                 result = top6_markov_hybrid(df)
             elif metode == "LSTM AI":
-                result = top6_lstm(df, lokasi=selected_lokasi)
+                result, accs = top6_lstm(df, lokasi=selected_lokasi, return_accuracy=True)
             elif metode == "Ensemble AI + Markov":
                 result = top6_ensemble(df, lokasi=selected_lokasi)
 
@@ -115,6 +115,9 @@ if st.button("🔮 Prediksi"):
                 for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                     with (col1 if i % 2 == 0 else col2):
                         st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
+
+            if metode == "LSTM AI" and accs:
+                st.info(f"📌 Akurasi per digit: Ribuan {accs[0]:.1f}%, Ratusan {accs[1]:.1f}%, Puluhan {accs[2]:.1f}%, Satuan {accs[3]:.1f}%")
 
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
