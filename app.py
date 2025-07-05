@@ -15,7 +15,6 @@ def load_lottieurl(url):
         return None
     return r.json()
 
-# Animasi Header
 lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
 st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
@@ -95,7 +94,6 @@ if st.button("🔮 Prediksi"):
                 with (col1 if i % 2 == 0 else col2):
                     st.markdown(f"**{label}:** {', '.join(str(d) for d in result[i])}")
 
-            # Kombinasi Markov Populer
             if metode == "Markov" and isinstance(info, dict):
                 with st.expander("🔥 Kombinasi 4D Terpopuler (Markov)"):
                     kombinasi_populer = info.get("kombinasi_populer", [])
@@ -103,7 +101,6 @@ if st.button("🔮 Prediksi"):
                         gabung_populer = " * ".join([row[0] for row in kombinasi_populer])
                         st.code(gabung_populer, language="text")
 
-            # Kombinasi LSTM/Ensemble
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D..."):
                     top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10)
@@ -119,7 +116,8 @@ if st.button("🔮 Prediksi"):
             list_akurasi = []
             for i in range(len(uji_df)):
                 subset_df = df.iloc[:-(len(uji_df) - i)]
-                if len(subset_df) < 11: continue
+                if len(subset_df) < 11:
+                    continue
                 pred = (
                     top6_markov(subset_df)[0] if metode == "Markov" else
                     top6_markov_order2(subset_df) if metode == "Markov Order-2" else
@@ -127,11 +125,14 @@ if st.button("🔮 Prediksi"):
                     top6_lstm(subset_df, lokasi=selected_lokasi) if metode == "LSTM AI" else
                     top6_ensemble(subset_df, lokasi=selected_lokasi)
                 )
+                if pred is None:
+                    continue  # ✅ cegah error
                 actual = f"{int(uji_df.iloc[i]['angka']):04d}"
                 skor = sum(int(actual[j]) in pred[j] for j in range(4))
                 total += 4
                 benar += skor
                 list_akurasi.append(skor / 4 * 100)
+
             if total > 0:
                 st.success(f"📈 Akurasi {metode}: {benar / total * 100:.2f}%")
                 with st.expander("📊 Grafik Akurasi"):
