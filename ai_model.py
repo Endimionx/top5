@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.layers import Input, LSTM, Bidirectional, Dense, Dropout, Layer
+from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Layer
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, CSVLogger
 
@@ -15,43 +15,36 @@ class PositionalEncoding(Layer):
     def call(self, x):
         seq_len = tf.shape(x)[1]
         d_model = tf.shape(x)[2]
-        position = tf.cast(tf.range(seq_len)[:, tf.newaxis], tf.float32)
-        div_term = tf.cast(tf.range(d_model)[tf.newaxis, :], tf.float32)
+        position = tf.cast(tf.range(seq_len)[:, tf.newaxis], dtype=tf.float32)
+        div_term = tf.cast(tf.range(d_model)[tf.newaxis, :], dtype=tf.float32)
+
         angle_rates = 1 / tf.pow(10000.0, (2 * (div_term // 2)) / tf.cast(d_model, tf.float32))
         angle_rads = position * angle_rates
 
         sines = tf.sin(angle_rads[:, 0::2])
         cosines = tf.cos(angle_rads[:, 1::2])
-
-        # padding jika jumlah dimensi tidak sama
-        if tf.shape(sines)[1] > tf.shape(cosines)[1]:
-            cosines = tf.pad(cosines, [[0, 0], [0, 1]])
-        elif tf.shape(cosines)[1] > tf.shape(sines)[1]:
-            sines = tf.pad(sines, [[0, 0], [0, 1]])
-
         pos_encoding = tf.concat([sines, cosines], axis=-1)
         pos_encoding = pos_encoding[tf.newaxis, ...]
+
         return x + pos_encoding
 
-# Attention Layer
-class AttentionLayer(Layer):
+# Attention Layer (Fixed)
+class AttentionLayer(tf.keras.layers.Layer):
     def __init__(self):
         super(AttentionLayer, self).__init__()
+        self.query_dense = Dense(64)
+        self.key_dense = Dense(64)
+        self.value_dense = Dense(64)
 
     def call(self, x):
-        query = tf.keras.layers.Dense(x.shape[-1])(x)
-        key = tf.keras.layers.Dense(x.shape[-1])(x)
-        value = tf.keras.layers.Dense(x.shape[-1])(x)
+        query = self.query_dense(x)
+        key = self.key_dense(x)
+        value = self.value_dense(x)
 
         scores = tf.matmul(query, key, transpose_b=True)
-        weights = tf.nn.softmax(scores / tf.math.sqrt(tf.cast(x.shape[-1], tf.float32)), axis=-1)
+        weights = tf.nn.softmax(scores / tf.math.sqrt(tf.cast(tf.shape(query)[-1], tf.float32)), axis=-1)
         context = tf.matmul(weights, value)
-        return context[:, -1, :]  # hanya ambil waktu terakhir
-
-# Cek Model
-def model_exists(lokasi):
-    filename = f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5"
-    return os.path.exists(filename)
+        return context[:, -1, :]
 
 # Preprocessing
 def prepare_lstm_data(df):
@@ -67,7 +60,11 @@ def prepare_lstm_data(df):
     y_encoded = [to_categorical(y[:, i], num_classes=10) for i in range(4)]
     return X, y_encoded
 
-# Training & Save
+def model_exists(lokasi):
+    filename = f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5"
+    return os.path.exists(filename)
+
+# Training
 def train_and_save_lstm(df, lokasi):
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
@@ -79,16 +76,18 @@ def train_and_save_lstm(df, lokasi):
         return
 
     if os.path.exists(filename):
+        print(f"🧠 Fine-tuning model untuk {lokasi}")
         model = load_model(filename, custom_objects={
             "AttentionLayer": AttentionLayer,
             "PositionalEncoding": PositionalEncoding
         })
     else:
+        print(f"🧠 Membuat model baru untuk {lokasi}")
         inputs = Input(shape=(10, 4))
         x = PositionalEncoding()(inputs)
-        x = Bidirectional(LSTM(128, return_sequences=True))(x)
+        x = LSTM(128, return_sequences=True)(x)
         x = Dropout(0.3)(x)
-        x = Bidirectional(LSTM(64, return_sequences=True))(x)
+        x = LSTM(64, return_sequences=True)(x)
         x = AttentionLayer()(x)
         outputs = [Dense(10, activation='softmax', name=f'output_{i}')(x) for i in range(4)]
         model = Model(inputs, outputs)
@@ -97,14 +96,14 @@ def train_and_save_lstm(df, lokasi):
 
     callbacks = [
         EarlyStopping(monitor='loss', patience=5, restore_best_weights=True),
-        ReduceLROnPlateau(monitor='loss', factor=0.5, patience=3),
+        ReduceLROnPlateau(monitor='loss', factor=0.5, patience=3, verbose=0),
         CSVLogger(log_file, append=False)
     ]
 
     model.fit(X, y, epochs=50, batch_size=16, verbose=0, callbacks=callbacks)
     model.save(filename)
 
-# Prediksi Top 6
+# Prediction
 def top6_lstm(df, lokasi=None, return_probs=False):
     filename = f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5"
     if not os.path.exists(filename):
@@ -131,7 +130,6 @@ def top6_lstm(df, lokasi=None, return_probs=False):
         return top6, probs
     return top6
 
-# Anti Top 6
 def anti_top6_lstm(df, lokasi=None):
     filename = f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5"
     if not os.path.exists(filename):
@@ -151,17 +149,16 @@ def anti_top6_lstm(df, lokasi=None):
         anti.append(list(idx))
     return anti
 
-# Low 6 Alias
 def low6_lstm(df, lokasi=None):
     return anti_top6_lstm(df, lokasi)
 
-# Prediksi Kombinasi 4D Confidence
+# Prediksi Kombinasi 4D Top-N Berdasarkan Confidence
 def kombinasi_4d(df, lokasi=None, top_n=10):
     result = top6_lstm(df, lokasi=lokasi, return_probs=True)
     if result is None:
         return None
     _, probs = result
-    top_digits = [np.argsort(-p)[:4] for p in probs]
+    top_digits = [np.argsort(-p)[:4] for p in probs]  # Ambil 4 tertinggi per posisi
 
     kombinasi = []
     for a in top_digits[0]:
