@@ -89,10 +89,13 @@ if st.button("🔮 Prediksi"):
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                 st.markdown(f"**{label}:** {', '.join(str(d) for d in pred[i])}")
 
-            list_akurasi = []
-            uji_df = df.tail(min(jumlah_uji, len(df)))
-            total = benar = 0
-            with st.spinner("⏳ Menghitung akurasi..."):
+            prediksi_4d = ''.join(str(pred[i][0]) for i in range(4))
+            st.success(f"🔢 Prediksi 4D Langsung: **{prediksi_4d}**")
+
+            with st.spinner("🔎 Menghitung akurasi..."):
+                list_akurasi = []
+                uji_df = df.tail(min(jumlah_uji, len(df)))
+                total = benar = 0
                 for i in range(len(uji_df)):
                     subset_df = df.iloc[:-(len(uji_df) - i)]
                     if len(subset_df) < 11:
@@ -111,10 +114,10 @@ if st.button("🔮 Prediksi"):
                     benar += skor
                     list_akurasi.append(skor / 4 * 100)
 
-                if total > 0:
-                    akurasi_total = (benar / total) * 100
-                    st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
-                    with st.expander("📊 Grafik Akurasi"):
-                        st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
-                else:
-                    st.warning("⚠️ Tidak cukup data valid untuk evaluasi akurasi.")
+            if total > 0:
+                akurasi_total = (benar / total) * 100
+                st.info(f"📈 Akurasi {metode}: {akurasi_total:.2f}%")
+                with st.expander("📊 Grafik Akurasi"):
+                    st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
+            else:
+                st.warning("⚠️ Tidak cukup data valid untuk evaluasi akurasi.")
