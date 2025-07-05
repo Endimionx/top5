@@ -1,27 +1,30 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, Attention, Concatenate, Embedding, Layer
+from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, Attention, Concatenate, Layer, Embedding
 from tensorflow.keras.callbacks import CSVLogger
 import os
 import pandas as pd
 from markov_model import top6_markov
 
-# Positional Encoding Layer
 class PositionalEncoding(Layer):
     def call(self, inputs):
         seq_len = tf.shape(inputs)[1]
         d_model = tf.shape(inputs)[2]
-        pos = tf.cast(tf.range(seq_len)[:, tf.newaxis], dtype=tf.float32)
+
+        position = tf.cast(tf.range(seq_len)[:, tf.newaxis], dtype=tf.float32)
         i = tf.cast(tf.range(d_model)[tf.newaxis, :], dtype=tf.float32)
+
         angle_rates = 1 / tf.pow(10000.0, (2 * (i // 2)) / tf.cast(d_model, tf.float32))
-        angle_rads = pos * angle_rates
-        angle_rads[:, 0::2] = tf.math.sin(angle_rads[:, 0::2])
-        angle_rads[:, 1::2] = tf.math.cos(angle_rads[:, 1::2])
-        pos_encoding = angle_rads[tf.newaxis, ...]
+        angle_rads = position * angle_rates
+
+        sines = tf.math.sin(angle_rads[:, 0::2])
+        cosines = tf.math.cos(angle_rads[:, 1::2])
+        pos_encoding = tf.concat([sines, cosines], axis=-1)
+        pos_encoding = tf.expand_dims(pos_encoding, 0)
+
         return inputs + tf.cast(pos_encoding, tf.float32)
 
-# Preprocessing
 def preprocess_data(df):
     sequences = []
     targets = [[] for _ in range(4)]
@@ -34,10 +37,9 @@ def preprocess_data(df):
     y = [np.array(t) for t in targets]
     return X, y
 
-# Build Model
-def build_lstm_model(attention=True, positional=True):
+def build_lstm_model(attention=False, positional=True):
     inputs = Input(shape=(3,))
-    x = Embedding(input_dim=10, output_dim=16)(inputs)
+    x = Embedding(input_dim=10, output_dim=8)(inputs)
     x = Bidirectional(LSTM(64, return_sequences=True))(x)
     x = Dropout(0.2)(x)
     if positional:
@@ -52,7 +54,6 @@ def build_lstm_model(attention=True, positional=True):
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
 
-# Train & Save
 def train_and_save_lstm(df, lokasi):
     if len(df) < 20:
         return
@@ -65,14 +66,12 @@ def train_and_save_lstm(df, lokasi):
     model.fit(X, y, epochs=30, batch_size=16, verbose=0, callbacks=[csv_logger])
     model.save(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5")
 
-# Cek Model
 def model_exists(lokasi):
     return os.path.exists(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5")
 
-# Top 6 Prediksi per Digit
 def top6_lstm(df, lokasi=None, return_probs=False):
     try:
-        model = load_model(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5", compile=False)
+        model = load_model(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5", compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
         sequences = []
         for angka in df["angka"]:
             digits = [int(d) for d in f"{int(angka):04d}"]
@@ -92,7 +91,6 @@ def top6_lstm(df, lokasi=None, return_probs=False):
     except:
         return None
 
-# Kombinasi 4D dari top6
 def kombinasi_4d(df, lokasi, top_n=10):
     result, probs = top6_lstm(df, lokasi=lokasi, return_probs=True)
     if result is None:
@@ -112,7 +110,6 @@ def kombinasi_4d(df, lokasi, top_n=10):
     topk = sorted(scores, key=lambda x: -x[1])[:top_n]
     return topk
 
-# Gabungan LSTM + Markov
 def top6_ensemble(df, lokasi):
     lstm_result = top6_lstm(df, lokasi=lokasi)
     markov_result, _ = top6_markov(df)
@@ -126,14 +123,12 @@ def top6_ensemble(df, lokasi):
         ensemble.append([x[0] for x in top6])
     return ensemble
 
-# Anti Prediksi
 def anti_top6_lstm(df, lokasi):
     hasil = top6_lstm(df, lokasi)
     return [[x for x in range(10) if x not in hasil[i]] for i in range(4)]
 
-# Low Probabilitas Digit
 def low6_lstm(df, lokasi):
-    model = load_model(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5", compile=False)
+    model = load_model(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5", compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
     sequences = []
     for angka in df["angka"]:
         digits = [int(d) for d in f"{int(angka):04d}"]
