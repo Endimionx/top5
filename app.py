@@ -78,12 +78,15 @@ if st.button("🔮 Prediksi"):
         st.warning("❌ Minimal 11 data diperlukan.")
     else:
         with st.spinner("⏳ Melakukan prediksi..."):
-            result = (
-                top6_markov(df) if metode == "Markov" else
-                top6_markov_order2(df) if metode == "Markov Order-2" else
-                top6_markov_hybrid(df) if metode == "Markov Gabungan" else
-                top6_lstm(df, lokasi=selected_lokasi)
-            )
+            if metode == "Markov":
+                result, info = top6_markov(df)
+            elif metode == "Markov Order-2":
+                result, info = top6_markov_order2(df)
+            elif metode == "Markov Gabungan":
+                result, info = top6_markov_hybrid(df)
+            else:
+                result = top6_lstm(df, lokasi=selected_lokasi)
+                info = None
 
         if result is None:
             st.error("❌ Gagal prediksi.")
@@ -91,6 +94,11 @@ if st.button("🔮 Prediksi"):
             st.markdown("### 🎯 Prediksi Top 6 Digit per Posisi")
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                 st.markdown(f"**{label}:** {', '.join(str(d) for d in result[i])}")
+
+            # Info tambahan dari model Markov
+            if info:
+                with st.expander("📘 Statistik Tambahan / Info Model"):
+                    st.json(info)
 
             # Prediksi Kombinasi 4D
             if metode == "LSTM AI":
@@ -110,12 +118,14 @@ if st.button("🔮 Prediksi"):
                     subset_df = df.iloc[:-(len(uji_df) - i)]
                     if len(subset_df) < 11:
                         continue
-                    pred_uji = (
-                        top6_markov(subset_df) if metode == "Markov" else
-                        top6_markov_order2(subset_df) if metode == "Markov Order-2" else
-                        top6_markov_hybrid(subset_df) if metode == "Markov Gabungan" else
-                        top6_lstm(subset_df, lokasi=selected_lokasi)
-                    )
+                    if metode == "Markov":
+                        pred_uji, _ = top6_markov(subset_df)
+                    elif metode == "Markov Order-2":
+                        pred_uji, _ = top6_markov_order2(subset_df)
+                    elif metode == "Markov Gabungan":
+                        pred_uji, _ = top6_markov_hybrid(subset_df)
+                    else:
+                        pred_uji = top6_lstm(subset_df, lokasi=selected_lokasi)
                     if pred_uji is None:
                         continue
                     actual = f"{int(uji_df.iloc[i]['angka']):04d}"
