@@ -132,10 +132,6 @@ if st.button("🔮 Prediksi"):
                     st.bar_chart(df_freq.set_index("Digit"))
 
                 with st.expander("🔥 Kombinasi 4D Terpopuler"):
-                    df_komb = pd.DataFrame(info["kombinasi_populer"], columns=["Kombinasi", "Jumlah"])
-                    st.dataframe(df_komb)
-
-                    # Copy button style using st.code (tanpa textarea)
                     kombinasi_text = "\n".join([f"{row[0]} = {row[1]}" for row in info["kombinasi_populer"]])
                     st.code(kombinasi_text, language="text")
 
