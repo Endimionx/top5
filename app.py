@@ -5,12 +5,12 @@ import os
 import matplotlib.pyplot as plt
 from dotenv import load_dotenv
 from markov_model import top6_markov, top6_markov_order2, top6_markov_hybrid
-from ai_model import top6_lstm, train_and_save_lstm, model_exists, anti_top6_lstm, low6_lstm
+from ai_model import top6_lstm, train_and_save_lstm, model_exists, anti_top6_lstm, low6_lstm, prediksi_kombinasi_4d
 from lokasi_list import lokasi_list
 
 load_dotenv()
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
-st.markdown("<h4>Prediksi Togel 4D - AI & Markov</h4>", unsafe_allow_html=True)
+st.markdown("<h4>🎯 Prediksi Togel 4D - AI & Markov</h4>", unsafe_allow_html=True)
 
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 
@@ -40,17 +40,17 @@ df = pd.DataFrame({"angka": angka_list})
 metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
 
 if metode == "LSTM AI":
-    with st.expander("🛠️ Manajemen Model LSTM"):
-        tab_model, tab_grafik = st.tabs(["🔧 Model", "📉 Grafik Pelatihan"])
-        
+    with st.expander("⚙️ Manajemen Model LSTM & Pelatihan"):
+        tab1, tab2 = st.tabs(["🔧 Model", "📉 Grafik Pelatihan"])
         model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
+        log_file = f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}.csv"
 
-        with tab_model:
+        with tab1:
             if st.button("📚 Latih & Simpan Model"):
                 if len(df) < 20:
                     st.warning("Minimal 20 data untuk latih model.")
                 else:
-                    with st.spinner("🔄 Melatih model..."):
+                    with st.spinner("⏳ Melatih model..."):
                         train_and_save_lstm(df, selected_lokasi)
                     st.success("✅ Model berhasil dilatih dan disimpan.")
 
@@ -69,56 +69,31 @@ if metode == "LSTM AI":
                     st.success("✅ Model berhasil diunggah.")
                     st.experimental_rerun()
 
-        with tab_grafik:
-            log_file = f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}.csv"
+        with tab2:
             if os.path.exists(log_file):
-                st.subheader("📉 Grafik Pelatihan Model")
                 df_log = pd.read_csv(log_file)
                 st.line_chart(df_log[["loss", "output_0_accuracy", "output_1_accuracy", "output_2_accuracy", "output_3_accuracy"]])
                 st.caption("output_0 = ribuan, output_1 = ratusan, output_2 = puluhan, output_3 = satuan")
             else:
-                st.info("Belum ada history pelatihan untuk model ini.")
+                st.info("📭 Belum ada training log.")
 
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan.")
     else:
-        with st.spinner("🔄 Memproses prediksi..."):
+        with st.spinner("⏳ Menghitung prediksi..."):
             pred = (
                 top6_markov(df) if metode == "Markov" else
                 top6_markov_order2(df) if metode == "Markov Order-2" else
                 top6_markov_hybrid(df) if metode == "Markov Gabungan" else
-                top6_lstm(df, lokasi=selected_lokasi)
+                top6_lstm(df, lokasi=selected_lokasi, top_n=6)
             )
-
         if pred is None:
             st.error("❌ Gagal prediksi.")
         else:
-            st.markdown("### 🎯 Prediksi Top 6 Digit")
+            st.subheader("🎯 Top 6 Prediksi per Digit")
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                 st.markdown(f"**{label}:** {', '.join(str(d) for d in pred[i])}")
-
-            st.markdown("### 🎲 Prediksi Kombinasi 4D Teratas (Top 10)")
-            kombinasi = []
-            from itertools import product
-            import numpy as np
-
-            semua_kombinasi = list(product(*pred))
-            scores = []
-
-            model_pred = top6_lstm(df, lokasi=selected_lokasi, return_probs=True)
-            if model_pred is not None:
-                for comb in semua_kombinasi:
-                    score = sum([model_pred[i][digit] for i, digit in enumerate(comb)]) / 4
-                    scores.append((comb, score))
-
-                scores.sort(key=lambda x: x[1], reverse=True)
-                top10 = scores[:10]
-                df_top10 = pd.DataFrame({
-                    "Kombinasi": [''.join(map(str, tup[0])) for tup in top10],
-                    "Confidence": [f"{tup[1]*100:.2f}%" for tup in top10]
-                })
-                st.table(df_top10)
 
             list_akurasi = []
             uji_df = df.tail(min(jumlah_uji, len(df)))
@@ -131,7 +106,7 @@ if st.button("🔮 Prediksi"):
                     top6_markov(subset_df) if metode == "Markov" else
                     top6_markov_order2(subset_df) if metode == "Markov Order-2" else
                     top6_markov_hybrid(subset_df) if metode == "Markov Gabungan" else
-                    top6_lstm(subset_df, lokasi=selected_lokasi)
+                    top6_lstm(subset_df, lokasi=selected_lokasi, top_n=6)
                 )
                 if pred_uji is None:
                     continue
@@ -148,3 +123,13 @@ if st.button("🔮 Prediksi"):
                     st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
             else:
                 st.warning("⚠️ Tidak cukup data valid untuk evaluasi akurasi.")
+
+            # Prediksi kombinasi 4D (hanya untuk LSTM AI)
+            if metode == "LSTM AI":
+                st.subheader("🔢 Prediksi Kombinasi 4D Teratas (Top 10)")
+                with st.spinner("⏳ Menghitung kombinasi..."):
+                    hasil_kombinasi = prediksi_kombinasi_4d(df, lokasi=selected_lokasi, top_n=10)
+                if hasil_kombinasi:
+                    df_table = pd.DataFrame(hasil_kombinasi, columns=["Kombinasi", "Confidence"])
+                    df_table["Confidence"] = df_table["Confidence"].apply(lambda x: f"{x*100:.2f}%")
+                    st.table(df_table)
