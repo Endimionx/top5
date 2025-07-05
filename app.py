@@ -94,7 +94,6 @@ if st.button("🔮 Prediksi"):
                 with st.expander("🔥 Kombinasi 4D Terpopuler (Markov)"):
                     kombinasi_populer = info.get("kombinasi_populer", [])
                     if kombinasi_populer:
-                        st.write(f"Total Kombinasi: {len(kombinasi_populer)}")
                         gabung_populer = " * ".join([row[0] for row in kombinasi_populer])
                         st.code(gabung_populer, language="text")
                         st.download_button("📋 Copy Kombinasi Populer", gabung_populer, file_name="kombinasi_markov.txt")
@@ -103,10 +102,10 @@ if st.button("🔮 Prediksi"):
                 with st.spinner("🔢 Menghitung kombinasi 4D..."):
                     top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10)
                     if top_komb:
-                        st.markdown("### 🔢 Top 10 Kombinasi 4D (AI)")
-                        gabungan = " * ".join([row[0] for row in top_komb])
-                        st.code(gabungan, language="text")
-                        st.download_button("📋 Copy Kombinasi AI", gabungan, file_name="kombinasi_ai.txt")
+                        with st.expander("🔢 Top 10 Kombinasi 4D (AI)"):
+                            gabungan = " * ".join([row[0] for row in top_komb])
+                            st.code(gabungan, language="text")
+                            st.download_button("📋 Copy Kombinasi AI", gabungan, file_name="kombinasi_ai.txt")
 
         with st.spinner("📏 Menghitung akurasi..."):
             uji_df = df.tail(min(jumlah_uji, len(df)))
