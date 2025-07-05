@@ -2,7 +2,7 @@ import random
 from collections import defaultdict, Counter
 import pandas as pd
 
-# Markov Order-1
+# MARKOV ORDER-1
 def build_transition_matrix(data):
     matrix = [defaultdict(lambda: defaultdict(int)) for _ in range(3)]
     for number in data:
@@ -14,47 +14,41 @@ def build_transition_matrix(data):
 def top6_markov(df):
     data = df["angka"].astype(str).tolist()
     matrix = build_transition_matrix(data)
-    prediksi = [str(random.randint(0, 9))]
 
-    for i in range(3):
-        prev = prediksi[-1]
-        dist = matrix[i][prev]
-        sorted_digits = sorted(dist.items(), key=lambda x: -x[1])
-        top6 = [int(k) for k, v in sorted_digits[:6]]
-        while len(top6) < 6:
-            top6.append(random.randint(0, 9))
-        prediksi.append(str(top6[0]))
+    # Statistik tambahan
+    freq_ribuan = Counter([int(x[0]) for x in data])
+    transisi = [{k: dict(v) for k, v in matrix[i].items()} for i in range(3)]
+    kombinasi = Counter(data).most_common(10)
 
     hasil = []
 
-    # Posisi 1
-    first_digits = [int(str(a)[0]) for a in data]
-    counter1 = Counter(first_digits)
-    top6_pos1 = [k for k, _ in counter1.most_common(6)]
+    # Ribuan (posisi pertama)
+    top6_pos1 = [k for k, _ in freq_ribuan.most_common(6)]
     while len(top6_pos1) < 6:
         top6_pos1.append(random.randint(0, 9))
     hasil.append(top6_pos1)
 
-    # Posisi 2-4
+    # Prediksi berdasarkan transisi digit
     for i in range(3):
-        prev = prediksi[i]
-        dist = matrix[i][prev]
-        sorted_digits = sorted(dist.items(), key=lambda x: -x[1])
-        top6 = [int(k) for k, _ in sorted_digits[:6]]
+        all_trans = matrix[i]
+        kandidat = []
+        for prev_digit in all_trans:
+            kandidat.extend(all_trans[prev_digit].keys())
+        kandidat = Counter(kandidat).most_common()
+        top6 = [int(k) for k, _ in kandidat[:6]]
         while len(top6) < 6:
             top6.append(random.randint(0, 9))
         hasil.append(top6)
 
     info = {
-        "Distribusi Posisi 1": dict(counter1),
-        "Transisi Markov": {
-            f"{k}": dict(v) for i in range(3) for k, v in matrix[i].items()
-        }
+        "frekuensi_ribuan": dict(freq_ribuan),
+        "transisi": transisi,
+        "kombinasi_populer": kombinasi
     }
 
     return hasil, info
 
-# Markov Order-2
+# MARKOV ORDER-2
 def build_transition_matrix_order2(data):
     matrix = [{} for _ in range(2)]
     for number in data:
@@ -72,15 +66,13 @@ def build_transition_matrix_order2(data):
 def top6_markov_order2(df):
     data = df["angka"].astype(str).tolist()
     matrix = build_transition_matrix_order2(data)
-    pairs = df["angka"].astype(str).apply(lambda x: x[:2])
-    top_pairs = pairs.value_counts().head(6).index.tolist()
 
-    if not top_pairs:
-        return [[random.randint(0, 9)] * 6 for _ in range(4)], {}
+    pairs = [x[:2] for x in data]
+    top_pairs = Counter(pairs).most_common(6)
+    d1, d2 = top_pairs[0][0][0], top_pairs[0][0][1]
 
-    d1, d2 = top_pairs[0][0], top_pairs[0][1]
-    top6_d1 = list(set([int(p[0]) for p in top_pairs]))
-    top6_d2 = list(set([int(p[1]) for p in top_pairs]))
+    top6_d1 = list(set([int(p[0][0]) for p in top_pairs]))
+    top6_d2 = list(set([int(p[0][1]) for p in top_pairs]))
     while len(top6_d1) < 6:
         top6_d1.append(random.randint(0, 9))
     while len(top6_d2) < 6:
@@ -90,52 +82,34 @@ def top6_markov_order2(df):
 
     key1 = d1 + d2
     dist3 = matrix[0].get(key1, {})
-    sorted3 = sorted(dist3.items(), key=lambda x: -x[1])
-    top6_d3 = [int(k) for k, _ in sorted3[:6]]
+    top6_d3 = sorted(dist3.items(), key=lambda x: -x[1])
+    top6_d3 = [int(k) for k, _ in top6_d3[:6]]
     while len(top6_d3) < 6:
         top6_d3.append(random.randint(0, 9))
     hasil.append(top6_d3)
 
     key2 = d2 + str(top6_d3[0])
     dist4 = matrix[1].get(key2, {})
-    sorted4 = sorted(dist4.items(), key=lambda x: -x[1])
-    top6_d4 = [int(k) for k, _ in sorted4[:6]]
+    top6_d4 = sorted(dist4.items(), key=lambda x: -x[1])
+    top6_d4 = [int(k) for k, _ in top6_d4[:6]]
     while len(top6_d4) < 6:
         top6_d4.append(random.randint(0, 9))
     hasil.append(top6_d4)
 
-    info = {
-        "Pasangan Digit Tertinggi": top_pairs,
-        "Transisi Order-2": {
-            "step_1": {k: dict(v) for k, v in matrix[0].items()},
-            "step_2": {k: dict(v) for k, v in matrix[1].items()},
-        }
-    }
+    return hasil
 
-    return hasil, info
-
-# Hybrid
+# HYBRID
 def top6_markov_hybrid(df):
-    hasil1, info1 = top6_markov(df)
-    hasil2, info2 = top6_markov_order2(df)
+    hasil1, _ = top6_markov(df)
+    hasil2 = top6_markov_order2(df)
 
     hasil = []
     for i in range(4):
         gabung = hasil1[i] + hasil2[i]
-        freq = {x: gabung.count(x) for x in set(gabung)}
-        top6 = sorted(freq.items(), key=lambda x: -x[1])
-        top6 = [k for k, _ in top6[:6]]
+        freq = Counter(gabung)
+        top6 = [k for k, _ in freq.most_common(6)]
         while len(top6) < 6:
             top6.append(random.randint(0, 9))
         hasil.append(top6)
 
-    info = {
-        "Gabungan Frekuensi": {
-            f"Posisi {i+1}": {k: gabung.count(k) for k in set(gabung)}
-            for i, gabung in enumerate([hasil1[i] + hasil2[i] for i in range(4)])
-        },
-        "Info Markov": info1,
-        "Info Order-2": info2,
-    }
-
-    return hasil, info
+    return hasil
