@@ -8,3 +8,4 @@ python-dotenv
 requests
 matplotlib
 streamlit_lottie
+seaborn
