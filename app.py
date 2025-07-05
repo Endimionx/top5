@@ -42,35 +42,43 @@ metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2",
 if metode == "LSTM AI":
     with st.expander("🛠️ Manajemen Model LSTM"):
         model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
-
-        if st.button("📚 Latih & Simpan Model"):
-            if len(df) < 20:
-                st.warning("Minimal 20 data untuk latih model.")
-            else:
-                train_and_save_lstm(df, selected_lokasi)
-                st.success("✅ Model berhasil dilatih dan disimpan.")
-
-        if os.path.exists(model_path):
-            st.success(f"📁 Model ditemukan: {model_path}")
-            with open(model_path, "rb") as f:
-                st.download_button("⬇️ Download Model", f, file_name=os.path.basename(model_path))
-            if st.button("🗑 Hapus Model"):
-                os.remove(model_path)
-                st.warning("🗑 Model berhasil dihapus.")
-        else:
-            uploaded_model = st.file_uploader("📤 Upload Model (.h5)", type=["h5"])
-            if uploaded_model is not None:
-                with open(model_path, "wb") as f:
-                    f.write(uploaded_model.read())
-                st.success("✅ Model berhasil diunggah.")
-                st.experimental_rerun()
-
         log_file = f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}.csv"
-        if os.path.exists(log_file):
-            st.subheader("📉 Grafik Pelatihan Model")
-            df_log = pd.read_csv(log_file)
-            st.line_chart(df_log[["loss", "output_0_accuracy", "output_1_accuracy", "output_2_accuracy", "output_3_accuracy"]])
-            st.caption("output_0 = ribuan, output_1 = ratusan, output_2 = puluhan, output_3 = satuan")
+
+        tab1, tab2 = st.tabs(["📚 Latih / Upload Model", "📈 Lihat Training Log"])
+
+        with tab1:
+            if st.button("📚 Latih & Simpan Model"):
+                if len(df) < 20:
+                    st.warning("Minimal 20 data untuk latih model.")
+                else:
+                    train_and_save_lstm(df, selected_lokasi)
+                    st.success("✅ Model berhasil dilatih dan disimpan.")
+                    st.experimental_rerun()
+
+            if os.path.exists(model_path):
+                st.success(f"📁 Model ditemukan: {model_path}")
+                with open(model_path, "rb") as f:
+                    st.download_button("⬇️ Download Model", f, file_name=os.path.basename(model_path))
+                if st.button("🗑 Hapus Model"):
+                    os.remove(model_path)
+                    st.warning("🗑 Model berhasil dihapus.")
+                    st.experimental_rerun()
+            else:
+                uploaded_model = st.file_uploader("📤 Upload Model (.h5)", type=["h5"])
+                if uploaded_model is not None:
+                    with open(model_path, "wb") as f:
+                        f.write(uploaded_model.read())
+                    st.success("✅ Model berhasil diunggah.")
+                    st.experimental_rerun()
+
+        with tab2:
+            if os.path.exists(log_file):
+                st.subheader("📉 Grafik Pelatihan Model")
+                df_log = pd.read_csv(log_file)
+                st.line_chart(df_log[["loss", "output_0_accuracy", "output_1_accuracy", "output_2_accuracy", "output_3_accuracy"]])
+                st.caption("output_0 = ribuan, output_1 = ratusan, output_2 = puluhan, output_3 = satuan")
+            else:
+                st.info("📭 Belum ada log pelatihan untuk pasaran ini.")
 
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
@@ -89,30 +97,26 @@ if st.button("🔮 Prediksi"):
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                 st.markdown(f"**{label}:** {', '.join(str(d) for d in pred[i])}")
 
-            prediksi_4d = ''.join(str(pred[i][0]) for i in range(4))
-            st.success(f"🔢 Prediksi 4D Langsung: **{prediksi_4d}**")
-
-            with st.spinner("🔎 Menghitung akurasi..."):
-                list_akurasi = []
-                uji_df = df.tail(min(jumlah_uji, len(df)))
-                total = benar = 0
-                for i in range(len(uji_df)):
-                    subset_df = df.iloc[:-(len(uji_df) - i)]
-                    if len(subset_df) < 11:
-                        continue
-                    pred_uji = (
-                        top6_markov(subset_df) if metode == "Markov" else
-                        top6_markov_order2(subset_df) if metode == "Markov Order-2" else
-                        top6_markov_hybrid(subset_df) if metode == "Markov Gabungan" else
-                        top6_lstm(subset_df, lokasi=selected_lokasi)
-                    )
-                    if pred_uji is None:
-                        continue
-                    actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-                    skor = sum(int(actual[j]) in pred_uji[j] for j in range(4))
-                    total += 4
-                    benar += skor
-                    list_akurasi.append(skor / 4 * 100)
+            list_akurasi = []
+            uji_df = df.tail(min(jumlah_uji, len(df)))
+            total = benar = 0
+            for i in range(len(uji_df)):
+                subset_df = df.iloc[:-(len(uji_df) - i)]
+                if len(subset_df) < 11:
+                    continue
+                pred_uji = (
+                    top6_markov(subset_df) if metode == "Markov" else
+                    top6_markov_order2(subset_df) if metode == "Markov Order-2" else
+                    top6_markov_hybrid(subset_df) if metode == "Markov Gabungan" else
+                    top6_lstm(subset_df, lokasi=selected_lokasi)
+                )
+                if pred_uji is None:
+                    continue
+                actual = f"{int(uji_df.iloc[i]['angka']):04d}"
+                skor = sum(int(actual[j]) in pred_uji[j] for j in range(4))
+                total += 4
+                benar += skor
+                list_akurasi.append(skor / 4 * 100)
 
             if total > 0:
                 akurasi_total = (benar / total) * 100
