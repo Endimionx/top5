@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, Attention, Concatenate, Layer, Embedding
+from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, Layer, Embedding, MultiHeadAttention, LayerNormalization, Add
 from tensorflow.keras.callbacks import CSVLogger
 import os
 import pandas as pd
@@ -14,7 +14,6 @@ class PositionalEncoding(Layer):
 
         position = tf.cast(tf.range(seq_len)[:, tf.newaxis], dtype=tf.float32)
         i = tf.cast(tf.range(d_model)[tf.newaxis, :], dtype=tf.float32)
-
         angle_rates = 1 / tf.pow(10000.0, (2 * (i // 2)) / tf.cast(d_model, tf.float32))
         angle_rads = position * angle_rates
 
@@ -25,30 +24,52 @@ class PositionalEncoding(Layer):
 
         return inputs + tf.cast(pos_encoding, tf.float32)
 
-def preprocess_data(df):
+def preprocess_data(df, augment=True):
     sequences = []
     targets = [[] for _ in range(4)]
-    for angka in df["angka"]:
+    data = df["angka"].tolist()
+
+    for angka in data:
         digits = [int(d) for d in f"{int(angka):04d}"]
         sequences.append(digits[:-1])
         for i in range(4):
             targets[i].append(tf.keras.utils.to_categorical(digits[i], num_classes=10))
+
+        if augment:
+            # Data Augmentation: geser angka ke kiri/kanan
+            aug1 = digits.copy()
+            aug1[0], aug1[1] = aug1[1], aug1[0]
+            sequences.append(aug1[:-1])
+            for i in range(4):
+                targets[i].append(tf.keras.utils.to_categorical(aug1[i], num_classes=10))
+
+            aug2 = digits.copy()
+            aug2[2], aug2[3] = aug2[3], aug2[2]
+            sequences.append(aug2[:-1])
+            for i in range(4):
+                targets[i].append(tf.keras.utils.to_categorical(aug2[i], num_classes=10))
+
     X = np.array(sequences)
     y = [np.array(t) for t in targets]
     return X, y
 
-def build_lstm_model(attention=False, positional=True):
+def build_lstm_model(attention=True, positional=True):
     inputs = Input(shape=(3,))
-    x = Embedding(input_dim=10, output_dim=8)(inputs)
+    x = Embedding(input_dim=10, output_dim=16)(inputs)
     x = Bidirectional(LSTM(64, return_sequences=True))(x)
     x = Dropout(0.2)(x)
+
     if positional:
         x = PositionalEncoding()(x)
+
     if attention:
-        attn = Attention()([x, x])
-        x = Concatenate()([x, attn])
+        attn = MultiHeadAttention(num_heads=2, key_dim=16)(x, x)
+        x = Add()([x, attn])
+        x = LayerNormalization()(x)
+
     x = Bidirectional(LSTM(64))(x)
     x = Dropout(0.2)(x)
+
     outputs = [Dense(10, activation="softmax", name=f"output_{i}")(x) for i in range(4)]
     model = Model(inputs, outputs)
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
@@ -71,13 +92,18 @@ def model_exists(lokasi):
 
 def top6_lstm(df, lokasi=None, return_probs=False):
     try:
-        model = load_model(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5", compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
+        model = load_model(
+            f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5",
+            compile=False,
+            custom_objects={"PositionalEncoding": PositionalEncoding}
+        )
         sequences = []
         for angka in df["angka"]:
             digits = [int(d) for d in f"{int(angka):04d}"]
             sequences.append(digits[:-1])
         X = np.array(sequences)
         y_pred = model.predict(X, verbose=0)
+
         top6 = []
         probs = []
         for out in y_pred:
@@ -85,10 +111,12 @@ def top6_lstm(df, lokasi=None, return_probs=False):
             top_idx = avg_probs.argsort()[-6:][::-1]
             top6.append(list(top_idx))
             probs.append(avg_probs[top_idx])
+
         if return_probs:
             return top6, probs
         return top6
-    except:
+    except Exception as e:
+        print(f"[ERROR top6_lstm]: {e}")
         return None
 
 def kombinasi_4d(df, lokasi, top_n=10):
