@@ -18,7 +18,7 @@ def load_lottieurl(url):
     return r.json()
 
 lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
-st_lottie(lottie_predict, speed=1, height=100, key="prediksi")
+st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
 st.markdown("""
     <style>
@@ -34,7 +34,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("🔮 Prediksi Togel 4D - AI & Markov")
+st.markdown("🔮 Prediksi 4D - AI & Markov")
 
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
