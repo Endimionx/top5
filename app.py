@@ -18,42 +18,18 @@ def load_lottieurl(url):
 lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
 st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
-# Dark mode toggle
-dark_mode = st.sidebar.toggle("🌙 Dark Mode", value=True)
-if dark_mode:
-    st.markdown("""
-    <style>
-        body, .main, .stApp {
-            background-color: #111111;
-            color: white;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
-# Floating Chat Assistant
 st.markdown("""
 <style>
-#floating-chat {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 9999;
-}
-.chat-icon {
-  background: #25d366;
+#copy-btn {
+  margin-top: 5px;
+  padding: 8px 12px;
+  background-color: #25d366;
   color: white;
-  border-radius: 50%;
-  padding: 12px 14px;
-  font-size: 28px;
+  border: none;
+  border-radius: 8px;
   cursor: pointer;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
 }
 </style>
-<div id="floating-chat">
-  <a href="https://wa.me/6281234567890?text=Halo%20Admin%2C%20saya%20butuh%20bantuan%20aplikasi%20Prediksi%20AI" target="_blank">
-    <div class="chat-icon">💬</div>
-  </a>
-</div>
 """, unsafe_allow_html=True)
 
 st.title("🔮 Prediksi 4D - AI & Markov")
@@ -128,24 +104,15 @@ if st.button("🔮 Prediksi"):
                 with (col1 if i % 2 == 0 else col2):
                     st.markdown(f"**{label}:** {', '.join(str(d) for d in result[i])}")
 
-            if metode == "Markov" and isinstance(info, dict):
-                with st.expander("🔥 Kombinasi 4D Terpopuler"):
-                    top_kombinasi = [row[0] for row in info["kombinasi_populer"][:10]]
-                    text_block = "\n".join(top_kombinasi)
-                    st.code(text_block, language="text")
-                    st.markdown(f'<a href="whatsapp://send?text={text_block}" target="_blank"><button>📤 Bagikan ke WhatsApp</button></a>', unsafe_allow_html=True)
-
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D..."):
                     top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10)
                     if top_komb:
-                        st.markdown("### 🔢 Top 10 Kombinasi 4D Berdasarkan Confidence")
-                        kombs = [row[0] for row in top_komb]
-                        komb_text = "\n".join(kombs)
-                        st.code(komb_text, language="text")
-                        st.markdown(f'<a href="whatsapp://send?text={komb_text}" target="_blank"><button>📤 Bagikan ke WhatsApp</button></a>', unsafe_allow_html=True)
+                        st.markdown("### 🔢 Top 10 Kombinasi 4D")
+                        gabungan = " * ".join([row[0] for row in top_komb])
+                        st.code(gabungan, language="text")
+                        st.download_button("📋 Copy Kombinasi", gabungan, file_name="kombinasi.txt")
 
-        # Akurasi
         with st.spinner("📏 Menghitung akurasi..."):
             uji_df = df.tail(min(jumlah_uji, len(df)))
             total = benar = 0
