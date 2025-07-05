@@ -15,7 +15,7 @@ def load_lottieurl(url):
         return None
     return r.json()
 
-# Animasi Header
+# Header animasi
 lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
 st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
@@ -33,7 +33,7 @@ with st.sidebar:
     jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=1000, value=5)
     metode = st.selectbox("🧠 Pilih Metode Prediksi", metode_list)
 
-# Ambil Data
+# Ambil data
 angka_list = []
 riwayat_input = ""
 if selected_lokasi and selected_hari:
@@ -53,7 +53,7 @@ if selected_lokasi and selected_hari:
 
 df = pd.DataFrame({"angka": angka_list})
 
-# LSTM Model
+# Manajemen model LSTM
 if metode == "LSTM AI":
     with st.expander("⚙️ LSTM AI - Manajemen Model"):
         model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
@@ -110,7 +110,7 @@ if st.button("🔮 Prediksi"):
                             gabungan = " * ".join([row[0] for row in top_komb])
                             st.code(gabungan, language="text")
 
-        # Akurasi
+        # Evaluasi akurasi
         with st.spinner("📏 Menghitung akurasi..."):
             uji_df = df.tail(min(jumlah_uji, len(df)))
             total = benar = 0
