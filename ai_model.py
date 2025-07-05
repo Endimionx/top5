@@ -1,11 +1,14 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, Attention, Concatenate, Layer, Embedding
+from tensorflow.keras.layers import (Input, LSTM, Dense, Dropout, Bidirectional, 
+                                     Layer, Embedding, MultiHeadAttention, Concatenate)
 from tensorflow.keras.callbacks import CSVLogger
 import os
 import pandas as pd
 from markov_model import top6_markov
+
+TEMPERATURE = 1.2  # untuk scaling softmax
 
 class PositionalEncoding(Layer):
     def call(self, inputs):
@@ -41,11 +44,16 @@ def build_lstm_model(attention=True, positional=True):
     if positional:
         x = PositionalEncoding()(x)
     if attention:
-        attn = Attention()([x, x])
+        attn = MultiHeadAttention(num_heads=2, key_dim=64)(x, x)
         x = Concatenate()([x, attn])
     x = Bidirectional(LSTM(64))(x)
     x = Dropout(0.2)(x)
-    outputs = [Dense(10, activation="softmax", name=f"output_{i}")(x) for i in range(4)]
+
+    # temperature scaling
+    def scaled_dense(name):
+        return Dense(10, activation=lambda x: tf.nn.softmax(x / TEMPERATURE), name=name)
+
+    outputs = [scaled_dense(f"output_{i}")(x) for i in range(4)]
     model = Model(inputs, outputs)
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
@@ -64,26 +72,43 @@ def train_and_save_lstm(df, lokasi):
 def model_exists(lokasi):
     return os.path.exists(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5")
 
-def top6_lstm(df, lokasi=None, return_probs=False):
+def top6_lstm(df, lokasi=None, return_probs=False, return_accuracy=False):
     try:
         model = load_model(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5",
                            compile=False,
                            custom_objects={"PositionalEncoding": PositionalEncoding})
         sequences = []
+        true_digits = [[] for _ in range(4)]
         for angka in df["angka"]:
             digits = [int(d) for d in f"{int(angka):04d}"]
             sequences.append(digits[:-1])
+            for i in range(4):
+                true_digits[i].append(digits[i])
+
         X = np.array(sequences)
         y_pred = model.predict(X, verbose=0)
         top6 = []
         probs = []
-        for out in y_pred:
-            avg_probs = np.mean(out, axis=0)
+        accs = []
+
+        for i in range(4):
+            avg_probs = np.mean(y_pred[i], axis=0)
             top_idx = avg_probs.argsort()[-6:][::-1]
             top6.append(list(top_idx))
             probs.append(avg_probs[top_idx])
+
+            if return_accuracy:
+                # Akurasi per digit posisi i
+                correct = sum(np.argmax(y_pred[i], axis=1) == np.array(true_digits[i]))
+                acc = 100 * correct / len(true_digits[i])
+                accs.append(acc)
+
+        if return_probs and return_accuracy:
+            return top6, probs, accs
         if return_probs:
             return top6, probs
+        if return_accuracy:
+            return top6, accs
         return top6
     except:
         return None
