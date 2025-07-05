@@ -135,7 +135,7 @@ if st.button("🔮 Prediksi"):
                     df_komb = pd.DataFrame(info["kombinasi_populer"], columns=["Kombinasi", "Jumlah"])
                     st.dataframe(df_komb)
 
-                    # Tambahan untuk copy-able text
+                    # Tambahan: copy-able kombinasi
                     text_komb = "\n".join([f"{row[0]} = {row[1]}" for row in info["kombinasi_populer"]])
                     st.text_area("📋 Salin Kombinasi Populer:", text_komb, height=200)
 
