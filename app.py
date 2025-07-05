@@ -57,26 +57,25 @@ if metode == "LSTM AI":
     with st.expander("⚙️ LSTM AI - Manajemen Model"):
         model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
 
-        # Upload model
-        uploaded_model = st.file_uploader("📤 Upload Model (.h5)", type=["h5"])
-        if uploaded_model is not None:
-            with open(model_path, "wb") as f:
-                f.write(uploaded_model.read())
-            st.success("✅ Model berhasil diupload dan disimpan.")
-
-        # Latih model
-        if st.button("📚 Latih & Simpan Model"):
-            with st.spinner("🔄 Melatih model..."):
-                train_and_save_lstm(df, selected_lokasi)
-            st.success("✅ Model berhasil dilatih dan disimpan.")
-
-        # Download & hapus
         if os.path.exists(model_path):
+            st.success(f"✅ Model tersedia: `{model_path}`")
             with open(model_path, "rb") as f:
                 st.download_button("⬇️ Download Model", f, file_name=os.path.basename(model_path))
             if st.button("🗑 Hapus Model"):
                 os.remove(model_path)
                 st.warning("🗑 Model berhasil dihapus.")
+        else:
+            uploaded_model = st.file_uploader("📤 Upload Model (.h5)", type=["h5"])
+            if uploaded_model is not None:
+                os.makedirs("saved_models", exist_ok=True)
+                with open(model_path, "wb") as f:
+                    f.write(uploaded_model.read())
+                st.success("✅ Model berhasil diupload dan disimpan.")
+
+        if st.button("📚 Latih & Simpan Model"):
+            with st.spinner("🔄 Melatih model..."):
+                train_and_save_lstm(df, selected_lokasi)
+            st.success("✅ Model berhasil dilatih dan disimpan.")
 
 # Prediksi
 if st.button("🔮 Prediksi"):
