@@ -15,6 +15,7 @@ def load_lottieurl(url):
         return None
     return r.json()
 
+# Animasi Header
 lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
 st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
@@ -125,14 +126,13 @@ if st.button("🔮 Prediksi"):
                     top6_lstm(subset_df, lokasi=selected_lokasi) if metode == "LSTM AI" else
                     top6_ensemble(subset_df, lokasi=selected_lokasi)
                 )
-                if pred is None:
-                    continue  # ✅ cegah error
+                if pred is None or len(pred) != 4:
+                    continue
                 actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-                skor = sum(int(actual[j]) in pred[j] for j in range(4))
+                skor = sum(int(actual[j]) in pred[j] if isinstance(pred[j], list) else False for j in range(4))
                 total += 4
                 benar += skor
                 list_akurasi.append(skor / 4 * 100)
-
             if total > 0:
                 st.success(f"📈 Akurasi {metode}: {benar / total * 100:.2f}%")
                 with st.expander("📊 Grafik Akurasi"):
