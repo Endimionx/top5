@@ -8,7 +8,7 @@ import os
 import pandas as pd
 from markov_model import top6_markov
 
-TEMPERATURE = 1.2  # untuk scaling softmax
+TEMPERATURE = 1.2  # untuk softmax scaling
 
 class PositionalEncoding(Layer):
     def call(self, inputs):
@@ -49,7 +49,6 @@ def build_lstm_model(attention=True, positional=True):
     x = Bidirectional(LSTM(64))(x)
     x = Dropout(0.2)(x)
 
-    # temperature scaling
     def scaled_dense(name):
         return Dense(10, activation=lambda x: tf.nn.softmax(x / TEMPERATURE), name=name)
 
@@ -98,18 +97,19 @@ def top6_lstm(df, lokasi=None, return_probs=False, return_accuracy=False):
             probs.append(avg_probs[top_idx])
 
             if return_accuracy:
-                # Akurasi per digit posisi i
                 correct = sum(np.argmax(y_pred[i], axis=1) == np.array(true_digits[i]))
                 acc = 100 * correct / len(true_digits[i])
                 accs.append(acc)
 
+        # Return sesuai kombinasi argumen
         if return_probs and return_accuracy:
             return top6, probs, accs
-        if return_probs:
-            return top6, probs
-        if return_accuracy:
+        elif return_accuracy:
             return top6, accs
-        return top6
+        elif return_probs:
+            return top6, probs
+        else:
+            return top6
     except:
         return None
 
