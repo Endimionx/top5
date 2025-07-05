@@ -8,7 +8,7 @@ import os
 import pandas as pd
 from markov_model import top6_markov
 
-TEMPERATURE = 1.5  # Kalibrasi confidence
+TEMPERATURE = 1.5  # Untuk scaling confidence
 
 class PositionalEncoding(Layer):
     def call(self, inputs):
@@ -33,7 +33,7 @@ def preprocess_data(df, window=5):
         for j in range(window):
             digits = [int(d) for d in f"{int(padded[i + j]):04d}"]
             window_digits.extend(digits)
-        sequences.append(window_digits[:-1])  # Buang 1 digit terakhir
+        sequences.append(window_digits[:-1])  # buang 1 digit terakhir
         full_digits = [int(d) for d in f"{int(df.iloc[i]['angka']):04d}"]
         for k in range(4):
             targets[k].append(tf.keras.utils.to_categorical(full_digits[k], num_classes=10))
@@ -60,26 +60,26 @@ def build_digit_model(attention=True, positional=True, input_len=19):
 
 def train_and_save_lstm(df, lokasi):
     if len(df) < 20:
+        print("❌ Data terlalu sedikit untuk pelatihan.")
         return
+
     X, y = preprocess_data(df)
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
+
     for i in range(4):
-        name = f"{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
-        path = f"saved_models/{name}"
-        model = None
-        if os.path.exists(path):
-            try:
-                model = load_model(path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
-                model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
-            except:
-                model = build_digit_model()
-        else:
+        try:
+            print(f"🔄 Melatih model digit ke-{i}...")
+            name = f"{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
+            path = f"saved_models/{name}"
             model = build_digit_model()
-        log_path = f"training_logs/history_{name.replace('.h5', '')}.csv"
-        csv_logger = CSVLogger(log_path)
-        model.fit(X, y[i], epochs=30, batch_size=16, verbose=0, callbacks=[csv_logger])
-        model.save(path)
+            log_path = f"training_logs/history_{name.replace('.h5', '')}.csv"
+            csv_logger = CSVLogger(log_path)
+            model.fit(X, y[i], epochs=30, batch_size=16, verbose=0, callbacks=[csv_logger])
+            model.save(path)
+            print(f"✅ Model digit {i} disimpan ke {path}")
+        except Exception as e:
+            print(f"❌ Gagal melatih digit ke-{i}: {e}")
 
 def model_exists(lokasi):
     for i in range(4):
@@ -103,7 +103,8 @@ def top6_lstm(df, lokasi=None, return_probs=False):
         if return_probs:
             return preds, probs
         return preds
-    except:
+    except Exception as e:
+        print(f"❌ Gagal prediksi LSTM: {e}")
         return None
 
 def kombinasi_4d(df, lokasi, top_n=10):
