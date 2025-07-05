@@ -59,10 +59,12 @@ def train_and_save_lstm(df, lokasi):
     if os.path.exists(model_path):
         try:
             model = load_model(model_path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
+            model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
         except:
             model = build_lstm_model()
     else:
         model = build_lstm_model()
+
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
     log_path = f"training_logs/history_{lokasi.lower().replace(' ', '_')}.csv"
