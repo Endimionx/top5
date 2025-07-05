@@ -1,31 +1,31 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, Attention, Concatenate, Embedding, Layer
+from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, Attention, Concatenate, Layer
 from tensorflow.keras.callbacks import CSVLogger
 import os
 import pandas as pd
 from markov_model import top6_markov
 from itertools import product
 
-# Positional Encoding Layer
+# ===== Positional Encoding Layer =====
 class PositionalEncoding(Layer):
-    def __init__(self):
-        super(PositionalEncoding, self).__init__()
+    def __init__(self, **kwargs):
+        super(PositionalEncoding, self).__init__(**kwargs)
 
     def call(self, inputs):
-        seq_len = tf.shape(inputs)[1]
-        d_model = tf.shape(inputs)[2]
-        position = tf.cast(tf.range(seq_len)[:, tf.newaxis], tf.float32)
-        div_term = tf.exp(tf.range(0, d_model, 2, dtype=tf.float32) * -(tf.math.log(10000.0) / tf.cast(d_model, tf.float32)))
-        angle_rads = position * div_term
-        sines = tf.math.sin(angle_rads)
-        cosines = tf.math.cos(angle_rads)
-        pe = tf.concat([sines, cosines], axis=-1)
-        pe = tf.expand_dims(pe, axis=0)
+        batch_size, seq_len, d_model = tf.shape(inputs)[0], tf.shape(inputs)[1], tf.shape(inputs)[2]
+        position = tf.range(seq_len, dtype=tf.float32)[:, tf.newaxis]
+        div_term = tf.exp(tf.range(0, d_model, 2, dtype=tf.float32) * -(np.log(10000.0) / d_model))
+        pe = tf.zeros((seq_len, d_model))
+        pe = tf.tensor_scatter_nd_update(pe, [[i, j] for i in range(seq_len) for j in range(0, d_model, 2)],
+                                         tf.reshape(tf.math.sin(position * div_term), [-1]))
+        pe = tf.tensor_scatter_nd_update(pe, [[i, j + 1] for i in range(seq_len) for j in range(0, d_model - 1, 2)],
+                                         tf.reshape(tf.math.cos(position * div_term), [-1]))
+        pe = tf.expand_dims(pe, 0)
         return inputs + pe
 
-# Preprocessing
+# ===== Preprocessing =====
 def preprocess_data(df):
     sequences = []
     targets = [[] for _ in range(4)]
@@ -38,25 +38,24 @@ def preprocess_data(df):
     y = [np.array(t) for t in targets]
     return X, y
 
-# Build Model
-def build_lstm_model(attention=False, positional=False):
+# ===== Build LSTM Model =====
+def build_lstm_model(attention=True, positional=True):
     inputs = Input(shape=(3,))
-    x = Embedding(input_dim=10, output_dim=8)(inputs)
+    x = tf.keras.layers.Embedding(input_dim=10, output_dim=16)(inputs)
+    x = Bidirectional(LSTM(64, return_sequences=True))(x)
     if positional:
         x = PositionalEncoding()(x)
-    x = Bidirectional(LSTM(64, return_sequences=True))(x)
-    x = Dropout(0.2)(x)
     if attention:
         attn = Attention()([x, x])
         x = Concatenate()([x, attn])
     x = Bidirectional(LSTM(64))(x)
-    x = Dropout(0.2)(x)
+    x = Dropout(0.3)(x)
     outputs = [Dense(10, activation="softmax", name=f"output_{i}")(x) for i in range(4)]
     model = Model(inputs, outputs)
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
 
-# Train dan Simpan Model
+# ===== Training =====
 def train_and_save_lstm(df, lokasi):
     if len(df) < 20:
         return
@@ -69,33 +68,40 @@ def train_and_save_lstm(df, lokasi):
     model.fit(X, y, epochs=30, batch_size=16, verbose=0, callbacks=[csv_logger])
     model.save(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5")
 
+# ===== Model Exists =====
 def model_exists(lokasi):
     return os.path.exists(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5")
 
-# Prediksi Top 6 per Posisi
+# ===== Top6 LSTM =====
 def top6_lstm(df, lokasi=None, return_probs=False):
     try:
-        model = load_model(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5", compile=False)
+        model_path = f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5"
+        if not os.path.exists(model_path):
+            return None
+        model = load_model(model_path, compile=False)
         sequences = []
         for angka in df["angka"]:
             digits = [int(d) for d in f"{int(angka):04d}"]
             sequences.append(digits[:-1])
+        if len(sequences) == 0:
+            return None
         X = np.array(sequences)
         y_pred = model.predict(X, verbose=0)
         top6 = []
         probs = []
-        for out in y_pred:
-            avg_probs = np.mean(out, axis=0)
+        for i in range(4):
+            avg_probs = np.mean(y_pred[i], axis=0)
             top_idx = avg_probs.argsort()[-6:][::-1]
             top6.append(list(top_idx))
             probs.append(avg_probs[top_idx])
         if return_probs:
             return top6, probs
         return top6
-    except:
+    except Exception as e:
+        print(f"[ERROR top6_lstm] {e}")
         return None
 
-# Kombinasi 4D Confidence
+# ===== Kombinasi 4D dari Top6 =====
 def kombinasi_4d(df, lokasi, top_n=10):
     result, probs = top6_lstm(df, lokasi=lokasi, return_probs=True)
     if result is None:
@@ -114,7 +120,7 @@ def kombinasi_4d(df, lokasi, top_n=10):
     topk = sorted(scores, key=lambda x: -x[1])[:top_n]
     return topk
 
-# Ensemble LSTM + Markov
+# ===== Ensemble LSTM + Markov =====
 def top6_ensemble(df, lokasi):
     lstm_result = top6_lstm(df, lokasi=lokasi)
     markov_result, _ = top6_markov(df)
@@ -128,23 +134,28 @@ def top6_ensemble(df, lokasi):
         ensemble.append([x[0] for x in top6])
     return ensemble
 
-# Anti Top-6
+# ===== Anti Top6 (digit yang tidak masuk) =====
 def anti_top6_lstm(df, lokasi):
     hasil = top6_lstm(df, lokasi)
-    return [[x for x in range(10) if x not in hasil[i]] for i in range(4)]
+    return [[x for x in range(10) if x not in hasil[i]] for i in range(4)] if hasil else None
 
-# Low-6 (Probabilitas terendah)
+# ===== Low6 (digit dengan confidence terendah) =====
 def low6_lstm(df, lokasi):
-    model = load_model(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5", compile=False)
+    model_path = f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5"
+    if not os.path.exists(model_path):
+        return None
+    model = load_model(model_path, compile=False)
     sequences = []
     for angka in df["angka"]:
         digits = [int(d) for d in f"{int(angka):04d}"]
         sequences.append(digits[:-1])
+    if len(sequences) == 0:
+        return None
     X = np.array(sequences)
     y_pred = model.predict(X, verbose=0)
     low6 = []
-    for out in y_pred:
-        avg_probs = np.mean(out, axis=0)
+    for i in range(4):
+        avg_probs = np.mean(y_pred[i], axis=0)
         low_idx = avg_probs.argsort()[:6]
         low6.append(list(low_idx))
     return low6
