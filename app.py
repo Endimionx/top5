@@ -34,7 +34,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("<h4>🔮 Prediksi Togel 4D - AI & Markov</h4>")
+st.markdown("<h4>🔮 Prediksi Togel 4D - AI & Markov</h4>")
 
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
