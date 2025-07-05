@@ -37,16 +37,17 @@ if selected_lokasi and selected_hari:
 df = pd.DataFrame({"angka": angka_list})
 metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
 
-# === Menu Pelatihan & Manajemen Model ===
+# === Tab Layout untuk LSTM ===
 if metode == "LSTM AI":
-    with st.expander("🛠️ Manajemen Model LSTM"):
+    tab1, tab2 = st.tabs(["🛠️ Manajemen Model", "📉 Grafik Pelatihan"])
+    with tab1:
         model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
 
         if st.button("📚 Latih & Simpan Model"):
             if len(df) < 20:
                 st.warning("Minimal 20 data untuk latih model.")
             else:
-                with st.spinner("Melatih model..."):
+                with st.spinner("🔄 Melatih model..."):
                     train_and_save_lstm(df, selected_lokasi)
                 st.success("✅ Model berhasil dilatih dan disimpan.")
 
@@ -65,19 +66,22 @@ if metode == "LSTM AI":
                 st.success("✅ Model berhasil diunggah.")
                 st.experimental_rerun()
 
+    with tab2:
         log_file = f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}.csv"
         if os.path.exists(log_file):
-            st.subheader("📉 Grafik Pelatihan Model")
+            st.subheader("📈 Grafik Pelatihan Model")
             df_log = pd.read_csv(log_file)
             st.line_chart(df_log[["loss", "output_0_accuracy", "output_1_accuracy", "output_2_accuracy", "output_3_accuracy"]])
             st.caption("output_0 = ribuan, output_1 = ratusan, output_2 = puluhan, output_3 = satuan")
+        else:
+            st.info("📭 Belum ada log pelatihan untuk pasaran ini.")
 
 # === Prediksi ===
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
         st.warning("❌ Minimal 11 data diperlukan.")
     else:
-        with st.spinner("🔄 Memproses prediksi..."):
+        with st.spinner("🔍 Menghitung prediksi..."):
             pred = (
                 top6_markov(df) if metode == "Markov" else
                 top6_markov_order2(df) if metode == "Markov Order-2" else
@@ -91,31 +95,34 @@ if st.button("🔮 Prediksi"):
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                 st.markdown(f"**{label}:** {', '.join(str(d) for d in pred[i])}")
 
-            combo_pred = combo_4d_lstm(df, lokasi=selected_lokasi) if metode == "LSTM AI" else None
-            if combo_pred:
-                st.markdown("### 🧩 Prediksi Kombinasi 4D Langsung (Top 20)")
-                st.code("\n".join(combo_pred))
+            if metode == "LSTM AI":
+                with st.spinner("🔗 Menggabungkan prediksi jadi 4D..."):
+                    combo_pred = combo_4d_lstm(df, lokasi=selected_lokasi)
+                if combo_pred:
+                    st.markdown("### 🧩 Prediksi Kombinasi 4D Langsung (Top 20)")
+                    st.code("\n".join(combo_pred))
 
             list_akurasi = []
             uji_df = df.tail(min(jumlah_uji, len(df)))
             total = benar = 0
-            for i in range(len(uji_df)):
-                subset_df = df.iloc[:-(len(uji_df) - i)]
-                if len(subset_df) < 11:
-                    continue
-                pred_uji = (
-                    top6_markov(subset_df) if metode == "Markov" else
-                    top6_markov_order2(subset_df) if metode == "Markov Order-2" else
-                    top6_markov_hybrid(subset_df) if metode == "Markov Gabungan" else
-                    top6_lstm(subset_df, lokasi=selected_lokasi)
-                )
-                if pred_uji is None:
-                    continue
-                actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-                skor = sum(int(actual[j]) in pred_uji[j] for j in range(4))
-                total += 4
-                benar += skor
-                list_akurasi.append(skor / 4 * 100)
+            with st.spinner("📏 Menghitung akurasi..."):
+                for i in range(len(uji_df)):
+                    subset_df = df.iloc[:-(len(uji_df) - i)]
+                    if len(subset_df) < 11:
+                        continue
+                    pred_uji = (
+                        top6_markov(subset_df) if metode == "Markov" else
+                        top6_markov_order2(subset_df) if metode == "Markov Order-2" else
+                        top6_markov_hybrid(subset_df) if metode == "Markov Gabungan" else
+                        top6_lstm(subset_df, lokasi=selected_lokasi)
+                    )
+                    if pred_uji is None:
+                        continue
+                    actual = f"{int(uji_df.iloc[i]['angka']):04d}"
+                    skor = sum(int(actual[j]) in pred_uji[j] for j in range(4))
+                    total += 4
+                    benar += skor
+                    list_akurasi.append(skor / 4 * 100)
 
             if total > 0:
                 akurasi_total = (benar / total) * 100
