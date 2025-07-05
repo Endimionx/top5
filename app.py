@@ -3,7 +3,7 @@ import pandas as pd
 import requests
 import os
 from markov_model import top6_markov, top6_markov_order2, top6_markov_hybrid
-from ai_model import top6_lstm, train_and_save_lstm, model_exists, anti_top6_lstm, low6_lstm, kombinasi_4d
+from ai_model import top6_lstm, train_and_save_lstm, model_exists, anti_top6_lstm, low6_lstm, kombinasi_4d, top6_ensemble
 from lokasi_list import lokasi_list
 import matplotlib.pyplot as plt
 
@@ -11,11 +11,13 @@ st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
 st.markdown("<h4>Prediksi Togel 4D - AI & Markov</h4>", unsafe_allow_html=True)
 
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
+metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
 
 selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
 selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
 putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 10)
 jumlah_uji = st.number_input("📊 Jumlah Data Uji Akurasi", min_value=1, max_value=1000, value=5, step=1)
+metode = st.selectbox("🧠 Pilih Metode Prediksi", metode_list)
 
 angka_list = []
 riwayat_input = ""
@@ -36,12 +38,9 @@ if selected_lokasi and selected_hari:
 
 df = pd.DataFrame({"angka": angka_list})
 
-metode = st.selectbox("🧠 Pilih Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI"])
-
 if metode == "LSTM AI":
     with st.expander("⚙️ LSTM AI - Manajemen Model"):
         tab1, tab2 = st.tabs(["🔧 Model", "📉 Grafik Pelatihan"])
-
         with tab1:
             model_path = f"saved_models/lstm_{selected_lokasi.lower().replace(' ', '_')}.h5"
             if st.button("📚 Latih & Simpan Model"):
@@ -64,7 +63,6 @@ if metode == "LSTM AI":
                             f.write(uploaded_model.read())
                     st.success("✅ Model berhasil diunggah.")
                     st.experimental_rerun()
-
         with tab2:
             log_file = f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}.csv"
             if os.path.exists(log_file):
@@ -78,27 +76,28 @@ if st.button("🔮 Prediksi"):
         st.warning("❌ Minimal 11 data diperlukan.")
     else:
         with st.spinner("⏳ Melakukan prediksi..."):
-            result = (
-                top6_markov(df) if metode == "Markov" else
-                top6_markov_order2(df) if metode == "Markov Order-2" else
-                top6_markov_hybrid(df) if metode == "Markov Gabungan" else
-                top6_lstm(df, lokasi=selected_lokasi)
-            )
+            result = None
+            info = {}
+            if metode == "Markov":
+                result, info = top6_markov(df)
+            elif metode == "Markov Order-2":
+                result = top6_markov_order2(df)
+            elif metode == "Markov Gabungan":
+                result = top6_markov_hybrid(df)
+            elif metode == "LSTM AI":
+                result = top6_lstm(df, lokasi=selected_lokasi)
+            elif metode == "Ensemble AI + Markov":
+                result = top6_ensemble(df, lokasi=selected_lokasi)
 
         if result is None:
             st.error("❌ Gagal prediksi.")
         else:
-            if metode == "Markov" and isinstance(result, tuple):
-                result, info = result  # Ambil hasil prediksi dan info statistik
-
             st.markdown("### 🎯 Prediksi Top 6 Digit per Posisi")
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                 st.markdown(f"**{label}:** {', '.join(str(d) for d in result[i])}")
 
-            # Statistik Markov Tambahan
             if metode == "Markov" and isinstance(info, dict):
                 st.markdown("### 📊 Statistik Tambahan Markov")
-
                 with st.expander("🔢 Frekuensi Digit Ribuan"):
                     df_freq = pd.DataFrame(sorted(info["frekuensi_ribuan"].items()), columns=["Digit", "Frekuensi"])
                     st.bar_chart(df_freq.set_index("Digit"))
@@ -118,8 +117,7 @@ if st.button("🔮 Prediksi"):
                         df_trans = pd.DataFrame(rows)
                         st.dataframe(df_trans, use_container_width=True)
 
-            # Prediksi Kombinasi 4D
-            if metode == "LSTM AI":
+            if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D..."):
                     st.markdown("### 🔢 Top 10 Kombinasi 4D Berdasarkan Confidence")
                     top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10)
@@ -127,7 +125,6 @@ if st.button("🔮 Prediksi"):
                         df_komb = pd.DataFrame(top_komb, columns=["Kombinasi", "Confidence"])
                         st.dataframe(df_komb.style.format({"Confidence": "{:.5f}"}), use_container_width=True)
 
-            # Akurasi
             with st.spinner("📏 Menghitung akurasi..."):
                 list_akurasi = []
                 uji_df = df.tail(min(jumlah_uji, len(df)))
@@ -137,13 +134,12 @@ if st.button("🔮 Prediksi"):
                     if len(subset_df) < 11:
                         continue
                     pred_uji = (
-                        top6_markov(subset_df) if metode == "Markov" else
+                        top6_markov(subset_df)[0] if metode == "Markov" else
                         top6_markov_order2(subset_df) if metode == "Markov Order-2" else
                         top6_markov_hybrid(subset_df) if metode == "Markov Gabungan" else
-                        top6_lstm(subset_df, lokasi=selected_lokasi)
+                        top6_lstm(subset_df, lokasi=selected_lokasi) if metode == "LSTM AI" else
+                        top6_ensemble(subset_df, lokasi=selected_lokasi)
                     )
-                    if isinstance(pred_uji, tuple):  # Untuk Markov
-                        pred_uji = pred_uji[0]
                     if pred_uji is None:
                         continue
                     actual = f"{int(uji_df.iloc[i]['angka']):04d}"
