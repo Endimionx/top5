@@ -85,7 +85,7 @@ if st.button("🔮 Prediksi"):
         if pred is None:
             st.error("❌ Gagal prediksi.")
         else:
-            st.markdown("#### 🎯 Prediksi Top-6 Digit")
+            st.markdown("#### 🎯 Prediksi Top 5 Digit")
             for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                 st.markdown(f"**{label}:** {', '.join(str(d) for d in pred[i])}")
 
