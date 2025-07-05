@@ -101,7 +101,6 @@ if st.button("🔮 Prediksi"):
                     if kombinasi_populer:
                         gabung_populer = " * ".join([row[0] for row in kombinasi_populer])
                         st.code(gabung_populer, language="text")
-                        st.button("📋 Copy Kombinasi Populer", on_click=st.session_state.update({"copy_text": gabung_populer}))
 
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D..."):
@@ -110,7 +109,6 @@ if st.button("🔮 Prediksi"):
                         with st.expander("🔢 Top 10 Kombinasi 4D (AI)"):
                             gabungan = " * ".join([row[0] for row in top_komb])
                             st.code(gabungan, language="text")
-                            st.button("📋 Copy Kombinasi AI", on_click=st.session_state.update({"copy_text": gabungan}))
 
         # Akurasi
         with st.spinner("📏 Menghitung akurasi..."):
@@ -138,13 +136,3 @@ if st.button("🔮 Prediksi"):
                     st.line_chart(pd.DataFrame({"Akurasi (%)": list_akurasi}))
             else:
                 st.warning("⚠️ Tidak cukup data untuk evaluasi akurasi.")
-
-# Inject JS for clipboard copy (requires Streamlit >=1.26)
-if "copy_text" in st.session_state:
-    st.markdown(f"""
-        <script>
-        navigator.clipboard.writeText("{st.session_state['copy_text']}")
-        </script>
-    """, unsafe_allow_html=True)
-    st.success("📋 Kombinasi berhasil disalin ke clipboard!")
-    del st.session_state["copy_text"]
