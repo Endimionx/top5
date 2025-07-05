@@ -1,11 +1,14 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, Concatenate, Layer, Embedding, Attention
+from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, Concatenate, Layer, Embedding, LayerNormalization
+from tensorflow.keras.layers import MultiHeadAttention
 from tensorflow.keras.callbacks import CSVLogger
 import os
 import pandas as pd
 from markov_model import top6_markov
+
+TEMPERATURE = 1.5  # Kalibrasi confidence
 
 class PositionalEncoding(Layer):
     def call(self, inputs):
@@ -21,32 +24,37 @@ class PositionalEncoding(Layer):
         pos_encoding = tf.expand_dims(pos_encoding, 0)
         return inputs + tf.cast(pos_encoding, tf.float32)
 
-def preprocess_data(df):
+def preprocess_data(df, window=5):
     sequences = []
     targets = [[] for _ in range(4)]
-    for angka in df["angka"]:
-        digits = [int(d) for d in f"{int(angka):04d}"]
-        sequences.append(digits[:-1])
-        for i in range(4):
-            targets[i].append(tf.keras.utils.to_categorical(digits[i], num_classes=10))
+    padded = ["0000"] * (window - 1) + list(df["angka"])
+    for i in range(len(df)):
+        window_digits = []
+        for j in range(window):
+            digits = [int(d) for d in f"{int(padded[i + j]):04d}"]
+            window_digits.extend(digits)
+        sequences.append(window_digits[:-1])  # Buang 1 digit terakhir
+        full_digits = [int(d) for d in f"{int(df.iloc[i]['angka']):04d}"]
+        for k in range(4):
+            targets[k].append(tf.keras.utils.to_categorical(full_digits[k], num_classes=10))
     X = np.array(sequences)
     y = [np.array(t) for t in targets]
     return X, y
 
-def build_lstm_model(attention=True, positional=True):
-    inputs = Input(shape=(3,))
+def build_digit_model(attention=True, positional=True, input_len=19):
+    inputs = Input(shape=(input_len,))
     x = Embedding(input_dim=10, output_dim=8)(inputs)
     x = Bidirectional(LSTM(64, return_sequences=True))(x)
-    x = Dropout(0.2)(x)
     if positional:
         x = PositionalEncoding()(x)
     if attention:
-        attn = Attention()([x, x])
-        x = Concatenate()([x, attn])
+        x = MultiHeadAttention(num_heads=4, key_dim=8)(x, x)
+        x = LayerNormalization()(x)
     x = Bidirectional(LSTM(64))(x)
-    x = Dropout(0.2)(x)
-    outputs = [Dense(10, activation="softmax", name=f"output_{i}")(x) for i in range(4)]
-    model = Model(inputs, outputs)
+    x = Dropout(0.3)(x)
+    x = Dense(10)(x)
+    output = tf.keras.layers.Activation(lambda z: tf.nn.softmax(z / TEMPERATURE))(x)
+    model = Model(inputs, output)
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
 
@@ -54,60 +62,47 @@ def train_and_save_lstm(df, lokasi):
     if len(df) < 20:
         return
     X, y = preprocess_data(df)
-    model_path = f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5"
-    model = None
-    if os.path.exists(model_path):
-        try:
-            model = load_model(model_path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
-            model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
-        except:
-            model = build_lstm_model()
-    else:
-        model = build_lstm_model()
-
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
-    log_path = f"training_logs/history_{lokasi.lower().replace(' ', '_')}.csv"
-    csv_logger = CSVLogger(log_path)
-    model.fit(X, y, epochs=30, batch_size=16, verbose=0, callbacks=[csv_logger])
-    model.save(model_path)
+    for i in range(4):
+        name = f"{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
+        path = f"saved_models/{name}"
+        model = None
+        if os.path.exists(path):
+            try:
+                model = load_model(path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
+                model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
+            except:
+                model = build_digit_model()
+        else:
+            model = build_digit_model()
+        log_path = f"training_logs/history_{name.replace('.h5', '')}.csv"
+        csv_logger = CSVLogger(log_path)
+        model.fit(X, y[i], epochs=30, batch_size=16, verbose=0, callbacks=[csv_logger])
+        model.save(path)
 
 def model_exists(lokasi):
-    return os.path.exists(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5")
+    for i in range(4):
+        if not os.path.exists(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5"):
+            return False
+    return True
 
-def top6_lstm(df, lokasi=None, return_probs=False, return_accuracy=False):
+def top6_lstm(df, lokasi=None, return_probs=False):
     try:
-        model = load_model(f"saved_models/lstm_{lokasi.lower().replace(' ', '_')}.h5",
-                           compile=False,
-                           custom_objects={"PositionalEncoding": PositionalEncoding})
-        sequences = []
-        actual_digits = [[] for _ in range(4)]
-        for angka in df["angka"]:
-            digits = [int(d) for d in f"{int(angka):04d}"]
-            sequences.append(digits[:-1])
-            for i in range(4):
-                actual_digits[i].append(digits[i])
-        X = np.array(sequences)
-        y_pred = model.predict(X, verbose=0)
-        top6 = []
+        X, _ = preprocess_data(df)
+        preds = []
         probs = []
-        accs = []
-        for i, out in enumerate(y_pred):
-            avg_probs = np.mean(out, axis=0)
-            top_idx = avg_probs.argsort()[-6:][::-1]
-            top6.append(list(top_idx))
-            probs.append(avg_probs[top_idx])
-            if return_accuracy:
-                benar = [1 if d in top_idx else 0 for d in actual_digits[i]]
-                acc = sum(benar) / len(benar) * 100 if benar else 0
-                accs.append(acc)
-        if return_probs and return_accuracy:
-            return top6, probs, accs
-        if return_accuracy:
-            return top6, accs
+        for i in range(4):
+            path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
+            model = load_model(path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
+            y = model.predict(X, verbose=0)
+            avg = np.mean(y, axis=0)
+            top_idx = avg.argsort()[-6:][::-1]
+            preds.append(list(top_idx))
+            probs.append(avg[top_idx])
         if return_probs:
-            return top6, probs
-        return top6
+            return preds, probs
+        return preds
     except:
         return None
 
