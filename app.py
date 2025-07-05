@@ -95,6 +95,7 @@ if st.button("🔮 Prediksi"):
                 with (col1 if i % 2 == 0 else col2):
                     st.markdown(f"**{label}:** {', '.join(str(d) for d in result[i])}")
 
+            # Kombinasi Markov Populer
             if metode == "Markov" and isinstance(info, dict):
                 with st.expander("🔥 Kombinasi 4D Terpopuler (Markov)"):
                     kombinasi_populer = info.get("kombinasi_populer", [])
@@ -102,6 +103,7 @@ if st.button("🔮 Prediksi"):
                         gabung_populer = " * ".join([row[0] for row in kombinasi_populer])
                         st.code(gabung_populer, language="text")
 
+            # Kombinasi LSTM/Ensemble
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D..."):
                     top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10)
