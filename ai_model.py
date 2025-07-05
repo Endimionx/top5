@@ -47,7 +47,7 @@ def build_lstm_model(attention=True, positional=True):
     x = Dropout(0.2)(x)
     outputs = [Dense(10, activation="softmax", name=f"output_{i}")(x) for i in range(4)]
     model = Model(inputs, outputs)
-    model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
+    model.compile(loss_weights=[1.0, 1.0, 1.0, 2.0], optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
 
 def train_and_save_lstm(df, lokasi):
