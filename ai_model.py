@@ -101,7 +101,7 @@ def top6_lstm(df, lokasi=None):
     })
     input_seq = np.array(data[-10:]).reshape(1, 10, 4)
     preds = model.predict(input_seq, verbose=0)
-    top6 = [list(np.argsort(-preds[i][0])[:4]) for i in range(4)]
+    top6 = [list(np.argsort(-preds[i][0])[:5]) for i in range(4)]
     return top6
 
 def anti_top6_lstm(df, lokasi=None):
@@ -118,7 +118,7 @@ def anti_top6_lstm(df, lokasi=None):
     })
     input_seq = np.array(data[-10:]).reshape(1, 10, 4)
     preds = model.predict(input_seq, verbose=0)
-    low6 = [list(np.argsort(preds[i][0])[:4]) for i in range(4)]
+    low6 = [list(np.argsort(preds[i][0])[:5]) for i in range(4)]
     return low6
 
 def low6_lstm(df, lokasi=None):
