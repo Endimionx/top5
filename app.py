@@ -103,7 +103,15 @@ if st.button("🔮 Prediksi"):
             elif metode == "Markov Gabungan":
                 result = top6_markov_hybrid(df)
             elif metode == "LSTM AI":
-                result, accs = top6_lstm(df, lokasi=selected_lokasi, return_accuracy=True)
+                top6_output = top6_lstm(df, lokasi=selected_lokasi, return_accuracy=True)
+                if top6_output is None:
+                    result = None
+                    accs = None
+                elif isinstance(top6_output, tuple):
+                    result, accs = top6_output
+                else:
+                    result = top6_output
+                    accs = None
             elif metode == "Ensemble AI + Markov":
                 result = top6_ensemble(df, lokasi=selected_lokasi)
 
