@@ -92,8 +92,8 @@ if metode == "LSTM AI":
 
 # Tombol Prediksi
 if st.button("🔮 Prediksi"):
-    if len(df) < 11:
-        st.warning("❌ Minimal 11 data diperlukan.")
+    if len(df) < 30:
+        st.warning("❌ Minimal 30 data diperlukan.")
     else:
         with st.spinner("⏳ Melakukan prediksi..."):
             result = None
@@ -136,7 +136,7 @@ if st.button("🔮 Prediksi"):
 
             for i in range(len(uji_df)):
                 subset_df = df.iloc[:-(len(uji_df) - i)]
-                if len(subset_df) < 20:
+                if len(subset_df) < 30:
                     continue
                 try:
                     pred = (
