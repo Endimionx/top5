@@ -67,10 +67,17 @@ if metode == "LSTM AI":
     with st.expander("⚙️ Manajemen Model LSTM"):
         for i in range(4):
             model_path = f"saved_models/{selected_lokasi.lower().replace(' ', '_')}_digit{i}.h5"
-            if os.path.exists(model_path):
-                st.info(f"📂 Model Digit-{i} ditemukan.")
-            else:
-                st.warning(f"⚠️ Model Digit-{i} belum tersedia.")
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                if os.path.exists(model_path):
+                    st.info(f"📂 Model Digit-{i} tersedia.")
+                else:
+                    st.warning(f"⚠️ Model Digit-{i} belum tersedia.")
+            with col2:
+                if os.path.exists(model_path):
+                    if st.button(f"🗑 Hapus Digit-{i}", key=f"hapus_digit_{i}"):
+                        os.remove(model_path)
+                        st.warning(f"✅ Model Digit-{i} dihapus.")
 
         if st.button("📚 Latih & Simpan Semua Model"):
             with st.spinner("🔄 Melatih semua model per digit..."):
