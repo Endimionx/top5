@@ -1,14 +1,15 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, Concatenate, Layer, Embedding, LayerNormalization
-from tensorflow.keras.layers import MultiHeadAttention
+from tensorflow.keras.layers import (
+    Input, LSTM, Dense, Dropout, Bidirectional, Layer, Embedding
+)
 from tensorflow.keras.callbacks import CSVLogger
 import os
 import pandas as pd
 from markov_model import top6_markov
 
-TEMPERATURE = 1.5  # Untuk scaling confidence
+TEMPERATURE = 1.3
 
 class PositionalEncoding(Layer):
     def call(self, inputs):
@@ -24,88 +25,91 @@ class PositionalEncoding(Layer):
         pos_encoding = tf.expand_dims(pos_encoding, 0)
         return inputs + tf.cast(pos_encoding, tf.float32)
 
-def preprocess_data(df, window=5):
+class TemperatureScaledSoftmax(Layer):
+    def __init__(self, temperature=1.0, **kwargs):
+        super().__init__(**kwargs)
+        self.temperature = temperature
+
+    def call(self, inputs):
+        return tf.nn.softmax(inputs / self.temperature)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({"temperature": self.temperature})
+        return config
+
+def preprocess_data(df):
     sequences = []
     targets = [[] for _ in range(4)]
-    padded = ["0000"] * (window - 1) + list(df["angka"])
-    for i in range(len(df)):
-        window_digits = []
-        for j in range(window):
-            digits = [int(d) for d in f"{int(padded[i + j]):04d}"]
-            window_digits.extend(digits)
-        sequences.append(window_digits[:-1])  # buang 1 digit terakhir
-        full_digits = [int(d) for d in f"{int(df.iloc[i]['angka']):04d}"]
-        for k in range(4):
-            targets[k].append(tf.keras.utils.to_categorical(full_digits[k], num_classes=10))
+    for angka in df["angka"]:
+        digits = [int(d) for d in f"{int(angka):04d}"]
+        sequences.append(digits[:-1])
+        for i in range(4):
+            targets[i].append(tf.keras.utils.to_categorical(digits[i], num_classes=10))
     X = np.array(sequences)
     y = [np.array(t) for t in targets]
     return X, y
 
-def build_digit_model(attention=True, positional=True, input_len=19):
-    inputs = Input(shape=(input_len,))
+def build_digit_model():
+    inputs = Input(shape=(3,))
     x = Embedding(input_dim=10, output_dim=8)(inputs)
     x = Bidirectional(LSTM(64, return_sequences=True))(x)
-    if positional:
-        x = PositionalEncoding()(x)
-    if attention:
-        x = MultiHeadAttention(num_heads=4, key_dim=8)(x, x)
-        x = LayerNormalization()(x)
+    x = Dropout(0.2)(x)
+    x = PositionalEncoding()(x)
     x = Bidirectional(LSTM(64))(x)
-    x = Dropout(0.3)(x)
-    x = Dense(10)(x)
-    output = tf.keras.layers.Activation(lambda z: tf.nn.softmax(z / TEMPERATURE))(x)
+    x = Dropout(0.2)(x)
+    output = TemperatureScaledSoftmax(temperature=TEMPERATURE)(x)
     model = Model(inputs, output)
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
 
 def train_and_save_lstm(df, lokasi):
-    if len(df) < 20:
-        print("❌ Data terlalu sedikit untuk pelatihan.")
+    if len(df) < 30:
         return
-
     X, y = preprocess_data(df)
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
-
     for i in range(4):
-        try:
-            print(f"🔄 Melatih model digit ke-{i}...")
-            name = f"{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
-            path = f"saved_models/{name}"
-            model = build_digit_model()
-            log_path = f"training_logs/history_{name.replace('.h5', '')}.csv"
-            csv_logger = CSVLogger(log_path)
-            model.fit(X, y[i], epochs=30, batch_size=16, verbose=0, callbacks=[csv_logger])
-            model.save(path)
-            print(f"✅ Model digit {i} disimpan ke {path}")
-        except Exception as e:
-            print(f"❌ Gagal melatih digit ke-{i}: {e}")
+        model = build_digit_model()
+        log_path = f"training_logs/history_{lokasi.lower().replace(' ', '_')}_digit{i}.csv"
+        csv_logger = CSVLogger(log_path)
+        model.fit(X, y[i], epochs=30, batch_size=16, verbose=0, callbacks=[csv_logger])
+        model.save(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5")
 
 def model_exists(lokasi):
-    for i in range(4):
-        if not os.path.exists(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5"):
-            return False
-    return True
+    return all(
+        os.path.exists(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5")
+        for i in range(4)
+    )
 
 def top6_lstm(df, lokasi=None, return_probs=False):
-    try:
-        X, _ = preprocess_data(df)
-        preds = []
-        probs = []
-        for i in range(4):
-            path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
-            model = load_model(path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
-            y = model.predict(X, verbose=0)
-            avg = np.mean(y, axis=0)
-            top_idx = avg.argsort()[-6:][::-1]
-            preds.append(list(top_idx))
-            probs.append(avg[top_idx])
-        if return_probs:
-            return preds, probs
-        return preds
-    except Exception as e:
-        print(f"❌ Gagal prediksi LSTM: {e}")
-        return None
+    sequences = []
+    for angka in df["angka"]:
+        digits = [int(d) for d in f"{int(angka):04d}"]
+        sequences.append(digits[:-1])
+    X = np.array(sequences)
+    top6 = []
+    probs = []
+    for i in range(4):
+        path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
+        if not os.path.exists(path):
+            return None
+        model = load_model(
+            path,
+            compile=False,
+            custom_objects={
+                "PositionalEncoding": PositionalEncoding,
+                "TemperatureScaledSoftmax": TemperatureScaledSoftmax
+            }
+        )
+        y_pred = model.predict(X, verbose=0)
+        avg_probs = np.mean(y_pred, axis=0)
+        top_idx = avg_probs.argsort()[-6:][::-1]
+        top6.append(list(top_idx))
+        probs.append(avg_probs[top_idx])
+    if return_probs:
+        return top6, probs
+    return top6
 
 def kombinasi_4d(df, lokasi, top_n=10):
     result, probs = top6_lstm(df, lokasi=lokasi, return_probs=True)
