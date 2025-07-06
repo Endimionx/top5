@@ -58,23 +58,39 @@ def build_digit_model():
     x = PositionalEncoding()(x)
     x = Bidirectional(LSTM(64))(x)
     x = Dropout(0.2)(x)
-    output = TemperatureScaledSoftmax(temperature=TEMPERATURE)(x)
+    output = Dense(10)(x)
+    output = TemperatureScaledSoftmax(temperature=TEMPERATURE)(output)
     model = Model(inputs, output)
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
 
 def train_and_save_lstm(df, lokasi):
     if len(df) < 30:
+        print("❌ Data kurang dari 30, tidak dilatih.")
         return
+
     X, y = preprocess_data(df)
+    if len(X) == 0 or any(len(t) == 0 for t in y):
+        print("❌ Data kosong setelah preprocessing.")
+        return
+
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
+
     for i in range(4):
+        if y[i].shape[0] != X.shape[0]:
+            print(f"❌ Jumlah data y[{i}] tidak cocok dengan X. Lewati digit{i}.")
+            continue
         model = build_digit_model()
         log_path = f"training_logs/history_{lokasi.lower().replace(' ', '_')}_digit{i}.csv"
         csv_logger = CSVLogger(log_path)
-        model.fit(X, y[i], epochs=30, batch_size=16, verbose=0, callbacks=[csv_logger])
-        model.save(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5")
+        try:
+            model.fit(X, y[i], epochs=30, batch_size=16, verbose=0, callbacks=[csv_logger])
+            model.save(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5")
+            print(f"✅ Model digit{i} berhasil disimpan.")
+        except Exception as e:
+            print(f"❌ Error saat training digit{i}: {e}")
+            continue
 
 def model_exists(lokasi):
     return all(
