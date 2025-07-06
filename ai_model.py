@@ -114,7 +114,7 @@ def model_exists(lokasi):
 
 
 def top6_lstm(df, lokasi=None, return_probs=False, temperature=1.0):
-    X, _ = preprocess_data(df, augment=False)
+    X, _ = preprocess_data(df)
     results, probs = [], []
     for i in range(4):
         path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
@@ -122,7 +122,6 @@ def top6_lstm(df, lokasi=None, return_probs=False, temperature=1.0):
             return None
         try:
             model = load_model(path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
-            model.compile(optimizer="adam", loss="categorical_crossentropy")
             pred = model.predict(X, verbose=0)
             avg = np.mean(pred, axis=0)
             top6 = avg.argsort()[-6:][::-1]
@@ -131,7 +130,6 @@ def top6_lstm(df, lokasi=None, return_probs=False, temperature=1.0):
         except Exception:
             return None
     return (results, probs) if return_probs else results
-
 
 def kombinasi_4d(df, lokasi, top_n=10, min_conf=0.0001, power=1.5, mode='product'):
     result, probs = top6_lstm(df, lokasi=lokasi, return_probs=True)
