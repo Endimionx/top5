@@ -45,7 +45,7 @@ with st.sidebar:
     min_conf = 0.005
     power = 1.5
     if metode in ["LSTM AI", "Ensemble AI + Markov"]:
-        min_conf = st.slider("🔎 Minimum Confidence", 0.001, 0.05, 0.001, step=0.001)
+        min_conf = st.slider("🔎 Minimum Confidence", 0.001, 0.005, 0.001, step=0.001)
         power = st.slider("📈 Confidence Weight Power", 0.5, 3.0, 1.5, step=0.1)
 
 # Ambil Data
