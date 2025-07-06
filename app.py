@@ -42,10 +42,10 @@ with st.sidebar:
     jumlah_uji = st.number_input("📊 Data Uji Akurasi", min_value=1, max_value=200, value=10)
     metode = st.selectbox("🧠 Metode Prediksi", metode_list)
 
-    min_conf = 0.001
+    min_conf = 0.005
     power = 1.5
     if metode in ["LSTM AI", "Ensemble AI + Markov"]:
-        min_conf = st.slider("🔎 Minimum Confidence", 0.001, 0.005, 0.002, step=0.001)
+        min_conf = st.slider("🔎 Minimum Confidence", 0.0, 0.05, 0.005, step=0.001)
         power = st.slider("📈 Confidence Weight Power", 0.5, 3.0, 1.5, step=0.1)
 
 # Ambil Data
