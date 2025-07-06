@@ -13,7 +13,6 @@ import pandas as pd
 from itertools import product
 from markov_model import top6_markov
 
-
 class PositionalEncoding(tf.keras.layers.Layer):
     def call(self, x):
         seq_len = tf.shape(x)[1]
@@ -28,28 +27,10 @@ class PositionalEncoding(tf.keras.layers.Layer):
         pos_encoding = tf.expand_dims(pos_encoding, 0)
         return x + tf.cast(pos_encoding, tf.float32)
 
-
-def augment_data(angka_list):
-    aug = []
-    for angka in angka_list:
-        if len(angka) != 4 or not angka.isdigit():
-            continue
-        digits = list(angka)
-        for i in range(4):
-            d = digits.copy()
-            d[i] = str((int(d[i]) + 1) % 10)
-            aug.append("".join(d))
-            d[i] = str((int(d[i]) - 2) % 10)
-            aug.append("".join(d))
-    return angka_list + aug
-
-
-def preprocess_data(df, window_size=5, augment=True):
-    angka = df["angka"].values.tolist()
-    if augment:
-        angka = augment_data(angka)
+def preprocess_data(df, window_size=7):
     sequences = []
     targets = [[] for _ in range(4)]
+    angka = df["angka"].values
     for i in range(len(angka) - window_size):
         window = angka[i:i+window_size]
         if any(len(x) != 4 or not x.isdigit() for x in window):
@@ -63,58 +44,48 @@ def preprocess_data(df, window_size=5, augment=True):
     y = [np.array(t) for t in targets]
     return X, y
 
-
-def build_model(input_len, embed_dim=16, lstm_units=64, attention_heads=2, temperature=1.0):
+def build_model(input_len, embed_dim=16, lstm_units=64, attention_heads=2, temperature=0.5):
     inputs = Input(shape=(input_len,))
     x = Embedding(input_dim=10, output_dim=embed_dim)(inputs)
     x = PositionalEncoding()(x)
     x = Bidirectional(LSTM(lstm_units, return_sequences=True))(x)
     x = LayerNormalization()(x)
-    x = Dropout(0.3)(x)
+    x = Dropout(0.5)(x)
     x = Bidirectional(LSTM(lstm_units, return_sequences=True))(x)
-    x = LayerNormalization()(x)
     x = MultiHeadAttention(num_heads=attention_heads, key_dim=embed_dim)(x, x)
     x = GlobalAveragePooling1D()(x)
+    x = Dense(256, activation='relu')(x)
+    x = Dropout(0.5)(x)
     x = Dense(128, activation='relu')(x)
-    x = Dropout(0.3)(x)
-    x = Dense(64, activation='relu')(x)
     logits = Dense(10)(x)
-    outputs = tf.keras.layers.Activation('softmax')(logits / temperature)
+    outputs = tf.keras.layers.Activation('softmax', name='softmax')(logits / temperature)
     model = Model(inputs, outputs)
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
 
-
-def train_and_save_lstm(df, lokasi, window_size=5, temperature=1.0):
-    if len(df) < 30: return
-    X, y_all = preprocess_data(df, window_size=window_size)
+def train_and_save_lstm(df, lokasi):
+    if len(df) < 40:
+        return
+    X, y_all = preprocess_data(df, window_size=7)
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
-    os.makedirs("eval_logs", exist_ok=True)
 
     for i in range(4):
         y = y_all[i]
-        model_path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
-        if os.path.exists(model_path):
-            model = load_model(model_path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
-            model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
-        else:
-            model = build_model(X.shape[1], temperature=temperature)
+        model = build_model(input_len=X.shape[1])
         log_path = f"training_logs/history_{lokasi.lower().replace(' ', '_')}_digit{i}.csv"
         callbacks = [
             CSVLogger(log_path),
-            EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+            EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
         ]
-        model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.1, callbacks=callbacks)
-        model.save(model_path)
-
+        model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2, callbacks=callbacks)
+        model.save(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5")
 
 def model_exists(lokasi):
     return all(os.path.exists(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5") for i in range(4))
 
-
-def top6_lstm(df, lokasi=None, return_probs=False, temperature=1.0):
-    X, _ = preprocess_data(df)
+def top6_lstm(df, lokasi=None, return_probs=False, temperature=0.5):
+    X, _ = preprocess_data(df, window_size=7)
     results, probs = [], []
     for i in range(4):
         path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
@@ -131,10 +102,11 @@ def top6_lstm(df, lokasi=None, return_probs=False, temperature=1.0):
             return None
     return (results, probs) if return_probs else results
 
-def kombinasi_4d(df, lokasi, top_n=10, min_conf=0.0001, power=1.5, mode='product'):
+def kombinasi_4d(df, lokasi, top_n=10, min_conf=0.0001, power=1.5, mode='average'):
     result, probs = top6_lstm(df, lokasi=lokasi, return_probs=True)
     if result is None or probs is None:
         return []
+
     combinations = list(product(*result))
     scores = []
     for combo in combinations:
@@ -149,12 +121,11 @@ def kombinasi_4d(df, lokasi, top_n=10, min_conf=0.0001, power=1.5, mode='product
                 break
         if not valid:
             continue
-        score = np.prod(digit_scores) if mode == 'product' else np.mean(digit_scores)
+        score = np.mean(digit_scores) if mode == 'average' else np.prod(digit_scores)
         if score >= min_conf:
             scores.append(("".join(map(str, combo)), score))
     topk = sorted(scores, key=lambda x: -x[1])[:top_n]
     return topk
-
 
 def top6_ensemble(df, lokasi):
     lstm_result = top6_lstm(df, lokasi=lokasi)
