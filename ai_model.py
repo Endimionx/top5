@@ -93,15 +93,20 @@ def top6_lstm(df, lokasi=None, return_probs=False):
     for i in range(4):
         path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
         if not os.path.exists(path):
+            print(f"❌ Model digit{i} tidak ditemukan: {path}")
             return None
-        model = load_model(
-            path,
-            compile=False,
-            custom_objects={
-                "PositionalEncoding": PositionalEncoding,
-                "TemperatureScaledSoftmax": TemperatureScaledSoftmax
-            }
-        )
+        try:
+            model = load_model(
+                path,
+                compile=False,
+                custom_objects={
+                    "PositionalEncoding": PositionalEncoding,
+                    "TemperatureScaledSoftmax": TemperatureScaledSoftmax
+                }
+            )
+        except Exception as e:
+            print(f"❌ Gagal load model digit{i}: {e}")
+            return None
         y_pred = model.predict(X, verbose=0)
         avg_probs = np.mean(y_pred, axis=0)
         top_idx = avg_probs.argsort()[-6:][::-1]
@@ -112,8 +117,10 @@ def top6_lstm(df, lokasi=None, return_probs=False):
     return top6
 
 def kombinasi_4d(df, lokasi, top_n=10):
-    result, probs = top6_lstm(df, lokasi=lokasi, return_probs=True)
-    if result is None: return []
+    result = top6_lstm(df, lokasi=lokasi, return_probs=True)
+    if result is None:
+        return []
+    result, probs = result
     from itertools import product
     combinations = list(product(*result))
     scores = []
