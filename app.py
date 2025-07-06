@@ -41,6 +41,8 @@ with st.sidebar:
     putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 100)
     jumlah_uji = st.number_input("📊 Data Uji Akurasi", min_value=1, max_value=200, value=10)
     metode = st.selectbox("🧠 Metode Prediksi", metode_list)
+    min_conf = st.slider("🔎 Minimum Confidence", 0.0, 0.05, 0.005, step=0.001)
+    power = st.slider("📈 Confidence Weight Power", 0.5, 3.0, 1.5, step=0.1)
 
 # Ambil Data
 angka_list = []
@@ -113,7 +115,7 @@ if st.button("🔮 Prediksi"):
 
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
-                    top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10)
+                    top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10, min_conf=min_conf, power=power)
                     if top_komb:
                         with st.expander("💡 Simulasi Kombinasi 4D Terbaik"):
                             sim_col = st.columns(2)
