@@ -94,21 +94,45 @@ def top6_lstm(df, lokasi=None, return_probs=False):
         return results, probs
     return results
 
-def kombinasi_4d(df, lokasi, top_n=10):
+def kombinasi_4d(df, lokasi, top_n=10, min_conf=0.001, power=1.5, mode='product'):
+    """
+    Menyusun kombinasi 4D dari prediksi LSTM per digit berdasarkan confidence score.
+    
+    Parameter:
+        - df: DataFrame angka sebelumnya
+        - lokasi: nama pasaran
+        - top_n: jumlah kombinasi 4D teratas yang dikembalikan
+        - min_conf: threshold minimal skor kombinasi
+        - power: bobot eksponensial terhadap confidence
+        - mode: 'product' atau 'average' untuk metode penggabungan skor
+
+    Return:
+        List kombinasi 4D terbaik [(kombinasi_str, skor_confidence)]
+    """
     result, probs = top6_lstm(df, lokasi=lokasi, return_probs=True)
-    if result is None: return []
+    if result is None or probs is None:
+        return []
+    
     from itertools import product
-    combinations = list(product(*result))
+    combinations = list(product(*result))  # semua kombinasi dari top-6 setiap digit
     scores = []
+
     for combo in combinations:
-        score = 1.0
+        digit_scores = []
+        valid = True
         for i in range(4):
-            if combo[i] in result[i]:
+            try:
                 idx = result[i].index(combo[i])
-                score *= probs[i][idx]
-            else:
-                score *= 0
-        scores.append(("".join(map(str, combo)), score))
+                digit_scores.append(probs[i][idx] ** power)
+            except:
+                valid = False
+                break
+        if not valid:
+            continue
+        score = np.prod(digit_scores) if mode == 'product' else np.mean(digit_scores)
+        if score >= min_conf:
+            scores.append(("".join(map(str, combo)), score))
+
     topk = sorted(scores, key=lambda x: -x[1])[:top_n]
     return topk
 
