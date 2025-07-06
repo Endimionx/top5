@@ -42,7 +42,7 @@ with st.sidebar:
     jumlah_uji = st.number_input("📊 Data Uji Akurasi", min_value=1, max_value=200, value=10)
     metode = st.selectbox("🧠 Metode Prediksi", metode_list)
 
-    min_conf = 0.005
+    min_conf = 0.0005
     power = 1.5
     if metode in ["LSTM AI", "Ensemble AI + Markov"]:
         min_conf = st.slider("🔎 Minimum Confidence", 0.0001, 0.001, 0.0005, step=0.0001, format="%.4f")
