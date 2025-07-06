@@ -29,10 +29,27 @@ class PositionalEncoding(tf.keras.layers.Layer):
         return x + tf.cast(pos_encoding, tf.float32)
 
 
-def preprocess_data(df, window_size=5):
+def augment_data(angka_list):
+    aug = []
+    for angka in angka_list:
+        if len(angka) != 4 or not angka.isdigit():
+            continue
+        digits = list(angka)
+        for i in range(4):
+            d = digits.copy()
+            d[i] = str((int(d[i]) + 1) % 10)
+            aug.append("".join(d))
+            d[i] = str((int(d[i]) - 2) % 10)
+            aug.append("".join(d))
+    return angka_list + aug
+
+
+def preprocess_data(df, window_size=5, augment=True):
+    angka = df["angka"].values.tolist()
+    if augment:
+        angka = augment_data(angka)
     sequences = []
     targets = [[] for _ in range(4)]
-    angka = df["angka"].values
     for i in range(len(angka) - window_size):
         window = angka[i:i+window_size]
         if any(len(x) != 4 or not x.isdigit() for x in window):
@@ -55,35 +72,41 @@ def build_model(input_len, embed_dim=16, lstm_units=64, attention_heads=2, tempe
     x = LayerNormalization()(x)
     x = Dropout(0.3)(x)
     x = Bidirectional(LSTM(lstm_units, return_sequences=True))(x)
+    x = LayerNormalization()(x)
     x = MultiHeadAttention(num_heads=attention_heads, key_dim=embed_dim)(x, x)
     x = GlobalAveragePooling1D()(x)
     x = Dense(128, activation='relu')(x)
     x = Dropout(0.3)(x)
     x = Dense(64, activation='relu')(x)
     logits = Dense(10)(x)
-    outputs = tf.keras.layers.Activation('softmax', name='softmax')(logits / temperature)
+    outputs = tf.keras.layers.Activation('softmax')(logits / temperature)
     model = Model(inputs, outputs)
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
 
 
-def train_and_save_lstm(df, lokasi):
-    if len(df) < 30:
-        return
-    X, y_all = preprocess_data(df)
+def train_and_save_lstm(df, lokasi, window_size=5, temperature=1.0):
+    if len(df) < 30: return
+    X, y_all = preprocess_data(df, window_size=window_size)
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
+    os.makedirs("eval_logs", exist_ok=True)
 
     for i in range(4):
         y = y_all[i]
-        model = build_model(input_len=X.shape[1])
+        model_path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
+        if os.path.exists(model_path):
+            model = load_model(model_path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
+            model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
+        else:
+            model = build_model(X.shape[1], temperature=temperature)
         log_path = f"training_logs/history_{lokasi.lower().replace(' ', '_')}_digit{i}.csv"
         callbacks = [
             CSVLogger(log_path),
             EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
         ]
         model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.1, callbacks=callbacks)
-        model.save(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5")
+        model.save(model_path)
 
 
 def model_exists(lokasi):
@@ -91,7 +114,7 @@ def model_exists(lokasi):
 
 
 def top6_lstm(df, lokasi=None, return_probs=False, temperature=1.0):
-    X, _ = preprocess_data(df)
+    X, _ = preprocess_data(df, augment=False)
     results, probs = [], []
     for i in range(4):
         path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
@@ -99,6 +122,7 @@ def top6_lstm(df, lokasi=None, return_probs=False, temperature=1.0):
             return None
         try:
             model = load_model(path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
+            model.compile(optimizer="adam", loss="categorical_crossentropy")
             pred = model.predict(X, verbose=0)
             avg = np.mean(pred, axis=0)
             top6 = avg.argsort()[-6:][::-1]
@@ -113,7 +137,6 @@ def kombinasi_4d(df, lokasi, top_n=10, min_conf=0.0001, power=1.5, mode='product
     result, probs = top6_lstm(df, lokasi=lokasi, return_probs=True)
     if result is None or probs is None:
         return []
-
     combinations = list(product(*result))
     scores = []
     for combo in combinations:
