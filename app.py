@@ -38,17 +38,23 @@ with st.sidebar:
     st.header("⚙️ Pengaturan")
     selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
     selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
-    putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 100)
+    preset_mode = st.radio("🎛 Mode Preset Putaran", ["Otomatis", "Manual"], horizontal=True)
+
+    if preset_mode == "Otomatis":
+        auto_cari_putaran = True
+        putaran = None
+    else:
+        auto_cari_putaran = False
+        putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 100)
+
     jumlah_uji = st.number_input("📊 Data Uji Akurasi", min_value=1, max_value=200, value=10)
     metode = st.selectbox("🧠 Metode Prediksi", metode_list)
 
     min_conf = 0.0005
     power = 1.5
-    mode = 'product'
     if metode in ["LSTM AI", "Ensemble AI + Markov"]:
         min_conf = st.slider("🔎 Minimum Confidence", 0.0001, 0.001, 0.0005, step=0.0001, format="%.4f")
         power = st.slider("📈 Confidence Weight Power", 0.5, 3.0, 1.5, step=0.1)
-        mode = st.selectbox("🧮 Skor Kombinasi", ["product", "average"])
 
 # Ambil Data
 angka_list = []
@@ -56,7 +62,8 @@ riwayat_input = ""
 if selected_lokasi and selected_hari:
     try:
         with st.spinner("🔄 Mengambil data dari API..."):
-            url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
+            used_putaran = putaran if putaran else 300
+            url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={used_putaran}&format=json&urut=asc"
             headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
             response = requests.get(url, headers=headers)
             data = response.json()
@@ -69,6 +76,25 @@ if selected_lokasi and selected_hari:
         st.error(f"❌ Gagal ambil data API: {e}")
 
 df = pd.DataFrame({"angka": angka_list})
+
+# Auto Cari Putaran Terbaik
+if auto_cari_putaran and metode in ["LSTM AI", "Ensemble AI + Markov"] and len(df) >= 50:
+    with st.spinner("🔍 Mencari putaran terbaik otomatis..."):
+        akurasi_per_putaran = []
+        for p in range(30, min(300, len(df)), 10):
+            try:
+                temp_df = df.tail(p)
+                pred = top6_lstm(temp_df, lokasi=selected_lokasi) if metode == "LSTM AI" else top6_ensemble(temp_df, lokasi=selected_lokasi)
+                actual = f"{int(df.iloc[-1]['angka']):04d}"
+                skor = sum([int(actual[i]) in pred[i] for i in range(4)])
+                akurasi = skor / 4 * 100
+                akurasi_per_putaran.append((p, akurasi))
+            except: continue
+
+        if akurasi_per_putaran:
+            best = max(akurasi_per_putaran, key=lambda x: x[1])
+            df = df.tail(best[0])
+            st.success(f"🎯 Auto Putaran Terbaik: {best[0]} dengan akurasi {best[1]:.2f}%")
 
 # Manajemen Model LSTM
 if metode == "LSTM AI":
@@ -121,7 +147,7 @@ if st.button("🔮 Prediksi"):
 
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
-                    top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10, min_conf=min_conf, power=power, mode=mode)
+                    top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10, min_conf=min_conf, power=power)
                     if top_komb:
                         with st.expander("💡 Simulasi Kombinasi 4D Terbaik"):
                             sim_col = st.columns(2)
