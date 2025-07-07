@@ -11,32 +11,26 @@ def build_transition_matrix(data):
             matrix[i][digits[i]][digits[i+1]] += 1
     return matrix
 
-def top6_markov(df):
-    data = df["angka"].astype(str).tolist()
-    matrix = build_transition_matrix(data)
-    freq_ribuan = Counter([int(x[0]) for x in data])
+def top6_markov_hybrid(df, digit_weights=None):
+    from collections import Counter
+    import random
+
+    if digit_weights is None:
+        digit_weights = [1.0, 1.0, 1.0, 1.0]  # Default: semua sama
+
+    hasil1, _ = top6_markov(df)  # Order-1
+    hasil2 = top6_markov_order2(df)  # Order-2
+
     hasil = []
-
-    # Ribuan
-    top6_ribuan = [k for k, _ in freq_ribuan.most_common(6)]
-    while len(top6_ribuan) < 6:
-        top6_ribuan.append(random.randint(0, 9))
-    hasil.append(top6_ribuan)
-
-    # Posisi 2–4
-    for i in range(3):
-        total_counts = Counter()
-        for prev_digit, next_digits in matrix[i].items():
-            total_counts.update(next_digits)
-        top6 = [int(k) for k, _ in total_counts.most_common(6)]
+    for i in range(4):
+        gabung = hasil1[i] * int(digit_weights[i]) + hasil2[i] * int(digit_weights[i])
+        freq = Counter(gabung)
+        top6 = [k for k, _ in freq.most_common(6)]
         while len(top6) < 6:
             top6.append(random.randint(0, 9))
         hasil.append(top6)
 
-    return hasil, {
-        "frekuensi_ribuan": dict(freq_ribuan),
-        "transisi": [{k: dict(v) for k, v in m.items()} for m in matrix],
-    }
+    return hasil
 
 # MARKOV ORDER-2
 def build_transition_matrix_order2(data):
