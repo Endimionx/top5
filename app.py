@@ -99,16 +99,18 @@ with st.sidebar:
     min_conf = 0.0005
     power = 1.5
     digit_weight_input = [1.0, 1.0, 1.0, 1.0]
+
     if metode in ["LSTM AI", "Ensemble AI + Markov"]:
         min_conf = st.slider("🔎 Minimum Confidence", 0.0001, 0.001, 0.0005, step=0.0001, format="%.4f")
         power = st.slider("📈 Confidence Weight Power", 0.5, 3.0, 1.5, step=0.1)
+
     if metode == "Markov Gabungan":
-        st.markdown("🎯 **Bobot Tiap Digit (Markov Gabungan)**")
+        st.markdown("🎯 **Bobot Confidence Tiap Digit (Markov Gabungan)**")
         digit_weight_input = [
-            st.slider("📌 Bobot Ribuan", 0.0, 3.0, 1.0, 0.1),
-            st.slider("📌 Bobot Ratusan", 0.0, 3.0, 1.0, 0.1),
-            st.slider("📌 Bobot Puluhan", 0.0, 3.0, 1.0, 0.1),
-            st.slider("📌 Bobot Satuan", 0.0, 3.0, 1.0, 0.1)
+            st.slider("📌 Ribuan", 0.1, 3.0, 1.0, 0.1),
+            st.slider("📌 Ratusan", 0.1, 3.0, 1.0, 0.1),
+            st.slider("📌 Puluhan", 0.1, 3.0, 1.0, 0.1),
+            st.slider("📌 Satuan", 0.1, 3.0, 1.0, 0.1)
         ]
 
 angka_list, riwayat_input = [], ""
