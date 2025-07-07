@@ -5,7 +5,6 @@ import os
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-import time
 
 from markov_model import top6_markov, top6_markov_order2, top6_markov_hybrid
 from ai_model import (
@@ -16,82 +15,58 @@ from ai_model import (
     model_exists
 )
 from lokasi_list import lokasi_list
+from streamlit_lottie import st_lottie
 
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
 
-def cari_putaran_terbaik(lokasi, max_putaran=200):
-    best_score = 0
-    best_putaran = 30
-    start = time.time()
-    for p in range(30, max_putaran + 1, 10):
-        try:
-            url = f"https://wysiwygscan.com/api?pasaran={lokasi.lower()}&hari=harian&putaran={p}&format=json&urut=asc"
-            headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
-            response = requests.get(url, headers=headers)
-            data = response.json()
-            angka_list = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
-            df = pd.DataFrame({"angka": angka_list})
-            pred, _ = top6_markov(df)
-            if pred:
-                total, benar = 0, 0
-                for angka in df["angka"][-10:]:
-                    actual = f"{int(angka):04d}"
-                    for i in range(4):
-                        if int(actual[i]) in pred[i]:
-                            benar += 1
-                        total += 1
-                acc = benar / total if total else 0
-                if acc > best_score:
-                    best_score = acc
-                    best_putaran = p
-        except:
-            continue
-        if time.time() - start > 5:
-            break
-    return best_putaran
+def load_lottieurl(url):
+    r = requests.get(url)
+    if r.status_code != 200:
+        return None
+    return r.json()
+
+lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
+st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
+
+st.title("🔮 Prediksi 4D - AI & Markov")
 
 # Sidebar
-st.sidebar.title("⚙️ Pengaturan")
-selected_lokasi = st.sidebar.selectbox("🌍 Pilih Pasaran", lokasi_list)
-selected_hari = st.sidebar.selectbox("📅 Pilih Hari", ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"])
-auto_cari = st.sidebar.checkbox("🔍 Cari Putaran Terbaik (rekomendasi)", value=False)
-if auto_cari:
-    putaran = None
-else:
-    putaran = st.sidebar.slider("🔁 Jumlah Putaran (Manual)", 30, 1000, 100)
-jumlah_uji = st.sidebar.number_input("📊 Data Uji Akurasi", 5, 200, 10)
-metode = st.sidebar.selectbox("🧠 Metode Prediksi", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"])
+hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
+metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
 
-min_conf = 0.0005
-power = 1.5
-if metode in ["LSTM AI", "Ensemble AI + Markov"]:
-    min_conf = st.sidebar.slider("🔎 Minimum Confidence", 0.0001, 0.001, 0.0005, step=0.0001, format="%.4f")
-    power = st.sidebar.slider("📈 Confidence Weight Power", 0.5, 3.0, 1.5, step=0.1)
+with st.sidebar:
+    st.header("⚙️ Pengaturan")
+    selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
+    selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
+    putaran = st.slider("🔁 Jumlah Putaran", 50, 1000, 200, step=50)
+    jumlah_uji = st.number_input("📊 Data Uji Akurasi", min_value=1, max_value=200, value=10)
+    metode = st.selectbox("🧠 Metode Prediksi", metode_list)
+
+    min_conf = 0.0005
+    power = 1.5
+    if metode in ["LSTM AI", "Ensemble AI + Markov"]:
+        min_conf = st.slider("🔎 Minimum Confidence", 0.0001, 0.001, 0.0005, step=0.0001, format="%.4f")
+        power = st.slider("📈 Confidence Weight Power", 0.5, 3.0, 1.5, step=0.1)
 
 angka_list = []
 riwayat_input = ""
 if selected_lokasi and selected_hari:
     try:
-        with st.spinner("🔄 Mengambil data..."):
-            if auto_cari:
-                st.info("🔍 Mencari jumlah putaran terbaik...")
-                putaran = cari_putaran_terbaik(selected_lokasi, max_putaran=200)
-                st.success(f"✅ Ditemukan putaran terbaik: {putaran}")
+        with st.spinner("🔄 Mengambil data dari API..."):
             url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
             headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
             response = requests.get(url, headers=headers)
             data = response.json()
             angka_list = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
             riwayat_input = "\n".join(angka_list)
-            st.success(f"✅ {len(angka_list)} angka berhasil diambil (Putaran: {putaran})")
+            st.success(f"✅ {len(angka_list)} angka berhasil diambil.")
             with st.expander("📥 Lihat Data"):
                 st.code(riwayat_input, language="text")
     except Exception as e:
-        st.error(f"❌ Gagal ambil data: {e}")
+        st.error(f"❌ Gagal ambil data API: {e}")
 
 df = pd.DataFrame({"angka": angka_list})
 
-# Manajemen Model
 if metode == "LSTM AI":
     with st.expander("⚙️ Manajemen Model LSTM"):
         for i in range(4):
@@ -144,7 +119,7 @@ if st.button("🔮 Prediksi"):
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
                     top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10, min_conf=min_conf, power=power)
                     if top_komb:
-                        with st.expander("💡 Kombinasi 4D Confidence Tinggi"):
+                        with st.expander("💡 Simulasi Kombinasi 4D Terbaik"):
                             sim_col = st.columns(2)
                             for i, (komb, score) in enumerate(top_komb):
                                 with sim_col[i % 2]:
@@ -152,14 +127,15 @@ if st.button("🔮 Prediksi"):
 
         # Evaluasi Akurasi
         with st.spinner("📏 Menghitung akurasi..."):
-            uji_df = df.tail(min(jumlah_uji, len(df)))
+            max_uji = min(jumlah_uji, max(1, len(df) - 30))
+            uji_df = df.tail(max_uji)
             total, benar = 0, 0
             akurasi_list = []
             digit_acc = {"Ribuan": [], "Ratusan": [], "Puluhan": [], "Satuan": []}
 
             for i in range(len(uji_df)):
                 subset_df = df.iloc[:-(len(uji_df) - i)]
-                if len(subset_df) < 30:
+                if len(subset_df) < 20:
                     continue
                 try:
                     pred = (
