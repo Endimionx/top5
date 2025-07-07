@@ -184,53 +184,53 @@ if st.button("🔮 Prediksi"):
 
             # HEATMAP AKURASI
             with st.expander("🔥 Heatmap Akurasi per Digit"):
-    sim_count = min(100, len(df) - 30)
-    acc_matrix = np.zeros((4, sim_count))
-    weighted_matrix = np.zeros((4, sim_count))
-    for i in range(sim_count):
-        train_df = df.iloc[:-(sim_count - i)]
-        test = df.iloc[-(sim_count - i)]
-        try:
-            pred = (
-                top6_markov(train_df)[0] if metode == "Markov" else
-                top6_markov_order2(train_df) if metode == "Markov Order-2" else
-                top6_markov_hybrid(train_df, digit_weights=digit_weight_input) if metode == "Markov Gabungan" else
-                top6_lstm(train_df, lokasi=selected_lokasi) if metode == "LSTM AI" else
-                top6_ensemble(train_df, lokasi=selected_lokasi)
-            )
-            actual = f"{int(test['angka']):04d}"
-            for j in range(4):
-                acc_matrix[j][i] = 1 if int(actual[j]) in pred[j] else 0
-                weighted_matrix[j][i] = acc_matrix[j][i] * digit_weight_input[j]  # tertimbang
-        except:
-            continue
+                sim_count = min(100, len(df) - 30)
+                acc_matrix = np.zeros((4, sim_count))
+                weighted_matrix = np.zeros((4, sim_count))
+                for i in range(sim_count):
+                    train_df = df.iloc[:-(sim_count - i)]
+                    test = df.iloc[-(sim_count - i)]
+                    try:
+                        pred = (
+                            top6_markov(train_df)[0] if metode == "Markov" else
+                            top6_markov_order2(train_df) if metode == "Markov Order-2" else
+                            top6_markov_hybrid(train_df, digit_weights=digit_weight_input) if metode == "Markov Gabungan" else
+                            top6_lstm(train_df, lokasi=selected_lokasi) if metode == "LSTM AI" else
+                            top6_ensemble(train_df, lokasi=selected_lokasi)
+                        )
+                        actual = f"{int(test['angka']):04d}"
+                        for j in range(4):
+                            acc_matrix[j][i] = 1 if int(actual[j]) in pred[j] else 0
+                            weighted_matrix[j][i] = acc_matrix[j][i] * digit_weight_input[j]  # tertimbang
+                    except:
+                        continue
 
-    digit_accuracy = acc_matrix.sum(axis=1) / sim_count * 100
-    weighted_accuracy = weighted_matrix.sum(axis=1) / sim_count * 100
+                digit_accuracy = acc_matrix.sum(axis=1) / sim_count * 100
+                weighted_accuracy = weighted_matrix.sum(axis=1) / sim_count * 100
 
-    df_heat_murni = pd.DataFrame(digit_accuracy.reshape(-1, 1),
-                                 index=["Ribuan", "Ratusan", "Puluhan", "Satuan"],
-                                 columns=["Akurasi Murni (%)"])
-    df_heat_bobot = pd.DataFrame(weighted_accuracy.reshape(-1, 1),
-                                 index=["Ribuan", "Ratusan", "Puluhan", "Satuan"],
-                                 columns=["Akurasi Tertimbang (%)"])
+                df_heat_murni = pd.DataFrame(digit_accuracy.reshape(-1, 1),
+                                             index=["Ribuan", "Ratusan", "Puluhan", "Satuan"],
+                                             columns=["Akurasi Murni (%)"])
+                df_heat_bobot = pd.DataFrame(weighted_accuracy.reshape(-1, 1),
+                                             index=["Ribuan", "Ratusan", "Puluhan", "Satuan"],
+                                             columns=["Akurasi Tertimbang (%)"])
 
-    col1, col2 = st.columns(2)
+                col1, col2 = st.columns(2)
 
-    with col1:
-        st.markdown("#### 🎯 Heatmap Akurasi Murni (%)")
-        fig1, ax1 = plt.subplots(figsize=(4, 2))
-        sns.heatmap(df_heat_murni, annot=True, cmap="YlGnBu", fmt=".2f", cbar=False, ax=ax1)
-        ax1.set_title("Akurasi per Digit")
-        st.pyplot(fig1)
+                with col1:
+                    st.markdown("#### 🎯 Heatmap Akurasi Murni (%)")
+                    fig1, ax1 = plt.subplots(figsize=(4, 2))
+                    sns.heatmap(df_heat_murni, annot=True, cmap="YlGnBu", fmt=".2f", cbar=False, ax=ax1)
+                    ax1.set_title("Akurasi per Digit")
+                    st.pyplot(fig1)
 
-    with col2:
-        st.markdown("#### ⚖️ Heatmap Akurasi Tertimbang (%)")
-        fig2, ax2 = plt.subplots(figsize=(4, 2))
-        sns.heatmap(df_heat_bobot, annot=True, cmap="OrRd", fmt=".2f", cbar=False, ax=ax2)
-        ax2.set_title("Akurasi Tertimbang per Digit")
-        st.pyplot(fig2)
-
+                with col2:
+                    st.markdown("#### ⚖️ Heatmap Akurasi Tertimbang (%)")
+                    fig2, ax2 = plt.subplots(figsize=(4, 2))
+                    sns.heatmap(df_heat_bobot, annot=True, cmap="OrRd", fmt=".2f", cbar=False, ax=ax2)
+                    ax2.set_title("Akurasi Tertimbang per Digit")
+                    st.pyplot(fig2)
+            
             # GRAFIK AKURASI PER PUTARAN
             with st.expander("📊 Grafik Akurasi (%) terhadap Putaran"):
                 max_n = min(300, len(df))
