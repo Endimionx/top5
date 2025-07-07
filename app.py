@@ -74,18 +74,6 @@ with st.sidebar:
     metode = st.selectbox("🧠 Metode Prediksi", metode_list)
 
     cari_otomatis = st.toggle("🔍 Cari Putaran Otomatis", value=False)
-
-max_putaran = 200  # default
-if cari_otomatis:
-    max_putaran = st.number_input(
-        "🔢 Batas Maksimal Putaran", 
-        min_value=50, 
-        max_value=1000, 
-        value=200, 
-        step=10,
-        help="Jumlah maksimum putaran yang akan dianalisis saat mencari putaran terbaik."
-    )
-    
     putaran = 100
     best_score = None
     df_all = pd.DataFrame()
