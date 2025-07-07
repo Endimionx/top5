@@ -44,9 +44,11 @@ with st.sidebar:
 
     min_conf = 0.0005
     power = 1.5
+    mode = 'product'
     if metode in ["LSTM AI", "Ensemble AI + Markov"]:
         min_conf = st.slider("🔎 Minimum Confidence", 0.0001, 0.001, 0.0005, step=0.0001, format="%.4f")
         power = st.slider("📈 Confidence Weight Power", 0.5, 3.0, 1.5, step=0.1)
+        mode = st.selectbox("🧮 Skor Kombinasi", ["product", "average"])
 
 # Ambil Data
 angka_list = []
@@ -119,7 +121,7 @@ if st.button("🔮 Prediksi"):
 
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
-                    top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10, min_conf=min_conf, power=power)
+                    top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10, min_conf=min_conf, power=power, mode=mode)
                     if top_komb:
                         with st.expander("💡 Simulasi Kombinasi 4D Terbaik"):
                             sim_col = st.columns(2)
