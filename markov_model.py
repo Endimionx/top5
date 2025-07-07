@@ -2,7 +2,7 @@ import random
 from collections import defaultdict, Counter
 import pandas as pd
 
-# MARKOV ORDER-1 (Probabilitas Transisi)
+# MARKOV ORDER-1
 def build_transition_matrix(data):
     matrix = [defaultdict(lambda: defaultdict(int)) for _ in range(3)]
     for number in data:
@@ -14,7 +14,6 @@ def build_transition_matrix(data):
 def top6_markov(df):
     data = df["angka"].astype(str).tolist()
     matrix = build_transition_matrix(data)
-
     freq_ribuan = Counter([int(x[0]) for x in data])
     hasil = []
 
@@ -24,7 +23,7 @@ def top6_markov(df):
         top6_ribuan.append(random.randint(0, 9))
     hasil.append(top6_ribuan)
 
-    # Posisi 2-4: Probabilitas transisi
+    # Posisi 2–4
     for i in range(3):
         total_counts = Counter()
         for prev_digit, next_digits in matrix[i].items():
@@ -39,7 +38,7 @@ def top6_markov(df):
         "transisi": [{k: dict(v) for k, v in m.items()} for m in matrix],
     }
 
-# MARKOV ORDER-2 (Transisi 2-digit → 1-digit)
+# MARKOV ORDER-2
 def build_transition_matrix_order2(data):
     matrix = [{} for _ in range(2)]
     for number in data:
@@ -64,7 +63,6 @@ def top6_markov_order2(df):
         return [[random.randint(0, 9) for _ in range(6)] for _ in range(4)]
 
     d1, d2 = top_pairs[0][0][0], top_pairs[0][0][1]
-
     top6_d1 = list(set(int(p[0][0]) for p in top_pairs))
     top6_d2 = list(set(int(p[0][1]) for p in top_pairs))
     while len(top6_d1) < 6:
@@ -92,11 +90,10 @@ def top6_markov_order2(df):
 
     return hasil
 
-# HYBRID MARKOV: Gabungan Order-1 & Order-2
+# HYBRID MARKOV
 def top6_markov_hybrid(df):
     hasil1, _ = top6_markov(df)
     hasil2 = top6_markov_order2(df)
-
     hasil = []
     for i in range(4):
         gabung = hasil1[i] + hasil2[i]
@@ -105,26 +102,16 @@ def top6_markov_hybrid(df):
         while len(top6) < 6:
             top6.append(random.randint(0, 9))
         hasil.append(top6)
-
     return hasil
 
-def kombinasi_4d_markov_hybrid(df, top_n=10, mode="average", scale=1.0, min_conf=0.0001, digit_weight_input=None):
-    from collections import Counter
-    import random
-
+# KOMBINASI 4D HYBRID
+def kombinasi_4d_markov_hybrid(df, top_n=10, mode="average", scale=1.0, digit_weights=None):
     data = df["angka"].astype(str).tolist()
     if len(data) < 30:
         return []
 
-    if digit_weight_input is None or len(digit_weight_input) != 4:
-        digit_weight_input = [1.0, 1.0, 1.0, 1.0]
-
-    digit_weights = {
-        "ribuan": digit_weight_input[0],
-        "ratusan": digit_weight_input[1],
-        "puluhan": digit_weight_input[2],
-        "satuan": digit_weight_input[3]
-    }
+    if digit_weights is None:
+        digit_weights = {"ribuan": 0.25, "ratusan": 0.25, "puluhan": 0.25, "satuan": 0.25}
 
     freq_ribuan = Counter([x[0] for x in data])
     matrix_order1 = build_transition_matrix(data)
@@ -148,17 +135,12 @@ def kombinasi_4d_markov_hybrid(df, top_n=10, mode="average", scale=1.0, min_conf
             for d3 in range(10):
                 for d4 in range(10):
                     s1, s2, s3, s4 = str(d1), str(d2), str(d3), str(d4)
-
                     p_ribuan = freq_ribuan.get(s1, 1) / (sum(freq_ribuan.values()) + 1)
-
                     p1 = prob_order1(0, s1, s2)
                     p2 = prob_order1(1, s2, s3)
                     p3 = prob_order1(2, s3, s4)
-
-                    key1 = s1 + s2
-                    key2 = s2 + s3
-                    p4 = prob_order2(0, key1, s3)
-                    p5 = prob_order2(1, key2, s4)
+                    p4 = prob_order2(0, s1 + s2, s3)
+                    p5 = prob_order2(1, s2 + s3, s4)
 
                     if mode == "product":
                         score = (
@@ -175,11 +157,7 @@ def kombinasi_4d_markov_hybrid(df, top_n=10, mode="average", scale=1.0, min_conf
                             digit_weights["satuan"] * p3
                         )
 
-                    score *= scale
-
-                    if score >= min_conf:
-                        kombinasi = f"{d1}{d2}{d3}{d4}"
-                        hasil.append((kombinasi, score))
+                    hasil.append((f"{d1}{d2}{d3}{d4}", score * scale))
 
     hasil.sort(key=lambda x: -x[1])
     return hasil[:top_n]
