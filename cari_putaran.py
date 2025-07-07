@@ -9,7 +9,7 @@ if not cari_otomatis:
     putaran = st.slider("🔁 Jumlah Putaran", 20, 1000, 100, step=10)
 
 # Fungsi analisis putaran otomatis
-def analisis_putaran_terbaik(df_all, lokasi, metode, jumlah_uji=10):
+def cari_putaran_terbaik(df_all, lokasi, metode, jumlah_uji=10):
     best_score, best_n, akurasi_list = 0, 0, []
     hasil_all = {}
     for n in range(30, min(len(df_all), 200)):
