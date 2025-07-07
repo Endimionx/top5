@@ -8,8 +8,7 @@ def tampilkan_user_manual():
     with col_manual[1]:
         if st.button("📘 Tampilkan Panduan Pengguna"):
             st.session_state.show_manual = not st.session_state.show_manual
-
-    if st.session_state.show_manual:
+            if st.session_state.show_manual:
     with st.container():
         st.markdown('''
         <style>
@@ -82,3 +81,5 @@ def tampilkan_user_manual():
         st.markdown("</div>", unsafe_allow_html=True)
 
         st.button("❌ Tutup Panduan", on_click=lambda: st.session_state.update({"show_manual": False}))
+
+    
