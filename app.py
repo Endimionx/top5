@@ -221,7 +221,7 @@ if st.button("🔮 Prediksi"):
             if total > 0:
                 st.success(f"📈 Akurasi {metode}: {benar / total * 100:.2f}%")
                 if metode == "Markov Gabungan":
-                    top_komb = kombinasi_4d_markov_hybrid(df, top_n=10)
+                    top_komb = kombinasi_4d_markov_hybrid(df, top_n=10, mode="average", min_conf=0.0001)
                     if top_komb:
                         with st.expander("💡 Simulasi Kombinasi 4D (Markov Hybrid)"):
                             kode_output = "\n".join(
