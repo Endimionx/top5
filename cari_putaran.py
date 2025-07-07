@@ -1,3 +1,5 @@
+import streamlit as st
+
 # Toggle cari putaran otomatis
 cari_otomatis = st.toggle("🔍 Cari Putaran Otomatis", value=False)
 
