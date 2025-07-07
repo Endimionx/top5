@@ -11,8 +11,8 @@ from ai_model import (
     top6_lstm,
     train_and_save_lstm,
     kombinasi_4d,
-    top6_ensemble,
-    model_exists
+    model_exists,
+    top6_ensemble
 )
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
@@ -26,9 +26,9 @@ def load_lottieurl(url):
         return None
     return r.json()
 
-def cari_putaran_terbaik(df_all, lokasi, metode, jumlah_uji=10):
+def cari_putaran_terbaik(df_all, lokasi, metode, jumlah_uji=10, max_putaran=200):
     best_score, best_n, hasil_all = 0, 0, {}
-    for n in range(30, min(len(df_all), 200)):
+    for n in range(30, min(len(df_all), max_putaran)):
         subset = df_all.tail(n).reset_index(drop=True)
         acc_total, acc_benar = 0, 0
         for i in range(min(jumlah_uji, len(subset) - 30)):
@@ -72,8 +72,11 @@ with st.sidebar:
     selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
     jumlah_uji = st.number_input("📊 Data Uji Akurasi", min_value=3, max_value=100, value=7)
     metode = st.selectbox("🧠 Metode Prediksi", metode_list)
-
     cari_otomatis = st.toggle("🔍 Cari Putaran Otomatis", value=False)
+
+    if cari_otomatis:
+        max_putaran = st.number_input("🧮 Max Putaran untuk Dicoba", min_value=50, max_value=1000, value=200)
+
     putaran = 100
     best_score = None
     df_all = pd.DataFrame()
@@ -92,7 +95,7 @@ with st.sidebar:
 
     if cari_otomatis and not df_all.empty:
         with st.spinner("🔍 Menganalisis putaran terbaik..."):
-            best_n, best_score, _ = cari_putaran_terbaik(df_all, selected_lokasi, metode, jumlah_uji)
+            best_n, best_score, _ = cari_putaran_terbaik(df_all, selected_lokasi, metode, jumlah_uji, max_putaran)
         if best_n > 0:
             putaran = best_n
             st.success(f"✅ Putaran terbaik: {best_n} (Akurasi: {best_score:.2f}%)")
@@ -107,7 +110,6 @@ with st.sidebar:
         min_conf = st.slider("🔎 Minimum Confidence", 0.0001, 0.001, 0.0005, step=0.0001, format="%.4f")
         power = st.slider("📈 Confidence Weight Power", 0.5, 3.0, 1.5, step=0.1)
 
-# Gunakan data hasil analisis langsung, bukan ambil ulang
 angka_list, riwayat_input = [], ""
 df = pd.DataFrame()
 if cari_otomatis and not df_all.empty:
