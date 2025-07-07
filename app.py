@@ -17,8 +17,7 @@ from ai_model import (
     train_and_save_lstm,
     kombinasi_4d,
     model_exists,
-    top6_ensemble,
-    delete_model
+    top6_ensemble
 )
 from lokasi_list import lokasi_list
 from user_manual import tampilkan_user_manual
