@@ -108,7 +108,7 @@ def top6_markov_hybrid(df):
 
     return hasil
 
-def kombinasi_4d_markov_hybrid(df, top_n=10, mode="average", scale=1.0, digit_weights=None):
+def kombinasi_4d_markov_hybrid(df, top_n=10, mode="average", scale=1.0, min_conf=0.0001, digit_weight_input=None):
     from collections import Counter
     import random
 
@@ -116,9 +116,15 @@ def kombinasi_4d_markov_hybrid(df, top_n=10, mode="average", scale=1.0, digit_we
     if len(data) < 30:
         return []
 
-    # Default bobot
-    if digit_weights is None:
-        digit_weights = {"ribuan": 0.25, "ratusan": 0.25, "puluhan": 0.25, "satuan": 0.25}
+    if digit_weight_input is None or len(digit_weight_input) != 4:
+        digit_weight_input = [1.0, 1.0, 1.0, 1.0]
+
+    digit_weights = {
+        "ribuan": digit_weight_input[0],
+        "ratusan": digit_weight_input[1],
+        "puluhan": digit_weight_input[2],
+        "satuan": digit_weight_input[3]
+    }
 
     freq_ribuan = Counter([x[0] for x in data])
     matrix_order1 = build_transition_matrix(data)
@@ -143,7 +149,6 @@ def kombinasi_4d_markov_hybrid(df, top_n=10, mode="average", scale=1.0, digit_we
                 for d4 in range(10):
                     s1, s2, s3, s4 = str(d1), str(d2), str(d3), str(d4)
 
-                    # Probabilitas masing-masing transisi
                     p_ribuan = freq_ribuan.get(s1, 1) / (sum(freq_ribuan.values()) + 1)
 
                     p1 = prob_order1(0, s1, s2)
@@ -155,7 +160,6 @@ def kombinasi_4d_markov_hybrid(df, top_n=10, mode="average", scale=1.0, digit_we
                     p4 = prob_order2(0, key1, s3)
                     p5 = prob_order2(1, key2, s4)
 
-                    # Kombinasi confidence
                     if mode == "product":
                         score = (
                             (p_ribuan ** digit_weights["ribuan"]) *
@@ -163,7 +167,7 @@ def kombinasi_4d_markov_hybrid(df, top_n=10, mode="average", scale=1.0, digit_we
                             ((p2 * p5) ** digit_weights["puluhan"]) *
                             (p3 ** digit_weights["satuan"])
                         )
-                    else:  # default average
+                    else:
                         score = (
                             digit_weights["ribuan"] * p_ribuan +
                             digit_weights["ratusan"] * ((p1 + p4) / 2) +
@@ -171,10 +175,11 @@ def kombinasi_4d_markov_hybrid(df, top_n=10, mode="average", scale=1.0, digit_we
                             digit_weights["satuan"] * p3
                         )
 
-                    score *= scale  # Optional adjustment
+                    score *= scale
 
-                    kombinasi = f"{d1}{d2}{d3}{d4}"
-                    hasil.append((kombinasi, score))
+                    if score >= min_conf:
+                        kombinasi = f"{d1}{d2}{d3}{d4}"
+                        hasil.append((kombinasi, score))
 
     hasil.sort(key=lambda x: -x[1])
     return hasil[:top_n]
