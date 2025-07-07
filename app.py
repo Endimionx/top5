@@ -14,12 +14,11 @@ from markov_model import (
 )
 from ai_model import (
     top6_lstm,
-    train_and_save_lstm,
     kombinasi_4d,
-    model_exists,
     top6_ensemble,
     preprocess_data,
-    build_model
+    build_model,
+    load_training_history
 )
 from lokasi_list import lokasi_list
 from user_manual import tampilkan_user_manual
@@ -74,9 +73,6 @@ with st.sidebar:
     if cari_otomatis:
         max_putaran = st.number_input("🧮 Max Putaran untuk Dicoba", min_value=50, max_value=1000, value=200)
 
-    putaran = 100
-    df_all = pd.DataFrame()
-
     digit_weight_input = [1.0, 1.0, 1.0, 1.0]
     if metode == "Markov Gabungan":
         st.markdown("🎯 **Bobot Confidence Tiap Digit (Markov Gabungan)**")
@@ -87,17 +83,19 @@ with st.sidebar:
             st.slider("📌 Satuan", 0.1, 3.0, 1.0, 0.1)
         ]
 
-    if selected_lokasi and selected_hari:
-        try:
-            with st.spinner("📥 Mengambil semua data..."):
-                url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran=1000&format=json&urut=asc"
-                headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
-                response = requests.get(url, headers=headers)
-                data = response.json()
-                angka_list_all = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
-                df_all = pd.DataFrame({"angka": angka_list_all})
-        except Exception as e:
-            st.error(f"❌ Gagal ambil data awal: {e}")
+putaran = 100
+df_all = pd.DataFrame()
+if selected_lokasi and selected_hari:
+    try:
+        with st.spinner("📥 Mengambil semua data..."):
+            url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran=1000&format=json&urut=asc"
+            headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
+            response = requests.get(url, headers=headers)
+            data = response.json()
+            angka_list_all = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
+            df_all = pd.DataFrame({"angka": angka_list_all})
+    except Exception as e:
+        st.error(f"❌ Gagal ambil data awal: {e}")
 
     if cari_otomatis and not df_all.empty:
         with st.spinner("🔍 Menganalisis putaran terbaik..."):
@@ -115,74 +113,22 @@ with st.sidebar:
         else:
             st.warning("⚠️ Gagal menemukan putaran terbaik.")
     elif not cari_otomatis:
-        putaran = st.number_input("🔁 Jumlah Putaran", min_value=20, max_value=1000, value=100, step=1)
+        putaran = st.number_input("🔁 Jumlah Putaran", min_value=20, max_value=1000, value=100)
 
-angka_list, riwayat_input = [], ""
-df = pd.DataFrame()
-if cari_otomatis and not df_all.empty:
-    df = df_all.tail(putaran).reset_index(drop=True)
-    angka_list = df["angka"].tolist()
-    riwayat_input = "\n".join(angka_list)
-    st.success(f"✅ Menggunakan {putaran} data dari hasil analisis otomatis.")
-    with st.expander("📥 Lihat Data"):
-        st.code(riwayat_input, language="text")
-elif selected_lokasi and selected_hari:
-    try:
-        with st.spinner("📦 Mengambil data berdasarkan putaran..."):
-            url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
-            headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
-            response = requests.get(url, headers=headers)
-            data = response.json()
-            angka_list = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
-            df = pd.DataFrame({"angka": angka_list})
-            riwayat_input = "\n".join(angka_list)
-            st.success(f"✅ {len(angka_list)} angka berhasil diambil.")
-            with st.expander("📥 Lihat Data"):
-                st.code(riwayat_input, language="text")
-    except Exception as e:
-        st.error(f"❌ Gagal ambil data API: {e}")
-
-# ⏳ Manajemen Model LSTM per Digit
-if metode == "LSTM AI" and not df.empty:
-    with st.expander("🧠 Manajemen Model LSTM per Digit"):
-        st.markdown("Kelola model LSTM secara terpisah untuk tiap digit:")
-        for i, digit in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
-            model_path = f"saved_models/{selected_lokasi.lower().replace(' ', '_')}_digit{i}.h5"
-            st.markdown(f"### 🔢 Digit {digit}")
-            if os.path.exists(model_path):
-                st.success("✅ Model tersedia")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button(f"🔁 Latih Ulang {digit}"):
-                        with st.spinner(f"Melatih ulang model digit {digit}..."):
-                            X, y_all = preprocess_data(df)
-                            model = build_model(input_len=X.shape[1])
-                            y = y_all[i]
-                            callbacks = [
-                                CSVLogger(f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}_digit{i}.csv"),
-                                EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-                            ]
-                            model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2, callbacks=callbacks)
-                            model.save(model_path)
-                            st.success(f"✅ Model digit {digit} berhasil dilatih ulang.")
-                with col2:
-                    if st.button(f"🗑️ Hapus Model {digit}"):
-                        os.remove(model_path)
-                        st.warning(f"🧹 Model digit {digit} telah dihapus.")
-            else:
-                st.error("❌ Model belum tersedia")
-                if st.button(f"📈 Latih Model {digit}"):
-                    with st.spinner(f"Melatih model digit {digit}..."):
-                        X, y_all = preprocess_data(df)
-                        model = build_model(input_len=X.shape[1])
-                        y = y_all[i]
-                        callbacks = [
-                            CSVLogger(f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}_digit{i}.csv"),
-                            EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-                        ]
-                        model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2, callbacks=callbacks)
-                        model.save(model_path)
-                        st.success(f"✅ Model digit {digit} berhasil dilatih.")
+# 📊 Ambil data prediksi dari API
+angka_list, df = [], pd.DataFrame()
+try:
+    if not df_all.empty:
+        df = df_all.tail(putaran).reset_index(drop=True)
+    else:
+        url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
+        headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
+        response = requests.get(url, headers=headers)
+        data = response.json()
+        angka_list = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
+        df = pd.DataFrame({"angka": angka_list})
+except Exception as e:
+    st.error(f"❌ Gagal ambil data: {e}")
 
 # 🔮 Prediksi
 if st.button("🔮 Prediksi"):
@@ -209,22 +155,44 @@ if st.button("🔮 Prediksi"):
                     with (col1 if i % 2 == 0 else col2):
                         st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
 
-            if metode == "Markov Gabungan":
+            if metode in ["LSTM AI", "Markov Gabungan"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
-                    top_komb = kombinasi_4d_markov_hybrid(
-                        df,
-                        top_n=10,
-                        mode="average",
-                        digit_weights={
-                            "ribuan": digit_weight_input[0],
-                            "ratusan": digit_weight_input[1],
-                            "puluhan": digit_weight_input[2],
-                            "satuan": digit_weight_input[3],
-                        }
-                    )
+                    if metode == "LSTM AI":
+                        top_komb = kombinasi_4d(result, mode="average")
+                    else:
+                        top_komb = kombinasi_4d_markov_hybrid(
+                            df,
+                            top_n=10,
+                            mode="average",
+                            digit_weights={
+                                "ribuan": digit_weight_input[0],
+                                "ratusan": digit_weight_input[1],
+                                "puluhan": digit_weight_input[2],
+                                "satuan": digit_weight_input[3],
+                            }
+                        )
                     if top_komb:
-                        with st.expander("💡 Simulasi Kombinasi 4D (Markov Hybrid)"):
-                            kode_output = "\n".join(
-                                [f"{komb} - ⚡ Confidence: {score:.6f}" for komb, score in top_komb]
-                            )
-                            st.code(kode_output, language="text")
+                        with st.expander("💡 Simulasi Kombinasi 4D"):
+                            for komb, score in top_komb:
+                                st.markdown(f"**{komb}** - ⚡ Confidence: `{score:.4f}`")
+
+# 📊 Grafik Riwayat Akurasi LSTM
+if metode == "LSTM AI":
+    with st.expander("📈 Grafik Riwayat Akurasi per Digit"):
+        for i, digit in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+            log_path = f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}_digit{i}.csv"
+            if os.path.exists(log_path):
+                df_log = load_training_history(log_path)
+                fig, ax = plt.subplots()
+                sns.lineplot(data=df_log, x=df_log.index, y="accuracy", label="Akurasi", ax=ax)
+                sns.lineplot(data=df_log, x=df_log.index, y="val_accuracy", label="Val Akurasi", ax=ax)
+                ax.set_title(f"📊 Digit {digit}")
+                st.pyplot(fig)
+
+# 🔥 Heatmap Akurasi per Digit
+if metode in ["LSTM AI", "Markov Gabungan"]:
+    with st.expander("🌡️ Heatmap Akurasi per Digit"):
+        heatmap_data = pd.DataFrame([len(set(col)) / len(col) for col in zip(*df["angka"])], index=["Ribuan", "Ratusan", "Puluhan", "Satuan"], columns=["Akurasi"])
+        fig, ax = plt.subplots()
+        sns.heatmap(heatmap_data, annot=True, cmap="YlGnBu", fmt=".2f", ax=ax)
+        st.pyplot(fig)
