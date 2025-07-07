@@ -16,6 +16,7 @@ from ai_model import (
 )
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
+from user_manual import tampilkan_user_manual
 
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
 
@@ -58,6 +59,7 @@ def cari_putaran_terbaik(df_all, lokasi, metode, jumlah_uji=10):
 lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
 st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
+tampilkan_user_manual()
 st.title("🔮 Prediksi 4D - AI & Markov")
 
 # Sidebar
