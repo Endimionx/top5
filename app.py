@@ -20,21 +20,9 @@ from ai_model import (
     top6_ensemble
 )
 from lokasi_list import lokasi_list
-from streamlit_lottie import st_lottie
 from user_manual import tampilkan_user_manual
 
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
-
-def load_lottieurl(url):
-    r = requests.get(url)
-    if r.status_code != 200:
-        return None
-    return r.json()
-
-# Lottie animation
-lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
-lottie_predicting = load_lottieurl("https://assets1.lottiefiles.com/packages/lf20_usmfx6bp.json")
-st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
 # Judul dan Bantuan
 tampilkan_user_manual()
@@ -72,7 +60,6 @@ with st.sidebar:
 
     if cari_otomatis and not df_all.empty:
         with st.spinner("🔍 Menganalisis putaran terbaik..."):
-            st_lottie(lottie_predicting, height=100, key="cari_best")
             best_n, best_score, _ = cari_putaran_terbaik(df_all, selected_lokasi, metode, jumlah_uji, max_putaran)
         if best_n > 0:
             putaran = best_n
@@ -131,7 +118,6 @@ if metode == "LSTM AI":
 
         if st.button("📚 Latih & Simpan Semua Model"):
             with st.spinner("🔄 Melatih semua model per digit..."):
-                st_lottie(lottie_predicting, height=100, key="training_lstm")
                 train_and_save_lstm(df, selected_lokasi)
             st.success("✅ Semua model berhasil dilatih dan disimpan.")
 
@@ -140,7 +126,6 @@ if st.button("🔮 Prediksi"):
         st.warning("❌ Minimal 30 data diperlukan.")
     else:
         with st.spinner("⏳ Melakukan prediksi..."):
-            st_lottie(lottie_predicting, height=100, key="prediksi_utama")
             result = None
             if metode == "Markov":
                 result, _ = top6_markov(df)
@@ -164,7 +149,6 @@ if st.button("🔮 Prediksi"):
 
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
-                    st_lottie(lottie_predicting, height=80, key="kombinasi_4d")
                     top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10, min_conf=min_conf, power=power)
                     if top_komb:
                         with st.expander("💡 Simulasi Kombinasi 4D Terbaik"):
@@ -172,7 +156,6 @@ if st.button("🔮 Prediksi"):
                             st.code(kode_output, language="text")
 
         with st.spinner("📏 Menghitung akurasi..."):
-            st_lottie(lottie_predicting, height=80, key="eval_akurasi")
             uji_df = df.tail(min(jumlah_uji, len(df)))
             total, benar = 0, 0
             akurasi_list = []
