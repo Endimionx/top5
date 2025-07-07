@@ -70,7 +70,7 @@ with st.sidebar:
     st.header("⚙️ Pengaturan")
     selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
     selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
-    jumlah_uji = st.number_input("📊 Data Uji Akurasi", min_value=5, max_value=100, value=10)
+    jumlah_uji = st.number_input("📊 Data Uji Akurasi", min_value=3, max_value=100, value=7)
     metode = st.selectbox("🧠 Metode Prediksi", metode_list)
 
     cari_otomatis = st.toggle("🔍 Cari Putaran Otomatis", value=False)
