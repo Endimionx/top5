@@ -108,26 +108,35 @@ def top6_markov_hybrid(df):
 
     return hasil
 
-def kombinasi_4d_markov_hybrid(df, top_n=10):
+def kombinasi_4d_markov_hybrid(df, top_n=10, mode="average", min_conf=0.0001):
+    from collections import defaultdict, Counter
+
     data = df["angka"].astype(str).tolist()
     if len(data) < 30:
         return []
 
-    freq_ribuan = Counter([x[0] for x in data])
-    matrix_order1 = build_transition_matrix(data)
-    matrix_order2 = build_transition_matrix_order2(data)
+    def smooth(counter, k=1):
+        return Counter({str(i): counter.get(str(i), 0) + k for i in range(10)})
+
+    def normalize(counter):
+        total = sum(counter.values())
+        return {k: v / total for k, v in counter.items()} if total else {k: 0.1 for k in counter}
 
     def prob_order1(i, prev, curr):
-        if prev not in matrix_order1[i]:
-            return 0.01
-        total = sum(matrix_order1[i][prev].values())
-        return matrix_order1[i][prev].get(curr, 0) / total if total else 0.01
+        dist = smooth(matrix_order1[i].get(prev, {}))
+        norm = normalize(dist)
+        return norm.get(curr, 0.001)
 
     def prob_order2(i, key, curr):
-        if key not in matrix_order2[i]:
-            return 0.01
-        total = sum(matrix_order2[i][key].values())
-        return matrix_order2[i][key].get(curr, 0) / total if total else 0.01
+        dist = smooth(matrix_order2[i].get(key, {}))
+        norm = normalize(dist)
+        return norm.get(curr, 0.001)
+
+    # --- Matrix Setup ---
+    freq_ribuan = smooth(Counter(x[0] for x in data))
+    norm_ribuan = normalize(freq_ribuan)
+    matrix_order1 = build_transition_matrix(data)
+    matrix_order2 = build_transition_matrix_order2(data)
 
     hasil = []
     for d1 in range(10):
@@ -136,25 +145,23 @@ def kombinasi_4d_markov_hybrid(df, top_n=10):
                 for d4 in range(10):
                     s1, s2, s3, s4 = str(d1), str(d2), str(d3), str(d4)
 
-                    p_ribuan = freq_ribuan.get(s1, 1) / (sum(freq_ribuan.values()) + 1)
-
+                    pr = norm_ribuan.get(s1, 0.001)
                     p1 = prob_order1(0, s1, s2)
                     p2 = prob_order1(1, s2, s3)
                     p3 = prob_order1(2, s3, s4)
+                    p4 = prob_order2(0, s1 + s2, s3)
+                    p5 = prob_order2(1, s2 + s3, s4)
 
-                    key1 = s1 + s2
-                    key2 = s2 + s3
-                    p4 = prob_order2(0, key1, s3)
-                    p5 = prob_order2(1, key2, s4)
+                    # Combine probabilitas:
+                    if mode == "average":
+                        score = pr * 0.3 + (p1 + p2 + p3) / 3 * 0.35 + (p4 + p5) / 2 * 0.35
+                    elif mode == "product":
+                        score = (pr**0.3) * ((p1 * p2 * p3)**(0.35 / 3)) * ((p4 * p5)**(0.35 / 2))
+                    else:
+                        score = pr * 0.3 + (p1 + p2 + p3) / 3 * 0.35 + (p4 + p5) / 2 * 0.35
 
-                    # Kombinasi confidence: rata-rata dari semua probabilitas
-                    score = (
-                        p_ribuan * 0.5 + 
-                        (p1 + p2 + p3 + p4 + p5) / 5 * 0.5
-                    )
-
-                    kombinasi = f"{d1}{d2}{d3}{d4}"
-                    hasil.append((kombinasi, score))
+                    if score >= min_conf:
+                        hasil.append((f"{d1}{d2}{d3}{d4}", score))
 
     hasil.sort(key=lambda x: -x[1])
     return hasil[:top_n]
