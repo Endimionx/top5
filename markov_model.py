@@ -107,3 +107,54 @@ def top6_markov_hybrid(df):
         hasil.append(top6)
 
     return hasil
+
+def kombinasi_4d_markov_hybrid(df, top_n=10):
+    data = df["angka"].astype(str).tolist()
+    if len(data) < 30:
+        return []
+
+    freq_ribuan = Counter([x[0] for x in data])
+    matrix_order1 = build_transition_matrix(data)
+    matrix_order2 = build_transition_matrix_order2(data)
+
+    def prob_order1(i, prev, curr):
+        if prev not in matrix_order1[i]:
+            return 0.01
+        total = sum(matrix_order1[i][prev].values())
+        return matrix_order1[i][prev].get(curr, 0) / total if total else 0.01
+
+    def prob_order2(i, key, curr):
+        if key not in matrix_order2[i]:
+            return 0.01
+        total = sum(matrix_order2[i][key].values())
+        return matrix_order2[i][key].get(curr, 0) / total if total else 0.01
+
+    hasil = []
+    for d1 in range(10):
+        for d2 in range(10):
+            for d3 in range(10):
+                for d4 in range(10):
+                    s1, s2, s3, s4 = str(d1), str(d2), str(d3), str(d4)
+
+                    p_ribuan = freq_ribuan.get(s1, 1) / (sum(freq_ribuan.values()) + 1)
+
+                    p1 = prob_order1(0, s1, s2)
+                    p2 = prob_order1(1, s2, s3)
+                    p3 = prob_order1(2, s3, s4)
+
+                    key1 = s1 + s2
+                    key2 = s2 + s3
+                    p4 = prob_order2(0, key1, s3)
+                    p5 = prob_order2(1, key2, s4)
+
+                    # Kombinasi confidence: rata-rata dari semua probabilitas
+                    score = (
+                        p_ribuan * 0.5 + 
+                        (p1 + p2 + p3 + p4 + p5) / 5 * 0.5
+                    )
+
+                    kombinasi = f"{d1}{d2}{d3}{d4}"
+                    hasil.append((kombinasi, score))
+
+    hasil.sort(key=lambda x: -x[1])
+    return hasil[:top_n]
