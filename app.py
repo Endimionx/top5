@@ -17,10 +17,13 @@ from ai_model import (
     train_and_save_lstm,
     kombinasi_4d,
     model_exists,
-    top6_ensemble
+    top6_ensemble,
+    preprocess_data,
+    build_model
 )
 from lokasi_list import lokasi_list
 from user_manual import tampilkan_user_manual
+from tensorflow.keras.callbacks import CSVLogger, EarlyStopping
 
 
 def cari_putaran_terbaik(df_all, lokasi, metode, jumlah_uji=10, max_putaran=200, digit_weights=None):
@@ -139,29 +142,47 @@ elif selected_lokasi and selected_hari:
     except Exception as e:
         st.error(f"❌ Gagal ambil data API: {e}")
 
-# ⏳ Manajemen Model LSTM
+# ⏳ Manajemen Model LSTM per Digit
 if metode == "LSTM AI" and not df.empty:
-    with st.expander("🧠 Manajemen Model LSTM"):
-        if model_exists(selected_lokasi):
-            st.success(f"✅ Model LSTM untuk pasaran '{selected_lokasi}' tersedia.")
-            col_train, col_ft, col_del = st.columns(3)
-            with col_train:
-                if st.button("🔁 Latih Ulang dari Awal"):
-                    acc = train_and_save_lstm(df, lokasi=selected_lokasi, retrain=True)
-                    st.info(f"🎯 Akurasi training: {acc:.2f}%")
-            with col_ft:
-                if st.button("🎯 Fine-Tune Model"):
-                    acc = train_and_save_lstm(df, lokasi=selected_lokasi, retrain=False)
-                    st.info(f"🧠 Akurasi fine-tuning: {acc:.2f}%")
-            with col_del:
-                if st.button("🗑️ Hapus Model"):
-                    delete_model(selected_lokasi)
-                    st.warning("🧹 Model berhasil dihapus.")
-        else:
-            st.warning(f"❌ Model LSTM untuk '{selected_lokasi}' belum tersedia.")
-            if st.button("📈 Latih Model Baru"):
-                acc = train_and_save_lstm(df, lokasi=selected_lokasi, retrain=True)
-                st.success(f"✅ Model berhasil dilatih. Akurasi: {acc:.2f}%")
+    with st.expander("🧠 Manajemen Model LSTM per Digit"):
+        st.markdown("Kelola model LSTM secara terpisah untuk tiap digit:")
+        for i, digit in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+            model_path = f"saved_models/{selected_lokasi.lower().replace(' ', '_')}_digit{i}.h5"
+            st.markdown(f"### 🔢 Digit {digit}")
+            if os.path.exists(model_path):
+                st.success("✅ Model tersedia")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button(f"🔁 Latih Ulang {digit}"):
+                        with st.spinner(f"Melatih ulang model digit {digit}..."):
+                            X, y_all = preprocess_data(df)
+                            model = build_model(input_len=X.shape[1])
+                            y = y_all[i]
+                            callbacks = [
+                                CSVLogger(f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}_digit{i}.csv"),
+                                EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+                            ]
+                            model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2, callbacks=callbacks)
+                            model.save(model_path)
+                            st.success(f"✅ Model digit {digit} berhasil dilatih ulang.")
+                with col2:
+                    if st.button(f"🗑️ Hapus Model {digit}"):
+                        os.remove(model_path)
+                        st.warning(f"🧹 Model digit {digit} telah dihapus.")
+            else:
+                st.error("❌ Model belum tersedia")
+                if st.button(f"📈 Latih Model {digit}"):
+                    with st.spinner(f"Melatih model digit {digit}..."):
+                        X, y_all = preprocess_data(df)
+                        model = build_model(input_len=X.shape[1])
+                        y = y_all[i]
+                        callbacks = [
+                            CSVLogger(f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}_digit{i}.csv"),
+                            EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+                        ]
+                        model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2, callbacks=callbacks)
+                        model.save(model_path)
+                        st.success(f"✅ Model digit {digit} berhasil dilatih.")
 
 # 🔮 Prediksi
 if st.button("🔮 Prediksi"):
@@ -207,6 +228,3 @@ if st.button("🔮 Prediksi"):
                                 [f"{komb} - ⚡ Confidence: {score:.6f}" for komb, score in top_komb]
                             )
                             st.code(kode_output, language="text")
-
-            # Heatmap & Grafik Akurasi
-            # (dapat ditambahkan sesuai versi sebelumnya, jika diperlukan)
