@@ -106,10 +106,10 @@ with st.sidebar:
 if metode == "Markov Gabungan":
     st.markdown("🎯 **Bobot Confidence Tiap Digit (Markov Gabungan)**")
     digit_weight_input = [
-        st.slider("📌 Ribuan", 0.1, 3.0, 1.0, 0.1),
-        st.slider("📌 Ratusan", 0.1, 3.0, 1.0, 0.1),
-        st.slider("📌 Puluhan", 0.1, 3.0, 1.0, 0.1),
-        st.slider("📌 Satuan", 0.1, 3.0, 1.0, 0.1)
+        st.slider("📌 Ribuan", 0.1, 5.0, 1.0, 0.1),
+        st.slider("📌 Ratusan", 0.1, 5.0, 1.0, 0.1),
+        st.slider("📌 Puluhan", 0.1, 5.0, 1.0, 0.1),
+        st.slider("📌 Satuan", 0.1, 5.0, 1.0, 0.1)
     ]
 
 angka_list, riwayat_input = [], ""
