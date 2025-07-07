@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import requests
-import os
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -87,10 +86,16 @@ with st.sidebar:
 
     if cari_otomatis and not df_all.empty:
         with st.spinner("🔍 Menganalisis putaran terbaik..."):
-            best_n, best_score, _ = cari_putaran_terbaik(df_all, selected_lokasi, metode, jumlah_uji, max_putaran)
+            best_n, best_score, hasil_dict = cari_putaran_terbaik(df_all, selected_lokasi, metode, jumlah_uji, max_putaran)
         if best_n > 0:
             putaran = best_n
             st.success(f"✅ Putaran terbaik: {best_n} (Akurasi: {best_score:.2f}%)")
+            with st.expander("📈 Grafik Akurasi Tiap Putaran"):
+                df_acc = pd.DataFrame(list(hasil_dict.items()), columns=["Putaran", "Akurasi"])
+                fig, ax = plt.subplots()
+                sns.lineplot(data=df_acc, x="Putaran", y="Akurasi", ax=ax)
+                ax.set_title("Performa Akurasi Berdasarkan Putaran")
+                st.pyplot(fig)
         else:
             st.warning("⚠️ Gagal menemukan putaran terbaik.")
     elif not cari_otomatis:
@@ -120,8 +125,6 @@ if cari_otomatis and not df_all.empty:
     angka_list = df["angka"].tolist()
     riwayat_input = "\n".join(angka_list)
     st.success(f"✅ Menggunakan {putaran} data dari hasil analisis otomatis.")
-    with st.expander("📥 Lihat Data"):
-        st.code(riwayat_input, language="text")
 elif selected_lokasi and selected_hari:
     try:
         with st.spinner("📦 Mengambil data berdasarkan putaran..."):
@@ -133,10 +136,23 @@ elif selected_lokasi and selected_hari:
             df = pd.DataFrame({"angka": angka_list})
             riwayat_input = "\n".join(angka_list)
             st.success(f"✅ {len(angka_list)} angka berhasil diambil.")
-            with st.expander("📥 Lihat Data"):
-                st.code(riwayat_input, language="text")
     except Exception as e:
         st.error(f"❌ Gagal ambil data API: {e}")
+
+if not df.empty:
+    with st.expander("📊 Heatmap Frekuensi Angka per Posisi"):
+        digit_data = {"Ribuan": [], "Ratusan": [], "Puluhan": [], "Satuan": []}
+        for angka in df["angka"]:
+            if len(angka) == 4:
+                for i, key in enumerate(digit_data):
+                    digit_data[key].append(int(angka[i]))
+        df_digits = pd.DataFrame(digit_data)
+        fig, ax = plt.subplots(figsize=(6, 3))
+        sns.heatmap(
+            df_digits.apply(pd.Series.value_counts).fillna(0).astype(int).T,
+            annot=True, fmt="d", cmap="YlGnBu", cbar=False, ax=ax
+        )
+        st.pyplot(fig)
 
 if st.button("🔮 Prediksi"):
     if len(df) < 30:
@@ -168,8 +184,12 @@ if st.button("🔮 Prediksi"):
                         df,
                         top_n=10,
                         mode="average",
-                        min_conf=0.0001,
-                        digit_weight_input=digit_weight_input
+                        digit_weights={
+                            "ribuan": digit_weight_input[0],
+                            "ratusan": digit_weight_input[1],
+                            "puluhan": digit_weight_input[2],
+                            "satuan": digit_weight_input[3],
+                        }
                     )
                     if top_komb:
                         with st.expander("💡 Simulasi Kombinasi 4D (Markov Hybrid)"):
