@@ -16,9 +16,8 @@ from ai_model import (
 )
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
-from cari_putaran import cari_putaran_terbaik
 
-st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
+st.set_page_config(page_title="Prediksi 4D - AI & Markov", layout="wide")
 
 def load_lottieurl(url):
     r = requests.get(url)
@@ -38,12 +37,14 @@ metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemb
 with st.sidebar:
     st.header("⚙️ Pengaturan")
     selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
+    selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
     metode = st.selectbox("🧠 Metode Prediksi", metode_list)
-    mode_otomatis = st.toggle("🔍 Cari Putaran Otomatis", value=False)
+    jumlah_uji = st.number_input("📊 Data Uji Akurasi", min_value=5, max_value=100, value=10)
 
-    jumlah_uji = st.number_input("📊 Jumlah Data Evaluasi", 5, 100, 10)
-    putaran = st.slider("🔁 Jumlah Putaran", 50, 1000, 200, disabled=mode_otomatis)
-    selected_hari = st.selectbox("📅 Hari", hari_list, disabled=mode_otomatis)
+    cari_otomatis = st.toggle("🔍 Cari Putaran Otomatis", value=False)
+    putaran = 100
+    if not cari_otomatis:
+        putaran = st.slider("🔁 Jumlah Putaran", 30, 1000, 100, step=10)
 
     min_conf = 0.0005
     power = 1.5
@@ -53,38 +54,67 @@ with st.sidebar:
 
 # Ambil Data
 angka_list = []
-df = pd.DataFrame()
+riwayat_input = ""
+df_all = pd.DataFrame()
 
-if mode_otomatis:
-    with st.spinner("🔍 Menganalisis putaran terbaik..."):
-        best_df, best_score, best_putaran = cari_putaran_terbaik(selected_lokasi, metode, jumlah_uji)
-    if best_df is not None and not best_df.empty:
-        df = best_df.copy()
-        angka_list = df["angka"].tolist()
-        st.success(f"✅ {len(angka_list)} angka terbaik ditemukan pada putaran: {best_putaran}")
-        with st.expander("📥 Data Putaran Terbaik"):
-            st.code("\n".join(angka_list), language="text")
-    else:
-        st.warning("⚠️ Gagal menemukan putaran terbaik. Gunakan mode manual.")
-else:
+if selected_lokasi and selected_hari:
     try:
         with st.spinner("🔄 Mengambil data dari API..."):
-            url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
+            url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran=1000&format=json&urut=asc"
             headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
             response = requests.get(url, headers=headers)
             data = response.json()
             angka_list = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
-            df = pd.DataFrame({"angka": angka_list})
+            df_all = pd.DataFrame({"angka": angka_list})
             st.success(f"✅ {len(angka_list)} angka berhasil diambil.")
             with st.expander("📥 Lihat Data"):
                 st.code("\n".join(angka_list), language="text")
     except Exception as e:
         st.error(f"❌ Gagal ambil data API: {e}")
 
+# Cari Putaran Otomatis
+if cari_otomatis and not df_all.empty:
+    with st.spinner("🔍 Menganalisis putaran terbaik..."):
+        def cari_putaran_terbaik(df_all, lokasi, metode, jumlah_uji=10):
+            best_score, best_n = 0, 0
+            for n in range(30, min(len(df_all), 200)):
+                subset = df_all.tail(n).reset_index(drop=True)
+                acc_total, acc_benar = 0, 0
+                for i in range(min(jumlah_uji, len(subset) - 30)):
+                    train_df = subset.iloc[:-(jumlah_uji - i)]
+                    if len(train_df) < 30:
+                        continue
+                    try:
+                        pred = (
+                            top6_markov(train_df)[0] if metode == "Markov" else
+                            top6_markov_order2(train_df) if metode == "Markov Order-2" else
+                            top6_markov_hybrid(train_df) if metode == "Markov Gabungan" else
+                            top6_lstm(train_df, lokasi=selected_lokasi) if metode == "LSTM AI" else
+                            top6_ensemble(train_df, lokasi=selected_lokasi)
+                        )
+                        actual = f"{int(subset.iloc[-(jumlah_uji - i)]['angka']):04d}"
+                        acc = sum(int(actual[j]) in pred[j] for j in range(4))
+                        acc_benar += acc
+                        acc_total += 4
+                    except:
+                        continue
+                akurasi = acc_benar / acc_total * 100 if acc_total else 0
+                if akurasi > best_score:
+                    best_score = akurasi
+                    best_n = n
+            return best_n, best_score
+
+        putaran, score = cari_putaran_terbaik(df_all, selected_lokasi, metode, jumlah_uji)
+        if putaran > 0:
+            st.success(f"✅ Putaran terbaik: {putaran} angka terakhir (Akurasi: {score:.2f}%)")
+        else:
+            st.warning("⚠️ Gagal menemukan putaran terbaik. Gunakan mode manual.")
+
+df = df_all.tail(putaran).reset_index(drop=True)
+
 # Manajemen Model LSTM
 if metode == "LSTM AI":
     with st.expander("⚙️ Manajemen Model LSTM"):
-        kosong = False
         for i in range(4):
             model_path = f"saved_models/{selected_lokasi.lower().replace(' ', '_')}_digit{i}.h5"
             col1, col2 = st.columns([2, 1])
@@ -92,18 +122,16 @@ if metode == "LSTM AI":
                 if os.path.exists(model_path):
                     st.info(f"📂 Model Digit-{i} tersedia.")
                 else:
-                    kosong = True
                     st.warning(f"⚠️ Model Digit-{i} belum tersedia.")
             with col2:
                 if os.path.exists(model_path):
                     if st.button(f"🗑 Hapus Digit-{i}", key=f"hapus_digit_{i}"):
                         os.remove(model_path)
                         st.warning(f"✅ Model Digit-{i} dihapus.")
-        if kosong:
-            if st.button("📚 Latih & Simpan Semua Model"):
-                with st.spinner("🔄 Melatih semua model per digit..."):
-                    train_and_save_lstm(df, selected_lokasi)
-                st.success("✅ Semua model berhasil dilatih dan disimpan.")
+        if st.button("📚 Latih & Simpan Semua Model"):
+            with st.spinner("🔄 Melatih semua model per digit..."):
+                train_and_save_lstm(df, selected_lokasi)
+            st.success("✅ Semua model berhasil dilatih dan disimpan.")
 
 # Tombol Prediksi
 if st.button("🔮 Prediksi"):
@@ -163,7 +191,6 @@ if st.button("🔮 Prediksi"):
                     )
                     if pred is None:
                         continue
-
                     actual = f"{int(uji_df.iloc[i]['angka']):04d}"
                     skor = 0
                     for j, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
