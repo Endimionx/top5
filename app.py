@@ -17,6 +17,7 @@ from ai_model import (
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
 from user_manual import tampilkan_user_manual
+from markov_model import kombinasi_4d_markov_hybrid
 
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
 
@@ -232,6 +233,7 @@ if st.button("🔮 Prediksi"):
 
             if total > 0:
                 st.success(f"📈 Akurasi {metode}: {benar / total * 100:.2f}%")
+                top_komb = kombinasi_4d_markov_hybrid(df, top_n=10)
                 with st.expander("📊 Grafik Akurasi"):
                     st.line_chart(pd.DataFrame({"Akurasi (%)": akurasi_list}))
                 with st.expander("🔥 Heatmap Akurasi per Digit"):
