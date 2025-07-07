@@ -6,7 +6,12 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from markov_model import top6_markov, top6_markov_order2, top6_markov_hybrid
+from markov_model import (
+    top6_markov,
+    top6_markov_order2,
+    top6_markov_hybrid,
+    kombinasi_4d_markov_hybrid
+)
 from ai_model import (
     top6_lstm,
     train_and_save_lstm,
@@ -17,7 +22,6 @@ from ai_model import (
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
 from user_manual import tampilkan_user_manual
-from markov_model import kombinasi_4d_markov_hybrid
 
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
 
@@ -57,9 +61,11 @@ def cari_putaran_terbaik(df_all, lokasi, metode, jumlah_uji=10, max_putaran=200)
             best_n = n
     return best_n, best_score, hasil_all
 
+# Animasi Lottie
 lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
 st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
+# Judul dan Bantuan
 tampilkan_user_manual()
 st.title("🔮 Prediksi 4D - AI & Markov")
 
@@ -111,6 +117,7 @@ with st.sidebar:
         min_conf = st.slider("🔎 Minimum Confidence", 0.0001, 0.001, 0.0005, step=0.0001, format="%.4f")
         power = st.slider("📈 Confidence Weight Power", 0.5, 3.0, 1.5, step=0.1)
 
+# Ambil data
 angka_list, riwayat_input = [], ""
 df = pd.DataFrame()
 if cari_otomatis and not df_all.empty:
@@ -136,7 +143,7 @@ elif selected_lokasi and selected_hari:
     except Exception as e:
         st.error(f"❌ Gagal ambil data API: {e}")
 
-# Manajemen Model
+# Manajemen Model LSTM
 if metode == "LSTM AI":
     with st.expander("⚙️ Manajemen Model LSTM"):
         for i in range(4):
@@ -190,10 +197,8 @@ if st.button("🔮 Prediksi"):
                     top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10, min_conf=min_conf, power=power)
                     if top_komb:
                         with st.expander("💡 Simulasi Kombinasi 4D Terbaik"):
-                            sim_col = st.columns(2)
-                            for i, (komb, score) in enumerate(top_komb):
-                                with sim_col[i % 2]:
-                                    st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
+                            kode_output = "\n".join([f"{komb} - ⚡ Confidence: {score:.6f}" for komb, score in top_komb])
+                            st.code(kode_output, language="text")
 
         # Evaluasi Akurasi
         with st.spinner("📏 Menghitung akurasi..."):
@@ -233,15 +238,18 @@ if st.button("🔮 Prediksi"):
 
             if total > 0:
                 st.success(f"📈 Akurasi {metode}: {benar / total * 100:.2f}%")
-                
-                top_komb = kombinasi_4d_markov_hybrid(df, top_n=10)
 
-if top_komb:
-    with st.expander("💡 Simulasi Kombinasi 4D (Markov Hybrid)"):
-        kode_output = "\n".join([f"{komb} - ⚡ Confidence: {score:.6f}" for komb, score in top_komb])
-        st.code(kode_output, language="text")
-else:
-    st.warning("⚠️ Tidak ada kombinasi yang tersedia dari hasil Markov Hybrid.")
+                if metode == "Markov Gabungan":
+                    top_komb = kombinasi_4d_markov_hybrid(df, top_n=10)
+                    if top_komb:
+                        with st.expander("💡 Simulasi Kombinasi 4D (Markov Hybrid)"):
+                            kode_output = "\n".join(
+                                [f"{komb} - ⚡ Confidence: {score:.6f}" for komb, score in top_komb]
+                            )
+                            st.code(kode_output, language="text")
+                    else:
+                        st.warning("⚠️ Tidak ada kombinasi yang tersedia dari hasil Markov Hybrid.")
+
                 with st.expander("📊 Grafik Akurasi"):
                     st.line_chart(pd.DataFrame({"Akurasi (%)": akurasi_list}))
                 with st.expander("🔥 Heatmap Akurasi per Digit"):
