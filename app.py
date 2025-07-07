@@ -237,75 +237,35 @@ if st.button("🔮 Prediksi"):
                     st.pyplot(fig)
             else:
                 st.warning("⚠️ Tidak cukup data untuk evaluasi akurasi.")
-with st.sidebar:
-    with st.expander("📘 Panduan Pengguna"):
-        st.markdown("""
-### 📖 PANDUAN PENGGUNA - Prediksi 4D AI & Markov
+# Tombol popup panduan
+if "show_manual" not in st.session_state:
+    st.session_state.show_manual = False
 
----
+col_manual = st.columns([1, 3, 1])
+with col_manual[1]:
+    if st.button("📘 Tampilkan Panduan Pengguna"):
+        st.session_state.show_manual = not st.session_state.show_manual
 
-#### ⚙️ 1. PENGATURAN UTAMA
-- **🌍 Pilih Pasaran**: Pilih pasaran yang ingin diprediksi.
-- **📅 Pilih Hari**: Pilih rentang hari data (`harian` s/d `5hari`).
-- **📊 Data Uji Akurasi**: Jumlah data terakhir untuk evaluasi akurasi.
-- **🧠 Metode Prediksi**:
-    - `Markov`: Prediksi berbasis pola transisi 1 digit.
-    - `Markov Order-2`: Pola transisi 2 digit.
-    - `Markov Gabungan`: Gabungan metode Markov.
-    - `LSTM AI`: AI per digit.
-    - `Ensemble AI + Markov`: Gabungan LSTM dan Markov.
-
----
-
-#### 🔍 2. CARI PUTARAN OTOMATIS
-- Aktifkan toggle untuk mencari jumlah putaran terbaik otomatis.
-- Slider manual akan muncul jika toggle dimatikan.
-
----
-
-#### 🤖 3. PENGATURAN LSTM & ENSEMBLE
-- **Minimum Confidence**: Nilai batas confidence per digit.
-- **Confidence Power**: Menentukan bobot confidence kombinasi 4D.
-
----
-
-#### 📥 4. DATA
-- Data akan otomatis diambil dari API sesuai pasaran, hari, dan putaran.
-- Tampilkan data mentah di bawah tombol "Lihat Data".
-
----
-
-#### 📚 5. MANAJEMEN MODEL LSTM
-- Tampilkan status ketersediaan model digit 0–3.
-- Tombol hapus model dan tombol `Latih & Simpan` akan muncul.
-- Digunakan untuk melatih ulang model AI.
-
----
-
-#### 🔮 6. PREDIKSI
-- Klik tombol "Prediksi" untuk hasil 6 angka per digit.
-- Jika pakai LSTM/Ensemble, kombinasi 4D akan muncul lengkap dengan confidence.
-
----
-
-#### 📈 7. EVALUASI AKURASI
-- Menampilkan akurasi total, grafik tren, dan heatmap akurasi per digit.
-
----
-
-#### ⚠️ 8. ERROR UMUM
-| Masalah | Penyebab | Solusi |
-|--------|----------|--------|
-| "Tidak cukup data" | <30 data dari API | Naikkan jumlah putaran |
-| "Model belum tersedia" | Belum dilatih | Latih model lewat tombol |
-| "API error" | Koneksi / API down | Coba ulangi lagi |
-
----
-
-#### 💡 TIPS
-- Selalu **latih model LSTM** dulu saat awal penggunaan atau ganti pasaran.
-- Gunakan **Cari Putaran Otomatis** untuk akurasi terbaik.
-- Gunakan **Ensemble** jika ingin gabungan AI dan statistik.
-
----
-        """)
+# Popup muncul jika tombol aktif
+if st.session_state.show_manual:
+    st.markdown("""
+    <div style='position:fixed; top:10%; left:10%; width:80%; height:80%; 
+                background-color:#222222ee; color:white; border-radius:15px;
+                padding:20px; z-index:1000; overflow:auto'>
+    <h2>📖 PANDUAN PENGGUNA - Prediksi 4D AI & Markov</h2>
+    <hr style='border-color:white'>
+    <h4>1. Pengaturan:</h4>
+    <ul>
+        <li>🌍 Pilih pasaran</li>
+        <li>📅 Pilih hari (harian s/d 5hari)</li>
+        <li>📊 Jumlah data uji untuk akurasi</li>
+        <li>🧠 Pilih metode prediksi: Markov, LSTM, Ensemble, dll</li>
+    </ul>
+    <h4>2. Cari Putaran Otomatis:</h4>
+    <ul>
+        <li>🔍 Aktifkan toggle untuk cari jumlah putaran terbaik</li>
+        <li>🔁 Jika nonaktif, gunakan slider manual</li>
+    </ul>
+    <h4>3. Prediksi & Kombinasi 4D:</h4>
+    <ul>
+        <li>🔮 Klik tombol
