@@ -186,7 +186,7 @@ if st.button("🔮 Prediksi"):
             with st.expander("🔥 Heatmap Akurasi per Digit"):
                 sim_count = min(100, len(df) - 30)
                 acc_matrix = np.zeros((4, sim_count))
-                weighted_matrix = np.zeros((4, sim_count))
+
                 for i in range(sim_count):
                     train_df = df.iloc[:-(sim_count - i)]
                     test = df.iloc[-(sim_count - i)]
@@ -201,19 +201,29 @@ if st.button("🔮 Prediksi"):
                         actual = f"{int(test['angka']):04d}"
                         for j in range(4):
                             acc_matrix[j][i] = 1 if int(actual[j]) in pred[j] else 0
-                            weighted_matrix[j][i] = acc_matrix[j][i] * digit_weight_input[j]  # tertimbang
                     except:
                         continue
 
+                # Akurasi murni per digit
                 digit_accuracy = acc_matrix.sum(axis=1) / sim_count * 100
-                weighted_accuracy = weighted_matrix.sum(axis=1) / sim_count * 100
 
-                df_heat_murni = pd.DataFrame(digit_accuracy.reshape(-1, 1),
-                                             index=["Ribuan", "Ratusan", "Puluhan", "Satuan"],
-                                             columns=["Akurasi Murni (%)"])
-                df_heat_bobot = pd.DataFrame(weighted_accuracy.reshape(-1, 1),
-                                             index=["Ribuan", "Ratusan", "Puluhan", "Satuan"],
-                                             columns=["Akurasi Tertimbang (%)"])
+                # Akurasi tertimbang per digit
+                total_weight = np.array(digit_weight_input)
+                weighted_accuracy = (
+                    (acc_matrix * total_weight.reshape(-1, 1)).sum(axis=1)
+                    / (sim_count * total_weight)
+                ) * 100
+
+                df_heat_murni = pd.DataFrame(
+                    digit_accuracy.reshape(-1, 1),
+                    index=["Ribuan", "Ratusan", "Puluhan", "Satuan"],
+                    columns=["Akurasi Murni (%)"]
+                )
+                df_heat_bobot = pd.DataFrame(
+                    weighted_accuracy.reshape(-1, 1),
+                    index=["Ribuan", "Ratusan", "Puluhan", "Satuan"],
+                    columns=["Akurasi Tertimbang (%)"]
+                )
 
                 col1, col2 = st.columns(2)
 
@@ -230,7 +240,43 @@ if st.button("🔮 Prediksi"):
                     sns.heatmap(df_heat_bobot, annot=True, cmap="OrRd", fmt=".2f", cbar=False, ax=ax2)
                     ax2.set_title("Akurasi Tertimbang per Digit")
                     st.pyplot(fig2)
-            
+
+            # GRAFIK AKURASI PER PUTARAN
+            with st.expander("📊 Grafik Akurasi (%) terhadap Putaran"):
+                max_n = min(300, len(df))
+                steps = list(range(30, max_n, 10))
+                hasil_akurasi = []
+
+                for n in steps:
+                    subset = df.tail(n).reset_index(drop=True)
+                    acc_total, acc_benar = 0, 0
+                    for i in range(min(jumlah_uji, len(subset) - 30)):
+                        train_df = subset.iloc[:-(jumlah_uji - i)]
+                        if len(train_df) < 30:
+                            continue
+                        try:
+                            pred = (
+                                top6_markov(train_df)[0] if metode == "Markov" else
+                                top6_markov_order2(train_df) if metode == "Markov Order-2" else
+                                top6_markov_hybrid(train_df, digit_weights=digit_weight_input) if metode == "Markov Gabungan" else
+                                top6_lstm(train_df, lokasi=selected_lokasi) if metode == "LSTM AI" else
+                                top6_ensemble(train_df, lokasi=selected_lokasi)
+                            )
+                            actual = f"{int(subset.iloc[-(jumlah_uji - i)]['angka']):04d}"
+                            acc = sum(int(actual[j]) in pred[j] for j in range(4))
+                            acc_benar += acc
+                            acc_total += 4
+                        except:
+                            continue
+                    akurasi = acc_benar / acc_total * 100 if acc_total else 0
+                    hasil_akurasi.append(akurasi)
+
+                df_grafik = pd.DataFrame({
+                    "Putaran": steps,
+                    "Akurasi (%)": hasil_akurasi
+                })
+                st.line_chart(df_grafik.set_index("Putaran"))
+    
             # GRAFIK AKURASI PER PUTARAN
             with st.expander("📊 Grafik Akurasi (%) terhadap Putaran"):
                 max_n = min(300, len(df))
