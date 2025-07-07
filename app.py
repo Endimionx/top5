@@ -13,10 +13,8 @@ from markov_model import (
 )
 from ai_model import (
     top6_lstm,
-    train_and_save_lstm,
-    kombinasi_4d,
-    model_exists,
-    top6_ensemble
+    top6_ensemble,
+    model_exists
 )
 from lokasi_list import lokasi_list
 from user_manual import tampilkan_user_manual
@@ -86,16 +84,10 @@ with st.sidebar:
 
     if cari_otomatis and not df_all.empty:
         with st.spinner("🔍 Menganalisis putaran terbaik..."):
-            best_n, best_score, hasil_dict = cari_putaran_terbaik(df_all, selected_lokasi, metode, jumlah_uji, max_putaran)
+            best_n, best_score, _ = cari_putaran_terbaik(df_all, selected_lokasi, metode, jumlah_uji, max_putaran)
         if best_n > 0:
             putaran = best_n
             st.success(f"✅ Putaran terbaik: {best_n} (Akurasi: {best_score:.2f}%)")
-            with st.expander("📈 Grafik Akurasi Tiap Putaran"):
-                df_acc = pd.DataFrame(list(hasil_dict.items()), columns=["Putaran", "Akurasi"])
-                fig, ax = plt.subplots()
-                sns.lineplot(data=df_acc, x="Putaran", y="Akurasi", ax=ax)
-                ax.set_title("Performa Akurasi Berdasarkan Putaran")
-                st.pyplot(fig)
         else:
             st.warning("⚠️ Gagal menemukan putaran terbaik.")
     elif not cari_otomatis:
@@ -125,6 +117,8 @@ if cari_otomatis and not df_all.empty:
     angka_list = df["angka"].tolist()
     riwayat_input = "\n".join(angka_list)
     st.success(f"✅ Menggunakan {putaran} data dari hasil analisis otomatis.")
+    with st.expander("📥 Lihat Data"):
+        st.code(riwayat_input, language="text")
 elif selected_lokasi and selected_hari:
     try:
         with st.spinner("📦 Mengambil data berdasarkan putaran..."):
@@ -136,23 +130,10 @@ elif selected_lokasi and selected_hari:
             df = pd.DataFrame({"angka": angka_list})
             riwayat_input = "\n".join(angka_list)
             st.success(f"✅ {len(angka_list)} angka berhasil diambil.")
+            with st.expander("📥 Lihat Data"):
+                st.code(riwayat_input, language="text")
     except Exception as e:
         st.error(f"❌ Gagal ambil data API: {e}")
-
-if not df.empty:
-    with st.expander("📊 Heatmap Frekuensi Angka per Posisi"):
-        digit_data = {"Ribuan": [], "Ratusan": [], "Puluhan": [], "Satuan": []}
-        for angka in df["angka"]:
-            if len(angka) == 4:
-                for i, key in enumerate(digit_data):
-                    digit_data[key].append(int(angka[i]))
-        df_digits = pd.DataFrame(digit_data)
-        fig, ax = plt.subplots(figsize=(6, 3))
-        sns.heatmap(
-            df_digits.apply(pd.Series.value_counts).fillna(0).astype(int).T,
-            annot=True, fmt="d", cmap="YlGnBu", cbar=False, ax=ax
-        )
-        st.pyplot(fig)
 
 if st.button("🔮 Prediksi"):
     if len(df) < 30:
@@ -178,18 +159,33 @@ if st.button("🔮 Prediksi"):
                     with (col1 if i % 2 == 0 else col2):
                         st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
 
+            # Heatmap Akurasi
+            with st.expander("🔥 Heatmap Akurasi (Simulasi)"):
+                sim_count = min(100, len(df) - 30)
+                acc_matrix = np.zeros((4, sim_count))
+                for i in range(sim_count):
+                    train_df = df.iloc[:-(sim_count - i)]
+                    test = df.iloc[-(sim_count - i)]
+                    pred = result if metode == "Markov Gabungan" else result
+                    actual = f"{int(test['angka']):04d}"
+                    for j in range(4):
+                        acc_matrix[j][i] = int(actual[j]) in pred[j]
+                fig, ax = plt.subplots(figsize=(8, 2))
+                sns.heatmap(acc_matrix, cmap="Greens", xticklabels=False,
+                            yticklabels=["Ribuan", "Ratusan", "Puluhan", "Satuan"],
+                            cbar=False, ax=ax)
+                st.pyplot(fig)
+
+            # Kombinasi 4D Markov Gabungan
             if metode == "Markov Gabungan":
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
+                    digit_dict = dict(zip(["ribuan", "ratusan", "puluhan", "satuan"], digit_weight_input))
                     top_komb = kombinasi_4d_markov_hybrid(
                         df,
                         top_n=10,
                         mode="average",
-                        digit_weights={
-                            "ribuan": digit_weight_input[0],
-                            "ratusan": digit_weight_input[1],
-                            "puluhan": digit_weight_input[2],
-                            "satuan": digit_weight_input[3],
-                        }
+                        scale=1.0,
+                        digit_weights=digit_dict
                     )
                     if top_komb:
                         with st.expander("💡 Simulasi Kombinasi 4D (Markov Hybrid)"):
@@ -197,3 +193,16 @@ if st.button("🔮 Prediksi"):
                                 [f"{komb} - ⚡ Confidence: {score:.6f}" for komb, score in top_komb]
                             )
                             st.code(kode_output, language="text")
+
+            # Grafik Akurasi
+            with st.expander("📈 Grafik Perbandingan Akurasi"):
+                methods = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
+                scores = []
+                for m in methods:
+                    _, score, _ = cari_putaran_terbaik(df, selected_lokasi, m, jumlah_uji=jumlah_uji)
+                    scores.append(score)
+                fig2, ax2 = plt.subplots()
+                ax2.bar(methods, scores, color="skyblue")
+                ax2.set_ylabel("Akurasi (%)")
+                ax2.set_title("Perbandingan Akurasi Metode")
+                st.pyplot(fig2)
