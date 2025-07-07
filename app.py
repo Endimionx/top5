@@ -277,38 +277,3 @@ if st.button("🔮 Prediksi"):
                 })
                 st.line_chart(df_grafik.set_index("Putaran"))
     
-            # GRAFIK AKURASI PER PUTARAN
-            with st.expander("📊 Grafik Akurasi (%) terhadap Putaran"):
-                max_n = min(300, len(df))
-                steps = list(range(30, max_n, 10))
-                hasil_akurasi = []
-
-                for n in steps:
-                    subset = df.tail(n).reset_index(drop=True)
-                    acc_total, acc_benar = 0, 0
-                    for i in range(min(jumlah_uji, len(subset) - 30)):
-                        train_df = subset.iloc[:-(jumlah_uji - i)]
-                        if len(train_df) < 30:
-                            continue
-                        try:
-                            pred = (
-                                top6_markov(train_df)[0] if metode == "Markov" else
-                                top6_markov_order2(train_df) if metode == "Markov Order-2" else
-                                top6_markov_hybrid(train_df, digit_weights=digit_weight_input) if metode == "Markov Gabungan" else
-                                top6_lstm(train_df, lokasi=selected_lokasi) if metode == "LSTM AI" else
-                                top6_ensemble(train_df, lokasi=selected_lokasi)
-                            )
-                            actual = f"{int(subset.iloc[-(jumlah_uji - i)]['angka']):04d}"
-                            acc = sum(int(actual[j]) in pred[j] for j in range(4))
-                            acc_benar += acc
-                            acc_total += 4
-                        except:
-                            continue
-                    akurasi = acc_benar / acc_total * 100 if acc_total else 0
-                    hasil_akurasi.append(akurasi)
-
-                df_grafik = pd.DataFrame({
-                    "Putaran": steps,
-                    "Akurasi (%)": hasil_akurasi
-                })
-                st.line_chart(df_grafik.set_index("Putaran"))
