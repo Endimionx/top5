@@ -237,35 +237,3 @@ if st.button("🔮 Prediksi"):
                     st.pyplot(fig)
             else:
                 st.warning("⚠️ Tidak cukup data untuk evaluasi akurasi.")
-# Tombol popup panduan
-if "show_manual" not in st.session_state:
-    st.session_state.show_manual = False
-
-col_manual = st.columns([1, 3, 1])
-with col_manual[1]:
-    if st.button("📘 Tampilkan Panduan Pengguna"):
-        st.session_state.show_manual = not st.session_state.show_manual
-
-# Popup muncul jika tombol aktif
-if st.session_state.show_manual:
-    st.markdown("""
-    <div style='position:fixed; top:10%; left:10%; width:80%; height:80%; 
-                background-color:#222222ee; color:white; border-radius:15px;
-                padding:20px; z-index:1000; overflow:auto'>
-    <h2>📖 PANDUAN PENGGUNA - Prediksi 4D AI & Markov</h2>
-    <hr style='border-color:white'>
-    <h4>1. Pengaturan:</h4>
-    <ul>
-        <li>🌍 Pilih pasaran</li>
-        <li>📅 Pilih hari (harian s/d 5hari)</li>
-        <li>📊 Jumlah data uji untuk akurasi</li>
-        <li>🧠 Pilih metode prediksi: Markov, LSTM, Ensemble, dll</li>
-    </ul>
-    <h4>2. Cari Putaran Otomatis:</h4>
-    <ul>
-        <li>🔍 Aktifkan toggle untuk cari jumlah putaran terbaik</li>
-        <li>🔁 Jika nonaktif, gunakan slider manual</li>
-    </ul>
-    <h4>3. Prediksi & Kombinasi 4D:</h4>
-    <ul>
-        <li>🔮 Klik tombol
