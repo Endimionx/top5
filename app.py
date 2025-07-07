@@ -233,7 +233,15 @@ if st.button("🔮 Prediksi"):
 
             if total > 0:
                 st.success(f"📈 Akurasi {metode}: {benar / total * 100:.2f}%")
+                
                 top_komb = kombinasi_4d_markov_hybrid(df, top_n=10)
+
+if top_komb:
+    with st.expander("💡 Simulasi Kombinasi 4D (Markov Hybrid)"):
+        kode_output = "\n".join([f"{komb} - ⚡ Confidence: {score:.6f}" for komb, score in top_komb])
+        st.code(kode_output, language="text")
+else:
+    st.warning("⚠️ Tidak ada kombinasi yang tersedia dari hasil Markov Hybrid.")
                 with st.expander("📊 Grafik Akurasi"):
                     st.line_chart(pd.DataFrame({"Akurasi (%)": akurasi_list}))
                 with st.expander("🔥 Heatmap Akurasi per Digit"):
