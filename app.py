@@ -67,7 +67,7 @@ st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
 # Judul dan Bantuan
 tampilkan_user_manual()
-st.title("🔮 Prediksi 4D - AI & Markov")
+# st.title("🔮 Prediksi 4D - AI & Markov")
 
 # Sidebar
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
