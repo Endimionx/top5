@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import requests
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 from markov_model import (
     top6_markov,
@@ -14,7 +14,7 @@ from markov_model import (
 from ai_model import (
     top6_lstm,
     top6_ensemble,
-    model_exists
+    kombinasi_4d,
 )
 from lokasi_list import lokasi_list
 from user_manual import tampilkan_user_manual
@@ -159,33 +159,19 @@ if st.button("🔮 Prediksi"):
                     with (col1 if i % 2 == 0 else col2):
                         st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
 
-            # Heatmap Akurasi
-            with st.expander("🔥 Heatmap Akurasi (Simulasi)"):
-                sim_count = min(100, len(df) - 30)
-                acc_matrix = np.zeros((4, sim_count))
-                for i in range(sim_count):
-                    train_df = df.iloc[:-(sim_count - i)]
-                    test = df.iloc[-(sim_count - i)]
-                    pred = result if metode == "Markov Gabungan" else result
-                    actual = f"{int(test['angka']):04d}"
-                    for j in range(4):
-                        acc_matrix[j][i] = int(actual[j]) in pred[j]
-                fig, ax = plt.subplots(figsize=(8, 2))
-                sns.heatmap(acc_matrix, cmap="Greens", xticklabels=False,
-                            yticklabels=["Ribuan", "Ratusan", "Puluhan", "Satuan"],
-                            cbar=False, ax=ax)
-                st.pyplot(fig)
-
-            # Kombinasi 4D Markov Gabungan
             if metode == "Markov Gabungan":
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
-                    digit_dict = dict(zip(["ribuan", "ratusan", "puluhan", "satuan"], digit_weight_input))
                     top_komb = kombinasi_4d_markov_hybrid(
                         df,
                         top_n=10,
                         mode="average",
                         scale=1.0,
-                        digit_weights=digit_dict
+                        digit_weights={
+                            "ribuan": digit_weight_input[0],
+                            "ratusan": digit_weight_input[1],
+                            "puluhan": digit_weight_input[2],
+                            "satuan": digit_weight_input[3],
+                        }
                     )
                     if top_komb:
                         with st.expander("💡 Simulasi Kombinasi 4D (Markov Hybrid)"):
@@ -194,15 +180,41 @@ if st.button("🔮 Prediksi"):
                             )
                             st.code(kode_output, language="text")
 
-            # Grafik Akurasi
+            # Heatmap Akurasi (versi klasik)
+            with st.expander("🔥 Heatmap Akurasi (Per Digit)"):
+                sim_count = min(100, len(df) - 30)
+                acc_matrix = np.zeros((4, sim_count))
+                for i in range(sim_count):
+                    train_df = df.iloc[:-(sim_count - i)]
+                    test = df.iloc[-(sim_count - i)]
+                    try:
+                        pred = (
+                            top6_markov(train_df)[0] if metode == "Markov" else
+                            top6_markov_order2(train_df) if metode == "Markov Order-2" else
+                            top6_markov_hybrid(train_df) if metode == "Markov Gabungan" else
+                            top6_lstm(train_df, lokasi=selected_lokasi) if metode == "LSTM AI" else
+                            top6_ensemble(train_df, lokasi=selected_lokasi)
+                        )
+                        actual = f"{int(test['angka']):04d}"
+                        for j in range(4):
+                            acc_matrix[j][i] = 1 if int(actual[j]) in pred[j] else 0
+                    except:
+                        continue
+
+                fig, ax = plt.subplots(figsize=(12, 2))
+                sns.heatmap(acc_matrix, cmap="RdYlGn", linewidths=0.1,
+                            yticklabels=["Ribuan", "Ratusan", "Puluhan", "Satuan"],
+                            xticklabels=False, cbar=False, ax=ax)
+                ax.set_title("Prediksi Benar (1) vs Salah (0)")
+                st.pyplot(fig)
+
+            # Grafik Perbandingan Akurasi
             with st.expander("📈 Grafik Perbandingan Akurasi"):
                 methods = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
                 scores = []
                 for m in methods:
                     _, score, _ = cari_putaran_terbaik(df, selected_lokasi, m, jumlah_uji=jumlah_uji)
                     scores.append(score)
-                fig2, ax2 = plt.subplots()
-                ax2.bar(methods, scores, color="skyblue")
-                ax2.set_ylabel("Akurasi (%)")
-                ax2.set_title("Perbandingan Akurasi Metode")
-                st.pyplot(fig2)
+
+                df_chart = pd.DataFrame({"Metode": methods, "Akurasi": scores})
+                st.line_chart(df_chart.set_index("Metode"))
