@@ -27,7 +27,7 @@ class PositionalEncoding(tf.keras.layers.Layer):
         pos_encoding = tf.expand_dims(pos_encoding, 0)
         return x + tf.cast(pos_encoding, tf.float32)
 
-def preprocess_data(df, window_size=7):
+def preprocess_data(df, window_size=5):
     sequences = []
     targets = [[] for _ in range(4)]
     angka = df["angka"].values
@@ -55,28 +55,27 @@ def build_model(input_len, embed_dim=16, lstm_units=64, attention_heads=2, tempe
     x = MultiHeadAttention(num_heads=attention_heads, key_dim=embed_dim)(x, x)
     x = GlobalAveragePooling1D()(x)
     x = Dense(256, activation='relu')(x)
-    x = Dropout(0.5)(x)
+    x = Dropout(0.3)(x)
     x = Dense(128, activation='relu')(x)
     logits = Dense(10)(x)
-    outputs = tf.keras.layers.Activation('softmax', name='softmax')(logits / temperature)
+    outputs = tf.keras.layers.Activation('softmax')(logits / temperature)
     model = Model(inputs, outputs)
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
 
-def train_and_save_lstm(df, lokasi):
-    if len(df) < 40:
+def train_and_save_lstm(df, lokasi, window_size=5):
+    if len(df) < window_size + 5:
         return
-    X, y_all = preprocess_data(df, window_size=7)
+    X, y_all = preprocess_data(df, window_size=window_size)
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
-
     for i in range(4):
         y = y_all[i]
         model = build_model(input_len=X.shape[1])
         log_path = f"training_logs/history_{lokasi.lower().replace(' ', '_')}_digit{i}.csv"
         callbacks = [
             CSVLogger(log_path),
-            EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
+            EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
         ]
         model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2, callbacks=callbacks)
         model.save(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5")
@@ -85,7 +84,7 @@ def model_exists(lokasi):
     return all(os.path.exists(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5") for i in range(4))
 
 def top6_lstm(df, lokasi=None, return_probs=False, temperature=0.5):
-    X, _ = preprocess_data(df, window_size=7)
+    X, _ = preprocess_data(df)
     results, probs = [], []
     for i in range(4):
         path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
@@ -102,11 +101,10 @@ def top6_lstm(df, lokasi=None, return_probs=False, temperature=0.5):
             return None
     return (results, probs) if return_probs else results
 
-def kombinasi_4d(df, lokasi, top_n=10, min_conf=0.0001, power=1.5, mode='average'):
+def kombinasi_4d(df, lokasi, top_n=10, min_conf=0.0001, power=1.5, mode='product'):
     result, probs = top6_lstm(df, lokasi=lokasi, return_probs=True)
     if result is None or probs is None:
         return []
-
     combinations = list(product(*result))
     scores = []
     for combo in combinations:
@@ -121,7 +119,7 @@ def kombinasi_4d(df, lokasi, top_n=10, min_conf=0.0001, power=1.5, mode='average
                 break
         if not valid:
             continue
-        score = np.mean(digit_scores) if mode == 'average' else np.prod(digit_scores)
+        score = np.prod(digit_scores) if mode == 'product' else np.mean(digit_scores)
         if score >= min_conf:
             scores.append(("".join(map(str, combo)), score))
     topk = sorted(scores, key=lambda x: -x[1])[:top_n]
