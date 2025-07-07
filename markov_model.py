@@ -103,8 +103,13 @@ def top6_markov_hybrid(df, digit_weights=None):
 
     hasil = []
     for i in range(4):
-        gabung = hasil1[i] * int(digit_weights[i]) + hasil2[i] * int(digit_weights[i])
+        gabung = hasil1[i] + hasil2[i]
         freq = Counter(gabung)
+
+        # Terapkan bobot ke frekuensi
+        for k in freq:
+            freq[k] *= digit_weights[i]
+
         top6 = [k for k, _ in freq.most_common(6)]
         while len(top6) < 6:
             top6.append(random.randint(0, 9))
