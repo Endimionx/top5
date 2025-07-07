@@ -99,7 +99,7 @@ with st.sidebar:
         else:
             st.warning("⚠️ Gagal menemukan putaran terbaik.")
     elif not cari_otomatis:
-        putaran = st.slider("🔁 Jumlah Putaran", 20, 1000, 100, step=10)
+        putaran = st.slider("🔁 Jumlah Putaran", 20, 1000, 100, step=1)
 
     min_conf = 0.0005
     power = 1.5
