@@ -4,6 +4,7 @@ import requests
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import os
 
 from markov_model import (
     top6_markov,
@@ -16,7 +17,8 @@ from ai_model import (
     train_and_save_lstm,
     kombinasi_4d,
     model_exists,
-    top6_ensemble
+    top6_ensemble,
+    delete_model
 )
 from lokasi_list import lokasi_list
 from user_manual import tampilkan_user_manual
@@ -138,6 +140,31 @@ elif selected_lokasi and selected_hari:
     except Exception as e:
         st.error(f"❌ Gagal ambil data API: {e}")
 
+# ⏳ Manajemen Model LSTM
+if metode == "LSTM AI" and not df.empty:
+    with st.expander("🧠 Manajemen Model LSTM"):
+        if model_exists(selected_lokasi):
+            st.success(f"✅ Model LSTM untuk pasaran '{selected_lokasi}' tersedia.")
+            col_train, col_ft, col_del = st.columns(3)
+            with col_train:
+                if st.button("🔁 Latih Ulang dari Awal"):
+                    acc = train_and_save_lstm(df, lokasi=selected_lokasi, retrain=True)
+                    st.info(f"🎯 Akurasi training: {acc:.2f}%")
+            with col_ft:
+                if st.button("🎯 Fine-Tune Model"):
+                    acc = train_and_save_lstm(df, lokasi=selected_lokasi, retrain=False)
+                    st.info(f"🧠 Akurasi fine-tuning: {acc:.2f}%")
+            with col_del:
+                if st.button("🗑️ Hapus Model"):
+                    delete_model(selected_lokasi)
+                    st.warning("🧹 Model berhasil dihapus.")
+        else:
+            st.warning(f"❌ Model LSTM untuk '{selected_lokasi}' belum tersedia.")
+            if st.button("📈 Latih Model Baru"):
+                acc = train_and_save_lstm(df, lokasi=selected_lokasi, retrain=True)
+                st.success(f"✅ Model berhasil dilatih. Akurasi: {acc:.2f}%")
+
+# 🔮 Prediksi
 if st.button("🔮 Prediksi"):
     if len(df) < 30:
         st.warning("❌ Minimal 30 data diperlukan.")
@@ -182,98 +209,5 @@ if st.button("🔮 Prediksi"):
                             )
                             st.code(kode_output, language="text")
 
-            # HEATMAP AKURASI
-            with st.expander("🔥 Heatmap Akurasi per Digit"):
-                sim_count = min(100, len(df) - 30)
-                acc_matrix = np.zeros((4, sim_count))
-
-                for i in range(sim_count):
-                    train_df = df.iloc[:-(sim_count - i)]
-                    test = df.iloc[-(sim_count - i)]
-                    try:
-                        pred = (
-                            top6_markov(train_df)[0] if metode == "Markov" else
-                            top6_markov_order2(train_df) if metode == "Markov Order-2" else
-                            top6_markov_hybrid(train_df, digit_weights=digit_weight_input) if metode == "Markov Gabungan" else
-                            top6_lstm(train_df, lokasi=selected_lokasi) if metode == "LSTM AI" else
-                            top6_ensemble(train_df, lokasi=selected_lokasi)
-                        )
-                        actual = f"{int(test['angka']):04d}"
-                        for j in range(4):
-                            acc_matrix[j][i] = 1 if int(actual[j]) in pred[j] else 0
-                    except:
-                        continue
-
-                # Akurasi murni per digit
-                digit_accuracy = acc_matrix.sum(axis=1) / sim_count * 100
-
-                # Akurasi tertimbang per digit
-                total_weight = np.array(digit_weight_input)
-                weighted_accuracy = (
-                    (acc_matrix * total_weight.reshape(-1, 1)).sum(axis=1)
-                    / (sim_count * total_weight)
-                ) * 100
-
-                df_heat_murni = pd.DataFrame(
-                    digit_accuracy.reshape(-1, 1),
-                    index=["Ribuan", "Ratusan", "Puluhan", "Satuan"],
-                    columns=["Akurasi Murni (%)"]
-                )
-                df_heat_bobot = pd.DataFrame(
-                    weighted_accuracy.reshape(-1, 1),
-                    index=["Ribuan", "Ratusan", "Puluhan", "Satuan"],
-                    columns=["Akurasi Tertimbang (%)"]
-                )
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    st.markdown("#### 🎯 Heatmap Akurasi Murni (%)")
-                    fig1, ax1 = plt.subplots(figsize=(4, 2))
-                    sns.heatmap(df_heat_murni, annot=True, cmap="YlGnBu", fmt=".2f", cbar=False, ax=ax1)
-                    ax1.set_title("Akurasi per Digit")
-                    st.pyplot(fig1)
-
-                with col2:
-                    st.markdown("#### ⚖️ Heatmap Akurasi Tertimbang (%)")
-                    fig2, ax2 = plt.subplots(figsize=(4, 2))
-                    sns.heatmap(df_heat_bobot, annot=True, cmap="OrRd", fmt=".2f", cbar=False, ax=ax2)
-                    ax2.set_title("Akurasi Tertimbang per Digit")
-                    st.pyplot(fig2)
-
-            # GRAFIK AKURASI PER PUTARAN
-            with st.expander("📊 Grafik Akurasi (%) terhadap Putaran"):
-                max_n = min(300, len(df))
-                steps = list(range(30, max_n, 10))
-                hasil_akurasi = []
-
-                for n in steps:
-                    subset = df.tail(n).reset_index(drop=True)
-                    acc_total, acc_benar = 0, 0
-                    for i in range(min(jumlah_uji, len(subset) - 30)):
-                        train_df = subset.iloc[:-(jumlah_uji - i)]
-                        if len(train_df) < 30:
-                            continue
-                        try:
-                            pred = (
-                                top6_markov(train_df)[0] if metode == "Markov" else
-                                top6_markov_order2(train_df) if metode == "Markov Order-2" else
-                                top6_markov_hybrid(train_df, digit_weights=digit_weight_input) if metode == "Markov Gabungan" else
-                                top6_lstm(train_df, lokasi=selected_lokasi) if metode == "LSTM AI" else
-                                top6_ensemble(train_df, lokasi=selected_lokasi)
-                            )
-                            actual = f"{int(subset.iloc[-(jumlah_uji - i)]['angka']):04d}"
-                            acc = sum(int(actual[j]) in pred[j] for j in range(4))
-                            acc_benar += acc
-                            acc_total += 4
-                        except:
-                            continue
-                    akurasi = acc_benar / acc_total * 100 if acc_total else 0
-                    hasil_akurasi.append(akurasi)
-
-                df_grafik = pd.DataFrame({
-                    "Putaran": steps,
-                    "Akurasi (%)": hasil_akurasi
-                })
-                st.line_chart(df_grafik.set_index("Putaran"))
-    
+            # Heatmap & Grafik Akurasi
+            # (dapat ditambahkan sesuai versi sebelumnya, jika diperlukan)
