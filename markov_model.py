@@ -30,22 +30,31 @@ def top6_markov(df):
 
 
 def top6_markov_order2(df):
-    transisi = [{} for _ in range(4)]
-    for angka in df["angka"]:
-        for i in range(4):
-            if i < len(angka) - 2:
-                key = (int(angka[i]), int(angka[i + 1]))
-                next_digit = int(angka[i + 2])
-                if key not in transisi[i]:
-                    transisi[i][key] = Counter()
-                transisi[i][key][next_digit] += 1
+    from collections import defaultdict, Counter
+
+    transisi = [defaultdict(list) for _ in range(4)]
+
+    for i in range(len(df) - 2):
+        cur1 = str(df.iloc[i]["angka"]).zfill(4)
+        cur2 = str(df.iloc[i + 1]["angka"]).zfill(4)
+        next_ = str(df.iloc[i + 2]["angka"]).zfill(4)
+        for pos in range(4):
+            key = (int(cur1[pos]), int(cur2[pos]))
+            transisi[pos][key].append(int(next_[pos]))
 
     hasil = []
-    for i in range(4):
-        counter = Counter()
-        for trans in transisi[i].values():
-            counter += trans
-        hasil.append([digit for digit, _ in counter.most_common(6)])
+    for pos in range(4):
+        freq = Counter()
+        for key, lst in transisi[pos].items():
+            freq.update(lst)
+        top6 = [k for k, v in freq.most_common(6)]
+        # Fallback jika kosong
+        if len(top6) < 6:
+            fallback = list(range(10))
+            top6 += [x for x in fallback if x not in top6]
+            top6 = top6[:6]
+        hasil.append(top6)
+
     return hasil
 
 
