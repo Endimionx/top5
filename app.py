@@ -200,7 +200,7 @@ if st.button("🔮 Prediksi"):
             # Kombinasi 4D
             with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
                 if metode == "LSTM AI":
-                    top_komb = kombinasi_4d(result, mode="average")
+                    top_komb = kombinasi_4d(result, mode="average", lokasi=selected_lokasi)
                 elif metode == "Markov Gabungan":
                     top_komb = kombinasi_4d_markov_hybrid(
                         df,
