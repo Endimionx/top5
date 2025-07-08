@@ -102,4 +102,48 @@ def top6_lstm(df, lokasi=None, return_probs=False, temperature=0.5):
             if model.input_shape[1] != X.shape[1]:
                 return None
             pred = model.predict(X, verbose=0)
-            avg = np.mean(pred, axis
+            avg = np.mean(pred, axis=0)
+            top6 = avg.argsort()[-6:][::-1]
+            results.append(list(top6))
+            probs.append(avg[top6])
+        except Exception as e:
+            print(f"[LSTM ERROR digit {i}] {e}")
+            return None
+    return (results, probs) if return_probs else results
+
+def kombinasi_4d(df, lokasi, top_n=10, min_conf=0.0001, power=1.5, mode='product'):
+    result, probs = top6_lstm(df, lokasi=lokasi, return_probs=True)
+    if result is None or probs is None:
+        return []
+    combinations = list(product(*result))
+    scores = []
+    for combo in combinations:
+        digit_scores = []
+        valid = True
+        for i in range(4):
+            try:
+                idx = result[i].index(combo[i])
+                digit_scores.append(probs[i][idx] ** power)
+            except:
+                valid = False
+                break
+        if not valid:
+            continue
+        score = np.prod(digit_scores) if mode == 'product' else np.mean(digit_scores)
+        if score >= min_conf:
+            scores.append(("".join(map(str, combo)), score))
+    topk = sorted(scores, key=lambda x: -x[1])[:top_n]
+    return topk
+
+def top6_ensemble(df, lokasi):
+    lstm_result = top6_lstm(df, lokasi=lokasi)
+    markov_result, _ = top6_markov(df)
+    if lstm_result is None or markov_result is None:
+        return None
+    ensemble = []
+    for i in range(4):
+        combined = lstm_result[i] + markov_result[i]
+        freq = {x: combined.count(x) for x in set(combined)}
+        top6 = sorted(freq.items(), key=lambda x: -x[1])[:6]
+        ensemble.append([x[0] for x in top6])
+    return ensemble
