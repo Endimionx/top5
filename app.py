@@ -24,10 +24,8 @@ from lokasi_list import lokasi_list
 from user_manual import tampilkan_user_manual
 from tensorflow.keras.callbacks import CSVLogger, EarlyStopping
 
-
 def load_training_history(path):
     return pd.read_csv(path)
-
 
 def cari_putaran_terbaik(df_all, lokasi, metode, jumlah_uji=10, max_putaran=200, digit_weights=None):
     best_score, best_n, hasil_all = 0, 0, {}
@@ -58,7 +56,6 @@ def cari_putaran_terbaik(df_all, lokasi, metode, jumlah_uji=10, max_putaran=200,
             best_score = akurasi
             best_n = n
     return best_n, best_score, hasil_all
-
 
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
 tampilkan_user_manual()
@@ -134,79 +131,9 @@ try:
 except Exception as e:
     st.error(f"❌ Gagal ambil data: {e}")
 
-# 🔮 Prediksi
-if st.button("🔮 Prediksi"):
-    if len(df) < 30:
-        st.warning("❌ Minimal 30 data diperlukan.")
-    else:
-        with st.spinner("⏳ Melakukan prediksi..."):
-            result = None
-            if metode == "Markov":
-                result, _ = top6_markov(df)
-            elif metode == "Markov Order-2":
-                result = top6_markov_order2(df)
-            elif metode == "Markov Gabungan":
-                result = top6_markov_hybrid(df, digit_weights=digit_weight_input)
-            elif metode == "LSTM AI":
-                result = top6_lstm(df, lokasi=selected_lokasi)
-            elif metode == "Ensemble AI + Markov":
-                result = top6_ensemble(df, lokasi=selected_lokasi)
-
-        if result:
-            with st.expander("🎯 Hasil Prediksi Top 6 Digit"):
-                col1, col2 = st.columns(2)
-                for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
-                    with (col1 if i % 2 == 0 else col2):
-                        st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
-
-            if metode in ["LSTM AI", "Markov Gabungan"]:
-                with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
-                    if metode == "LSTM AI":
-                        top_komb = kombinasi_4d(result, mode="average")
-                    else:
-                        top_komb = kombinasi_4d_markov_hybrid(
-                            df,
-                            top_n=10,
-                            mode="average",
-                            digit_weights={
-                                "ribuan": digit_weight_input[0],
-                                "ratusan": digit_weight_input[1],
-                                "puluhan": digit_weight_input[2],
-                                "satuan": digit_weight_input[3],
-                            }
-                        )
-                    if top_komb:
-                        with st.expander("💡 Simulasi Kombinasi 4D"):
-                            for komb, score in top_komb:
-                                st.markdown(f"**{komb}** - ⚡ Confidence: `{score:.4f}`")
-
-# 📈 Grafik Akurasi
-if metode == "LSTM AI":
-    with st.expander("📊 Grafik Riwayat Akurasi per Digit"):
-        for i, digit in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
-            log_path = f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}_digit{i}.csv"
-            if os.path.exists(log_path):
-                df_log = load_training_history(log_path)
-                fig, ax = plt.subplots()
-                sns.lineplot(data=df_log, x=df_log.index, y="accuracy", label="Akurasi", ax=ax)
-                sns.lineplot(data=df_log, x=df_log.index, y="val_accuracy", label="Val Akurasi", ax=ax)
-                ax.set_title(f"📈 Akurasi Digit {digit}")
-                st.pyplot(fig)
-
-# 🌡️ Heatmap Akurasi
-if metode in ["LSTM AI", "Markov Gabungan"] and not df.empty:
-    with st.expander("🌡️ Heatmap Akurasi per Digit"):
-        heatmap_data = pd.DataFrame([len(set(col)) / len(col) for col in zip(*df["angka"])],
-                                    index=["Ribuan", "Ratusan", "Puluhan", "Satuan"],
-                                    columns=["Akurasi"])
-        fig, ax = plt.subplots()
-        sns.heatmap(heatmap_data, annot=True, cmap="YlGnBu", fmt=".2f", ax=ax)
-        st.pyplot(fig)
-
 # 🧠 Manajemen Model LSTM
 if metode == "LSTM AI" and not df.empty:
     with st.expander("🧠 Manajemen Model LSTM per Digit"):
-        st.markdown("Kelola model LSTM secara terpisah untuk tiap digit:")
         for i, digit in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
             model_path = f"saved_models/{selected_lokasi.lower().replace(' ', '_')}_digit{i}.h5"
             st.markdown(f"### 🔢 Digit {digit}")
@@ -244,3 +171,75 @@ if metode == "LSTM AI" and not df.empty:
                         model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2, callbacks=callbacks)
                         model.save(model_path)
                         st.success(f"✅ Model digit {digit} berhasil dilatih.")
+
+# 🔮 Prediksi
+if st.button("🔮 Prediksi"):
+    if len(df) < 30:
+        st.warning("❌ Minimal 30 data diperlukan.")
+    else:
+        with st.spinner("⏳ Melakukan prediksi..."):
+            result = None
+            if metode == "Markov":
+                result, _ = top6_markov(df)
+            elif metode == "Markov Order-2":
+                result = top6_markov_order2(df)
+            elif metode == "Markov Gabungan":
+                result = top6_markov_hybrid(df, digit_weights=digit_weight_input)
+            elif metode == "LSTM AI":
+                result = top6_lstm(df, lokasi=selected_lokasi)
+            elif metode == "Ensemble AI + Markov":
+                result = top6_ensemble(df, lokasi=selected_lokasi)
+
+        if result:
+            with st.expander("🎯 Hasil Prediksi Top 6 Digit"):
+                col1, col2 = st.columns(2)
+                for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+                    with (col1 if i % 2 == 0 else col2):
+                        st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
+
+            # Kombinasi 4D
+            with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
+                if metode == "LSTM AI":
+                    top_komb = kombinasi_4d(result, mode="average")
+                elif metode == "Markov Gabungan":
+                    top_komb = kombinasi_4d_markov_hybrid(
+                        df,
+                        top_n=10,
+                        mode="average",
+                        digit_weights={
+                            "ribuan": digit_weight_input[0],
+                            "ratusan": digit_weight_input[1],
+                            "puluhan": digit_weight_input[2],
+                            "satuan": digit_weight_input[3],
+                        }
+                    )
+                else:
+                    top_komb = []
+
+                if top_komb:
+                    with st.expander("💡 Simulasi Kombinasi 4D"):
+                        for komb, score in top_komb:
+                            st.markdown(f"**{komb}** - ⚡ Confidence: `{score:.4f}`")
+
+            # Grafik Akurasi
+            if metode == "LSTM AI":
+                with st.expander("📊 Grafik Riwayat Akurasi per Digit"):
+                    for i, digit in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+                        log_path = f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}_digit{i}.csv"
+                        if os.path.exists(log_path):
+                            df_log = load_training_history(log_path)
+                            fig, ax = plt.subplots()
+                            sns.lineplot(data=df_log, x=df_log.index, y="accuracy", label="Akurasi", ax=ax)
+                            sns.lineplot(data=df_log, x=df_log.index, y="val_accuracy", label="Val Akurasi", ax=ax)
+                            ax.set_title(f"📈 Akurasi Digit {digit}")
+                            st.pyplot(fig)
+
+            # Heatmap
+            if metode in ["LSTM AI", "Markov Gabungan"]:
+                with st.expander("🌡️ Heatmap Akurasi per Digit"):
+                    heatmap_data = pd.DataFrame([len(set(col)) / len(col) for col in zip(*df["angka"])],
+                                                index=["Ribuan", "Ratusan", "Puluhan", "Satuan"],
+                                                columns=["Akurasi"])
+                    fig, ax = plt.subplots()
+                    sns.heatmap(heatmap_data, annot=True, cmap="YlGnBu", fmt=".2f", ax=ax)
+                    st.pyplot(fig)
