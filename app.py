@@ -73,31 +73,31 @@ best_putaran = putaran if not use_auto else None
 if selected_lokasi and selected_hari:
     try:
         if use_auto:
-            st.info("🚀 Mencari putaran terbaik otomatis...")
-            best_acc = -1
-            for p in range(50, max_auto_putaran + 1, 50):
-                data_try = fetch_data(selected_lokasi, selected_hari, p)
-                df_try = pd.DataFrame({"angka": data_try})
-                if len(df_try) < 11: continue
-                pred = (
-                    top6_markov(df_try)[0] if metode == "Markov" else
-                    top6_markov_order2(df_try) if metode == "Markov Order-2" else
-                    top6_markov_hybrid(df_try) if metode == "Markov Gabungan" else
-                    top6_model(df_try, lokasi=selected_lokasi, model_type=model_type)
-                )
-                if not pred: continue
-                uji_df = df_try.tail(10)
-                total, benar = 0, 0
-                for i in range(len(uji_df)):
-                    actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-                    for j in range(4):
-                        if int(actual[j]) in pred[j]:
-                            benar += 1
-                        total += 1
-                acc = benar / total * 100 if total else 0
-                if acc > best_acc:
-                    best_acc = acc
-                    best_putaran = p
+            with st.spinner("🚀 Mencari putaran terbaik otomatis..."):
+                best_acc = -1
+                for p in range(50, max_auto_putaran + 1, 50):
+                    data_try = fetch_data(selected_lokasi, selected_hari, p)
+                    df_try = pd.DataFrame({"angka": data_try})
+                    if len(df_try) < 11: continue
+                    pred = (
+                        top6_markov(df_try)[0] if metode == "Markov" else
+                        top6_markov_order2(df_try) if metode == "Markov Order-2" else
+                        top6_markov_hybrid(df_try) if metode == "Markov Gabungan" else
+                        top6_model(df_try, lokasi=selected_lokasi, model_type=model_type)
+                    )
+                    if not pred: continue
+                    uji_df = df_try.tail(10)
+                    total, benar = 0, 0
+                    for i in range(len(uji_df)):
+                        actual = f"{int(uji_df.iloc[i]['angka']):04d}"
+                        for j in range(4):
+                            if int(actual[j]) in pred[j]:
+                                benar += 1
+                            total += 1
+                    acc = benar / total * 100 if total else 0
+                    if acc > best_acc:
+                        best_acc = acc
+                        best_putaran = p
             if best_putaran:
                 st.success(f"✅ Putaran terbaik: {best_putaran} (akurasi {best_acc:.2f}%)")
             else:
