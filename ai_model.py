@@ -83,7 +83,7 @@ def build_transformer_model(input_len, embed_dim=32, heads=4, temperature=0.5):
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
 
-def train_and_save_lstm(df, lokasi, window_size=5, use_transformer=False):
+def train_and_save_model(df, lokasi, window_size=5, model_type="lstm"):
     if len(df) < window_size + 5:
         return
     X, y_all = preprocess_data(df, window_size=window_size)
@@ -93,25 +93,29 @@ def train_and_save_lstm(df, lokasi, window_size=5, use_transformer=False):
     os.makedirs("training_logs", exist_ok=True)
     for i in range(4):
         y = y_all[i]
-        model = build_transformer_model(X.shape[1]) if use_transformer else build_lstm_model(X.shape[1])
-        log_path = f"training_logs/history_{lokasi.lower().replace(' ', '_')}_digit{i}.csv"
+        model = (
+            build_transformer_model(X.shape[1]) if model_type == "transformer"
+            else build_lstm_model(X.shape[1])
+        )
+        suffix = f"{model_type}"
+        log_path = f"training_logs/history_{lokasi.lower().replace(' ', '_')}_digit{i}_{suffix}.csv"
         callbacks = [
             CSVLogger(log_path),
             EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
         ]
         model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2, callbacks=callbacks)
-        model.save(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5")
+        model.save(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}_{suffix}.h5")
 
-def model_exists(lokasi):
-    return all(os.path.exists(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5") for i in range(4))
+def model_exists(lokasi, model_type="lstm"):
+    return all(os.path.exists(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}_{model_type}.h5") for i in range(4))
 
-def top6_lstm(df, lokasi=None, return_probs=False, temperature=0.5):
+def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperature=0.5):
     X, _ = preprocess_data(df)
     if X.shape[0] == 0:
         return None
     results, probs = [], []
     for i in range(4):
-        path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
+        path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}_{model_type}.h5"
         if not os.path.exists(path):
             return None
         try:
@@ -125,12 +129,12 @@ def top6_lstm(df, lokasi=None, return_probs=False, temperature=0.5):
             results.append(list(top6))
             probs.append(avg[top6])
         except Exception as e:
-            print(f"[LSTM ERROR digit {i}] {e}")
+            print(f"[{model_type.upper()} ERROR digit {i}] {e}")
             return None
     return (results, probs) if return_probs else results
 
-def kombinasi_4d(df, lokasi, top_n=10, min_conf=0.0001, power=1.5, mode='product'):
-    result, probs = top6_lstm(df, lokasi=lokasi, return_probs=True)
+def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power=1.5, mode='product'):
+    result, probs = top6_model(df, lokasi=lokasi, model_type=model_type, return_probs=True)
     if result is None or probs is None:
         return []
     combinations = list(product(*result))
@@ -153,8 +157,8 @@ def kombinasi_4d(df, lokasi, top_n=10, min_conf=0.0001, power=1.5, mode='product
     topk = sorted(scores, key=lambda x: -x[1])[:top_n]
     return topk
 
-def top6_ensemble(df, lokasi, lstm_weight=0.6, markov_weight=0.4):
-    lstm_result = top6_lstm(df, lokasi=lokasi)
+def top6_ensemble(df, lokasi, model_type="lstm", lstm_weight=0.6, markov_weight=0.4):
+    lstm_result = top6_model(df, lokasi=lokasi, model_type=model_type)
     markov_result, _ = top6_markov(df)
     if lstm_result is None or markov_result is None:
         return None
