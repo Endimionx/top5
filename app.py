@@ -25,10 +25,8 @@ from lokasi_list import lokasi_list
 from user_manual import tampilkan_user_manual
 from tensorflow.keras.callbacks import CSVLogger, EarlyStopping
 
-
 def load_training_history(path):
     return pd.read_csv(path)
-
 
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
 tampilkan_user_manual()
@@ -47,7 +45,7 @@ with st.sidebar:
     if cari_otomatis:
         max_putaran = st.number_input("🧮 Max Putaran Dicoba", 50, 1000, value=200)
 
-    digit_weight_input = [1.0] * 4
+    digit_weight_input = [1.0, 1.0, 1.0, 1.0]
     if metode == "Markov Gabungan":
         st.markdown("🎯 **Bobot Confidence Tiap Digit (Markov Gabungan)**")
         digit_weight_input = [
@@ -66,7 +64,8 @@ if selected_lokasi and selected_hari:
             url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran=1000&format=json&urut=asc"
             headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
             response = requests.get(url, headers=headers)
-            angka_list_all = [d["result"] for d in response.json().get("data", []) if len(d["result"]) == 4 and d["result"].isdigit()]
+            api_data = response.json().get("data", [])
+            angka_list_all = [d["result"] for d in api_data if "result" in d and len(d["result"]) == 4 and d["result"].isdigit()]
             df_all = pd.DataFrame({"angka": angka_list_all})
     except Exception as e:
         st.error(f"❌ Gagal ambil data awal: {e}")
@@ -98,7 +97,8 @@ try:
         url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
         headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
         response = requests.get(url, headers=headers)
-        angka_list = [d["result"] for d in response.json().get("data", []) if len(d["result"]) == 4 and d["result"].isdigit()]
+        data = response.json().get("data", [])
+        angka_list = [d["result"] for d in data if "result" in d and len(d["result"]) == 4 and d["result"].isdigit()]
         df = pd.DataFrame({"angka": angka_list})
 except Exception as e:
     st.error(f"❌ Gagal ambil data: {e}")
@@ -117,9 +117,14 @@ if metode == "LSTM AI" and not df.empty:
                         X, y_all = preprocess_data(df)
                         y = y_all[i]
                         model = build_model(input_len=X.shape[1])
+                        log_path = f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}_digit{i}.csv"
+                        if os.path.exists(log_path):
+                            os.remove(log_path)
                         model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2,
-                                  callbacks=[CSVLogger(f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}_digit{i}.csv"),
-                                             EarlyStopping(patience=5, restore_best_weights=True)])
+                                  callbacks=[
+                                      CSVLogger(log_path),
+                                      EarlyStopping(patience=5, restore_best_weights=True)
+                                  ])
                         model.save(model_path)
                         st.success(f"✅ Model {digit} dilatih ulang.")
                 with col2:
@@ -132,9 +137,14 @@ if metode == "LSTM AI" and not df.empty:
                     X, y_all = preprocess_data(df)
                     y = y_all[i]
                     model = build_model(input_len=X.shape[1])
+                    log_path = f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}_digit{i}.csv"
+                    if os.path.exists(log_path):
+                        os.remove(log_path)
                     model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2,
-                              callbacks=[CSVLogger(f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}_digit{i}.csv"),
-                                         EarlyStopping(patience=5, restore_best_weights=True)])
+                              callbacks=[
+                                  CSVLogger(log_path),
+                                  EarlyStopping(patience=5, restore_best_weights=True)
+                              ])
                     model.save(model_path)
                     st.success(f"✅ Model {digit} berhasil dilatih.")
 
@@ -156,6 +166,7 @@ if st.button("🔮 Prediksi"):
                 for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                     st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
 
+            # Kombinasi 4D
             with st.expander("💡 Kombinasi 4D"):
                 top_komb = (
                     kombinasi_4d(df, lokasi=selected_lokasi, top_n=10) if metode == "LSTM AI" else
@@ -170,6 +181,7 @@ if st.button("🔮 Prediksi"):
                     for komb, score in top_komb:
                         st.markdown(f"**{komb}** — ⚡ Confidence: `{score:.6f}`")
 
+            # Heatmap
             with st.expander("🔥 Heatmap Akurasi per Digit"):
                 sim_count = min(100, len(df) - 30)
                 acc_matrix = np.zeros((4, sim_count))
@@ -192,6 +204,7 @@ if st.button("🔮 Prediksi"):
                 sns.heatmap(df_heat, annot=True, cmap="YlGnBu", fmt=".2f", cbar=False, ax=ax)
                 st.pyplot(fig)
 
+            # Grafik Akurasi terhadap Putaran
             with st.expander("📈 Grafik Akurasi terhadap Putaran"):
                 steps = list(range(30, min(300, len(df)), 10))
                 hasil_akurasi = []
