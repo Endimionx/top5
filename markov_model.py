@@ -1,118 +1,115 @@
-import numpy as np
-from collections import Counter
-from itertools import product
+import random
+from collections import defaultdict, Counter
+import pandas as pd
 
+# MARKOV ORDER-1
+def build_transition_matrix(data):
+    matrix = [defaultdict(lambda: defaultdict(int)) for _ in range(3)]
+    for number in data:
+        digits = f"{int(number):04d}"
+        for i in range(3):
+            matrix[i][digits[i]][digits[i+1]] += 1
+    return matrix
 
 def top6_markov(df):
-    from collections import defaultdict, Counter
+    data = df["angka"].astype(str).tolist()
+    matrix = build_transition_matrix(data)
 
-    transisi = [defaultdict(list) for _ in range(4)]
-
-    # Membuat transisi per digit
-    for i in range(len(df) - 1):
-        cur = str(df.iloc[i]["angka"]).zfill(4)
-        next_ = str(df.iloc[i + 1]["angka"]).zfill(4)
-        for pos in range(4):
-            transisi[pos][int(cur[pos])].append(int(next_[pos]))
+    # Statistik tambahan
+    freq_ribuan = Counter([int(x[0]) for x in data])
+    transisi = [{k: dict(v) for k, v in matrix[i].items()} for i in range(3)]
+    kombinasi = Counter(data).most_common(10)
 
     hasil = []
-    for pos in range(4):
-        freq = Counter()
-        for key, lst in transisi[pos].items():
-            freq.update(lst)
-        top6 = [k for k, v in freq.most_common(6)]
-        # Jika kosong, fallback ke [0–9]
-        if not top6:
-            top6 = list(range(10))
+
+    # Ribuan (posisi pertama)
+    top6_pos1 = [k for k, _ in freq_ribuan.most_common(6)]
+    while len(top6_pos1) < 6:
+        top6_pos1.append(random.randint(0, 9))
+    hasil.append(top6_pos1)
+
+    # Prediksi berdasarkan transisi digit
+    for i in range(3):
+        all_trans = matrix[i]
+        kandidat = []
+        for prev_digit in all_trans:
+            kandidat.extend(all_trans[prev_digit].keys())
+        kandidat = Counter(kandidat).most_common()
+        top6 = [int(k) for k, _ in kandidat[:6]]
+        while len(top6) < 6:
+            top6.append(random.randint(0, 9))
         hasil.append(top6)
 
-    return hasil, transisi
+    info = {
+        "frekuensi_ribuan": dict(freq_ribuan),
+        "transisi": transisi,
+        "kombinasi_populer": kombinasi
+    }
 
+    return hasil, info
+
+# MARKOV ORDER-2
+def build_transition_matrix_order2(data):
+    matrix = [{} for _ in range(2)]
+    for number in data:
+        digits = f"{int(number):04d}"
+        key1 = digits[0] + digits[1]
+        key2 = digits[1] + digits[2]
+        if key1 not in matrix[0]:
+            matrix[0][key1] = defaultdict(int)
+        if key2 not in matrix[1]:
+            matrix[1][key2] = defaultdict(int)
+        matrix[0][key1][digits[2]] += 1
+        matrix[1][key2][digits[3]] += 1
+    return matrix
 
 def top6_markov_order2(df):
-    from collections import defaultdict, Counter
+    data = df["angka"].astype(str).tolist()
+    matrix = build_transition_matrix_order2(data)
 
-    transisi = [defaultdict(list) for _ in range(4)]
+    pairs = [x[:2] for x in data]
+    top_pairs = Counter(pairs).most_common(6)
+    d1, d2 = top_pairs[0][0][0], top_pairs[0][0][1]
 
-    for i in range(len(df) - 2):
-        cur1 = str(df.iloc[i]["angka"]).zfill(4)
-        cur2 = str(df.iloc[i + 1]["angka"]).zfill(4)
-        next_ = str(df.iloc[i + 2]["angka"]).zfill(4)
-        for pos in range(4):
-            key = (int(cur1[pos]), int(cur2[pos]))
-            transisi[pos][key].append(int(next_[pos]))
+    top6_d1 = list(set([int(p[0][0]) for p in top_pairs]))
+    top6_d2 = list(set([int(p[0][1]) for p in top_pairs]))
+    while len(top6_d1) < 6:
+        top6_d1.append(random.randint(0, 9))
+    while len(top6_d2) < 6:
+        top6_d2.append(random.randint(0, 9))
 
-    hasil = []
-    for pos in range(4):
-        freq = Counter()
-        for key, lst in transisi[pos].items():
-            freq.update(lst)
-        top6 = [k for k, v in freq.most_common(6)]
-        # Fallback jika kosong
-        if len(top6) < 6:
-            fallback = list(range(10))
-            top6 += [x for x in fallback if x not in top6]
-            top6 = top6[:6]
-        hasil.append(top6)
+    hasil = [top6_d1, top6_d2]
+
+    key1 = d1 + d2
+    dist3 = matrix[0].get(key1, {})
+    top6_d3 = sorted(dist3.items(), key=lambda x: -x[1])
+    top6_d3 = [int(k) for k, _ in top6_d3[:6]]
+    while len(top6_d3) < 6:
+        top6_d3.append(random.randint(0, 9))
+    hasil.append(top6_d3)
+
+    key2 = d2 + str(top6_d3[0])
+    dist4 = matrix[1].get(key2, {})
+    top6_d4 = sorted(dist4.items(), key=lambda x: -x[1])
+    top6_d4 = [int(k) for k, _ in top6_d4[:6]]
+    while len(top6_d4) < 6:
+        top6_d4.append(random.randint(0, 9))
+    hasil.append(top6_d4)
 
     return hasil
 
-
-def top6_markov_hybrid(df, digit_weights=None):
-    from collections import Counter
-
-    if digit_weights is None:
-        digit_weights = [1.0, 1.0, 1.0, 1.0]
+# HYBRID
+def top6_markov_hybrid(df):
+    hasil1, _ = top6_markov(df)
+    hasil2 = top6_markov_order2(df)
 
     hasil = []
-
     for i in range(4):
-        counter = Counter()
-
-        # Ambil Markov order-1
-        pred1, _ = top6_markov(df)
-        for k in pred1[i]:
-            counter[k] += 1 * digit_weights[i]
-
-        # Ambil Markov order-2
-        pred2 = top6_markov_order2(df)
-        for k in pred2[i]:
-            counter[k] += 1 * digit_weights[i]
-
-        # Jika counter kosong, isi default [0-9]
-        if not counter:
-            counter = Counter({k: 1.0 for k in range(10)})
-
-        # Ambil top 6 dari counter
-        top6 = [k for k, v in counter.most_common(6)]
+        gabung = hasil1[i] + hasil2[i]
+        freq = Counter(gabung)
+        top6 = [k for k, _ in freq.most_common(6)]
+        while len(top6) < 6:
+            top6.append(random.randint(0, 9))
         hasil.append(top6)
 
     return hasil
-
-
-def kombinasi_4d_markov_hybrid(df, top_n=10, digit_weights=None, mode="average"):
-    if digit_weights is None:
-        digit_weights = [1.0] * 4
-    elif isinstance(digit_weights, dict):
-        digit_weights = [
-            digit_weights.get("ribuan", 1.0),
-            digit_weights.get("ratusan", 1.0),
-            digit_weights.get("puluhan", 1.0),
-            digit_weights.get("satuan", 1.0),
-        ]
-
-    pred = top6_markov_hybrid(df, digit_weights=digit_weights)
-    kombinasi = list(product(*pred))
-
-    skor_dict = {}
-    for komb in kombinasi:
-        score = 1.0
-        for i in range(4):
-            weight = digit_weights[i]
-            score *= (1.0 / (pred[i].index(komb[i]) + 1)) * weight if komb[i] in pred[i] else 0.01
-        if mode == "average":
-            score = score ** (1/4)
-        skor_dict["".join(map(str, komb))] = score
-
-    sorted_komb = sorted(skor_dict.items(), key=lambda x: x[1], reverse=True)[:top_n]
-    return sorted_komb
