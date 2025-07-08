@@ -25,6 +25,13 @@ def load_lottieurl(url):
         return None
     return r.json()
 
+def fetch_data(lokasi, hari, putaran):
+    url = f"https://wysiwygscan.com/api?pasaran={lokasi.lower()}&hari={hari}&putaran={putaran}&format=json&urut=asc"
+    headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
+    response = requests.get(url, headers=headers)
+    data = response.json()
+    return [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
+
 lottie_predict = load_lottieurl("https://assets2.lottiefiles.com/packages/lf20_kkflmtur.json")
 st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
@@ -39,7 +46,8 @@ with st.sidebar:
     st.header("⚙️ Pengaturan")
     selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
     selected_hari = st.selectbox("📅 Pilih Hari", hari_list)
-    putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 100)
+    use_auto = st.checkbox("🔍 Cari Putaran Terbaik Otomatis")
+    putaran = st.slider("🔁 Jumlah Putaran", 1, 1000, 100) if not use_auto else None
     jumlah_uji = st.number_input("📊 Data Uji Akurasi", min_value=1, max_value=200, value=10)
     metode = st.selectbox("🧠 Metode Prediksi", metode_list)
 
@@ -57,17 +65,38 @@ with st.sidebar:
         use_transformer = st.checkbox("🧠 Gunakan Transformer")
         model_type = "transformer" if use_transformer else "lstm"
 
-# Ambil Data
+# Cari putaran terbaik otomatis
 angka_list = []
 riwayat_input = ""
+best_putaran = putaran
+
 if selected_lokasi and selected_hari:
     try:
-        with st.spinner("🔄 Mengambil data dari API..."):
-            url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
-            headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
-            response = requests.get(url, headers=headers)
-            data = response.json()
-            angka_list = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
+        if use_auto:
+            st.info("🚀 Mencari putaran terbaik otomatis...")
+            best_acc = -1
+            for p in range(50, 301, 50):
+                data_try = fetch_data(selected_lokasi, selected_hari, p)
+                df_try = pd.DataFrame({"angka": data_try})
+                if len(df_try) < 11: continue
+                pred = top6_model(df_try, lokasi=selected_lokasi, model_type=model_type)
+                if not pred: continue
+                uji_df = df_try.tail(10)
+                total, benar = 0, 0
+                for i in range(len(uji_df)):
+                    actual = f"{int(uji_df.iloc[i]['angka']):04d}"
+                    for j in range(4):
+                        if int(actual[j]) in pred[j]:
+                            benar += 1
+                        total += 1
+                acc = benar / total * 100 if total else 0
+                if acc > best_acc:
+                    best_acc = acc
+                    best_putaran = p
+            st.success(f"✅ Putaran terbaik: {best_putaran} (akurasi {best_acc:.2f}%)")
+
+        with st.spinner(f"🔄 Mengambil data dari API (putaran {best_putaran})..."):
+            angka_list = fetch_data(selected_lokasi, selected_hari, best_putaran)
             riwayat_input = "\n".join(angka_list)
             st.success(f"✅ {len(angka_list)} angka berhasil diambil.")
             with st.expander("📥 Lihat Data"):
