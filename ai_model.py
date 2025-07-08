@@ -1,81 +1,111 @@
-import os
 import numpy as np
-import pandas as pd
+import os
+import tensorflow as tf
 from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout
-from tensorflow.keras.callbacks import EarlyStopping, CSVLogger
+from tensorflow.keras.layers import LSTM, Dense, Dropout
 from tensorflow.keras.utils import to_categorical
+from collections import Counter
 
-# Preprocess untuk model per digit, sliding window input
-def preprocess_data(df, window_size=5):
-    angka_list = [int(x) for x in df['angka'] if len(x) == 4 and x.isdigit()]
-    X, y = [], [[] for _ in range(4)]
-    for i in range(len(angka_list) - window_size):
-        window = [int(d) for n in angka_list[i:i+window_size] for d in f"{n:04d}"]
-        label = f"{angka_list[i+window_size]:04d}"
-        X.append(window)
+window_size = 5
+
+def preprocess_data(df):
+    angka = df["angka"].astype(str).str.zfill(4).tolist()
+    sequences = [list(map(int, a)) for a in angka]
+    X, y_digits = [], [[] for _ in range(4)]
+
+    for i in range(window_size, len(sequences)):
+        window = sequences[i - window_size:i]
+        flat_window = [d for seq in window for d in seq]
+        target = sequences[i]
+        X.append(flat_window)
         for j in range(4):
-            y[j].append(int(label[j]))
-    X = np.array(X) % 10  # pastikan hanya digit 0-9
-    y = [to_categorical(np.array(yy), num_classes=10) for yy in y]
-    return X, y
+            y_digits[j].append(target[j])
 
-# Bangun model LSTM sederhana untuk prediksi digit
+    X = np.array(X) % 10
+    X = X.reshape(-1, window_size * 4, 1)
+    y_digits = [to_categorical(y, num_classes=10) for y in y_digits]
+    return X, y_digits
+
 def build_model(input_len=20):
     model = Sequential([
-        Embedding(input_dim=10, output_dim=16, input_length=input_len),
-        LSTM(64, return_sequences=False),
+        LSTM(64, input_shape=(input_len, 1), return_sequences=False),
         Dropout(0.3),
         Dense(32, activation='relu'),
         Dense(10, activation='softmax')
     ])
-    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
-# Cek apakah model digit sudah ada
-def model_exists(lokasi, digit_index):
-    model_path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{digit_index}.h5"
-    return os.path.exists(model_path)
+def model_exists(lokasi):
+    lokasi = lokasi.lower().replace(' ', '_')
+    return all(os.path.exists(f"saved_models/{lokasi}_digit{i}.h5") for i in range(4))
 
-# Fungsi prediksi top-6 untuk LSTM per digit
-def top6_lstm(df, lokasi, return_probs=False):
+def top6_lstm(df, lokasi):
+    lokasi = lokasi.lower().replace(' ', '_')
     X, _ = preprocess_data(df)
-    X_last = X[-1:].reshape(1, -1)
+    X_last = X[-1:].reshape(1, X.shape[1], 1)
     hasil = []
-    probas = []
 
     for i in range(4):
-        model_path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
+        model_path = f"saved_models/{lokasi}_digit{i}.h5"
         if not os.path.exists(model_path):
-            hasil.append([0])
-            probas.append([0.0]*10)
+            hasil.append(list(range(10)))
             continue
         model = load_model(model_path)
-        pred = model.predict(X_last, verbose=0)[0]
-        top6 = np.argsort(pred)[-6:][::-1].tolist()
-        hasil.append(top6)
-        probas.append(pred.tolist())
-    
-    if return_probs:
-        return hasil, probas
+        probas = model.predict(X_last, verbose=0)[0]
+        top_indices = np.argsort(probas)[-6:][::-1]
+        hasil.append(list(top_indices))
+
     return hasil
 
-# Kombinasi 4D dari hasil prediksi 4 digit
 def kombinasi_4d(df, lokasi, top_n=10, mode="average"):
-    hasil, probas = top6_lstm(df, lokasi, return_probs=True)
-    from itertools import product
+    top6 = top6_lstm(df, lokasi=lokasi)
+    lokasi = lokasi.lower().replace(' ', '_')
+    X, _ = preprocess_data(df)
+    X_last = X[-1:].reshape(1, X.shape[1], 1)
+
+    probas_list = []
+    for i in range(4):
+        model_path = f"saved_models/{lokasi}_digit{i}.h5"
+        if not os.path.exists(model_path):
+            probas_list.append(np.ones(10) / 10)
+            continue
+        model = load_model(model_path)
+        probas = model.predict(X_last, verbose=0)[0]
+        probas_list.append(probas)
 
     kombinasi = []
-    for i, r in enumerate(product(*hasil)):
-        nilai = 0.0
-        for j in range(4):
-            nilai += probas[j][r[j]] if mode == "average" else np.log(probas[j][r[j]] + 1e-9)
-        kombinasi.append((''.join(map(str, r)), nilai))
-    
+    for a in top6[0]:
+        for b in top6[1]:
+            for c in top6[2]:
+                for d in top6[3]:
+                    score = (
+                        probas_list[0][a] *
+                        probas_list[1][b] *
+                        probas_list[2][c] *
+                        probas_list[3][d]
+                        if mode == "product"
+                        else np.mean([
+                            probas_list[0][a],
+                            probas_list[1][b],
+                            probas_list[2][c],
+                            probas_list[3][d]
+                        ])
+                    )
+                    kombinasi.append((f"{a}{b}{c}{d}", score))
+
     kombinasi.sort(key=lambda x: x[1], reverse=True)
     return kombinasi[:top_n]
 
-# Ensemble prediksi (gabungan Markov + LSTM jika ingin dikembangkan)
 def top6_ensemble(df, lokasi):
-    # Sementara: hanya gunakan LSTM (karena Markov digabung di app.py)
-    return top6_lstm(df, lokasi)
+    from markov_model import top6_markov_hybrid
+    pred_lstm = top6_lstm(df, lokasi)
+    pred_markov = top6_markov_hybrid(df)
+    hasil = []
+
+    for i in range(4):
+        gabung = pred_lstm[i] + pred_markov[i]
+        top = [x for x, _ in Counter(gabung).most_common(6)]
+        hasil.append(top)
+
+    return hasil
