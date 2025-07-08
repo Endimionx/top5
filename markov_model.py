@@ -4,22 +4,28 @@ from itertools import product
 
 
 def top6_markov(df):
-    transisi = [{} for _ in range(4)]
-    for angka in df["angka"]:
-        for i in range(4):
-            if i < len(angka) - 1:
-                curr_digit = int(angka[i])
-                next_digit = int(angka[i + 1])
-                if curr_digit not in transisi[i]:
-                    transisi[i][curr_digit] = Counter()
-                transisi[i][curr_digit][next_digit] += 1
+    from collections import defaultdict, Counter
+
+    transisi = [defaultdict(list) for _ in range(4)]
+
+    # Membuat transisi per digit
+    for i in range(len(df) - 1):
+        cur = str(df.iloc[i]["angka"]).zfill(4)
+        next_ = str(df.iloc[i + 1]["angka"]).zfill(4)
+        for pos in range(4):
+            transisi[pos][int(cur[pos])].append(int(next_[pos]))
 
     hasil = []
-    for i in range(4):
-        counter = Counter()
-        for trans in transisi[i].values():
-            counter += trans
-        hasil.append([digit for digit, _ in counter.most_common(6)])
+    for pos in range(4):
+        freq = Counter()
+        for key, lst in transisi[pos].items():
+            freq.update(lst)
+        top6 = [k for k, v in freq.most_common(6)]
+        # Jika kosong, fallback ke [0–9]
+        if not top6:
+            top6 = list(range(10))
+        hasil.append(top6)
+
     return hasil, transisi
 
 
