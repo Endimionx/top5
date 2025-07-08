@@ -44,22 +44,34 @@ def top6_markov_order2(df):
 
 
 def top6_markov_hybrid(df, digit_weights=None):
-    if digit_weights is None:
-        digit_weights = [1.0] * 4
+    from collections import Counter
 
-    hasil_order1, transisi1 = top6_markov(df)
-    hasil_order2 = top6_markov_order2(df)
+    if digit_weights is None:
+        digit_weights = [1.0, 1.0, 1.0, 1.0]
 
     hasil = []
+
     for i in range(4):
         counter = Counter()
-        for digit in hasil_order1[i]:
-            counter[digit] += 1.0
-        for digit in hasil_order2[i]:
-            counter[digit] += 1.0
-        for k in counter:
-            counter[k] *= digit_weights[i]
-        hasil.append([digit for digit, _ in counter.most_common(6)])
+
+        # Ambil Markov order-1
+        pred1, _ = top6_markov(df)
+        for k in pred1[i]:
+            counter[k] += 1 * digit_weights[i]
+
+        # Ambil Markov order-2
+        pred2 = top6_markov_order2(df)
+        for k in pred2[i]:
+            counter[k] += 1 * digit_weights[i]
+
+        # Jika counter kosong, isi default [0-9]
+        if not counter:
+            counter = Counter({k: 1.0 for k in range(10)})
+
+        # Ambil top 6 dari counter
+        top6 = [k for k, v in counter.most_common(6)]
+        hasil.append(top6)
+
     return hasil
 
 
