@@ -130,7 +130,6 @@ if st.button("🔮 Prediksi"):
                     with (col1 if i % 2 == 0 else col2):
                         st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
 
-            # Confidence Bar
             if metode in ["LSTM AI", "Ensemble AI + Markov"] and probs:
                 with st.expander("📊 Confidence Bar per Digit"):
                     for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
@@ -172,7 +171,6 @@ if st.button("🔮 Prediksi"):
                     )
                     if pred is None:
                         continue
-
                     actual = f"{int(uji_df.iloc[i]['angka']):04d}"
                     skor = 0
                     for j, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
@@ -189,12 +187,24 @@ if st.button("🔮 Prediksi"):
 
             if total > 0:
                 st.success(f"📈 Akurasi {metode}: {benar / total * 100:.2f}%")
+
                 with st.expander("📊 Grafik Akurasi"):
                     st.line_chart(pd.DataFrame({"Akurasi (%)": akurasi_list}))
+
                 with st.expander("🔥 Heatmap Akurasi per Digit"):
-                    heat_df = pd.DataFrame({k: [sum(v)/len(v)*100 if v else 0] for k, v in digit_acc.items()})
+                    heat_df = pd.DataFrame({
+                        k: [sum(v) / len(v) * 100 if v else 0]
+                        for k, v in digit_acc.items()
+                    })
                     fig, ax = plt.subplots()
                     sns.heatmap(heat_df, annot=True, fmt=".1f", cmap="YlGnBu", ax=ax)
                     st.pyplot(fig)
+
+                # ✅ Tambahan: Akurasi Top-1 per Digit
+                st.markdown("### 🧠 Akurasi Top-1 per Digit")
+                akurasi_digit_1 = {
+                    k: f"{sum(v)/len(v)*100:.2f}%" if v else "0.00%" for k, v in digit_acc.items()
+                }
+                st.table(pd.DataFrame(akurasi_digit_1.items(), columns=["Digit", "Top-1 Akurasi"]))
             else:
                 st.warning("⚠️ Tidak cukup data untuk evaluasi akurasi.")
