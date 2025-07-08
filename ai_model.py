@@ -13,6 +13,16 @@ import pandas as pd
 from itertools import product
 from markov_model import top6_markov
 
+
+import pandas as pd
+
+def load_training_history(log_path):
+    try:
+        return pd.read_csv(log_path)
+    except Exception as e:
+        print(f"Gagal membaca file log: {log_path}. Error: {e}")
+        return pd.DataFrame()
+
 # Positional Encoding Layer
 class PositionalEncoding(tf.keras.layers.Layer):
     def call(self, x):
