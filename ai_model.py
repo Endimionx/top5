@@ -14,16 +14,6 @@ from itertools import product
 from markov_model import top6_markov
 
 
-import pandas as pd
-
-def load_training_history(log_path):
-    try:
-        return pd.read_csv(log_path)
-    except Exception as e:
-        print(f"Gagal membaca file log: {log_path}. Error: {e}")
-        return pd.DataFrame()
-
-# Positional Encoding Layer
 class PositionalEncoding(tf.keras.layers.Layer):
     def call(self, x):
         seq_len = tf.shape(x)[1]
@@ -38,7 +28,7 @@ class PositionalEncoding(tf.keras.layers.Layer):
         pos_encoding = tf.expand_dims(pos_encoding, 0)
         return x + tf.cast(pos_encoding, tf.float32)
 
-# Preprocessing data untuk semua digit
+
 def preprocess_data(df, window_size=5):
     sequences = []
     targets = [[] for _ in range(4)]
@@ -56,7 +46,7 @@ def preprocess_data(df, window_size=5):
     y = [np.array(t) for t in targets]
     return X, y
 
-# Build model untuk masing-masing digit
+
 def build_model(input_len, embed_dim=16, lstm_units=64, attention_heads=2, temperature=0.5):
     inputs = Input(shape=(input_len,))
     x = Embedding(input_dim=10, output_dim=embed_dim)(inputs)
@@ -76,19 +66,14 @@ def build_model(input_len, embed_dim=16, lstm_units=64, attention_heads=2, tempe
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
 
-# Training dan simpan model per digit (dengan retrain=True untuk overwrite)
-def train_and_save_lstm(df, lokasi, window_size=5, retrain=False):
+
+def train_and_save_lstm(df, lokasi, window_size=5):
     if len(df) < window_size + 5:
         return
     X, y_all = preprocess_data(df, window_size=window_size)
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
-
     for i in range(4):
-        model_path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5"
-        if os.path.exists(model_path) and not retrain:
-            continue  # Skip training jika model sudah ada & tidak ingin retrain
-
         y = y_all[i]
         model = build_model(input_len=X.shape[1])
         log_path = f"training_logs/history_{lokasi.lower().replace(' ', '_')}_digit{i}.csv"
@@ -97,13 +82,13 @@ def train_and_save_lstm(df, lokasi, window_size=5, retrain=False):
             EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
         ]
         model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2, callbacks=callbacks)
-        model.save(model_path)
+        model.save(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5")
 
-# Mengecek apakah semua model digit tersedia
+
 def model_exists(lokasi):
     return all(os.path.exists(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}.h5") for i in range(4))
 
-# Prediksi top6 digit per posisi
+
 def top6_lstm(df, lokasi=None, return_probs=False, temperature=0.5):
     X, _ = preprocess_data(df)
     results, probs = [], []
@@ -122,7 +107,7 @@ def top6_lstm(df, lokasi=None, return_probs=False, temperature=0.5):
             return None
     return (results, probs) if return_probs else results
 
-# Kombinasi 4D dari hasil prediksi dan confidence
+
 def kombinasi_4d(df, lokasi, top_n=10, min_conf=0.0001, power=1.5, mode='product'):
     result, probs = top6_lstm(df, lokasi=lokasi, return_probs=True)
     if result is None or probs is None:
@@ -147,7 +132,7 @@ def kombinasi_4d(df, lokasi, top_n=10, min_conf=0.0001, power=1.5, mode='product
     topk = sorted(scores, key=lambda x: -x[1])[:top_n]
     return topk
 
-# Gabungan ensemble Markov dan LSTM
+
 def top6_ensemble(df, lokasi):
     lstm_result = top6_lstm(df, lokasi=lokasi)
     markov_result, _ = top6_markov(df)
@@ -160,3 +145,7 @@ def top6_ensemble(df, lokasi):
         top6 = sorted(freq.items(), key=lambda x: -x[1])[:6]
         ensemble.append([x[0] for x in top6])
     return ensemble
+
+
+def load_training_history(path):
+    return pd.read_csv(path)
