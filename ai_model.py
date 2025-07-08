@@ -30,8 +30,7 @@ class PositionalEncoding(tf.keras.layers.Layer):
 def preprocess_data(df, window_size=5):
     if len(df) < window_size + 1:
         return np.array([]), [np.array([]) for _ in range(4)]
-    sequences = []
-    targets = [[] for _ in range(4)]
+    sequences, targets = [], [[] for _ in range(4)]
     angka = df["angka"].values
     for i in range(len(angka) - window_size):
         window = angka[i:i+window_size]
@@ -46,18 +45,19 @@ def preprocess_data(df, window_size=5):
     y = [np.array(t) for t in targets]
     return X, y
 
-def build_model(input_len, embed_dim=16, lstm_units=64, attention_heads=2, temperature=0.5):
+def build_model(input_len, embed_dim=32, lstm_units=128, attention_heads=4, temperature=0.5):
     inputs = Input(shape=(input_len,))
     x = Embedding(input_dim=10, output_dim=embed_dim)(inputs)
     x = PositionalEncoding()(x)
     x = Bidirectional(LSTM(lstm_units, return_sequences=True))(x)
     x = LayerNormalization()(x)
-    x = Dropout(0.5)(x)
+    x = Dropout(0.3)(x)
     x = Bidirectional(LSTM(lstm_units, return_sequences=True))(x)
     x = LayerNormalization()(x)
     x = MultiHeadAttention(num_heads=attention_heads, key_dim=embed_dim)(x, x)
+    x = Dropout(0.2)(x)
     x = GlobalAveragePooling1D()(x)
-    x = Dense(256, activation='relu')(x)
+    x = Dense(512, activation='relu')(x)
     x = Dropout(0.3)(x)
     x = Dense(128, activation='relu')(x)
     logits = Dense(10)(x)
