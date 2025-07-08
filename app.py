@@ -88,7 +88,7 @@ if selected_lokasi and selected_hari:
     try:
         with st.spinner("📥 Mengambil semua data..."):
             url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran=1000&format=json&urut=asc"
-            headers = {"Authorization": "Bearer TOKEN"}
+            headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
             response = requests.get(url, headers=headers)
             angka_list_all = [d["result"] for d in response.json()["data"] if len(d["result"]) == 4 and d["result"].isdigit()]
             df_all = pd.DataFrame({"angka": angka_list_all})
@@ -119,7 +119,7 @@ try:
         df = df_all.tail(putaran).reset_index(drop=True)
     else:
         url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
-        headers = {"Authorization": "Bearer TOKEN"}
+        headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
         response = requests.get(url, headers=headers)
         angka_list = [d["result"] for d in response.json()["data"] if len(d["result"]) == 4 and d["result"].isdigit()]
         df = pd.DataFrame({"angka": angka_list})
