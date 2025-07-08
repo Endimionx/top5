@@ -44,9 +44,16 @@ with st.sidebar:
 
     min_conf = 0.005
     power = 1.5
+    temperature = 0.5
+    voting_mode = "product"
+    use_transformer = False
+
     if metode in ["LSTM AI", "Ensemble AI + Markov"]:
-        min_conf = st.slider("🔎 Minimum Confidence", 0.0001, 0.001, 0.0005, step=0.0001, format="%.4f")
-        power = st.slider("📈 Confidence Weight Power", 0.5, 3.0, 1.5, step=0.1)
+        min_conf = st.slider("🔎 Minimum Confidence", 0.0001, 0.01, 0.0005, step=0.0001, format="%.4f")
+        power = st.slider("📈 Confidence Power", 0.5, 3.0, 1.5, step=0.1)
+        temperature = st.slider("🌡️ Temperature Scaling", 0.1, 2.0, 0.5, step=0.1)
+        voting_mode = st.selectbox("⚖️ Kombinasi Mode", ["product", "average"])
+        use_transformer = st.checkbox("🧠 Gunakan Transformer")
 
 # Ambil Data
 angka_list = []
@@ -87,7 +94,7 @@ if metode == "LSTM AI":
 
         if st.button("📚 Latih & Simpan Semua Model"):
             with st.spinner("🔄 Melatih semua model per digit..."):
-                train_and_save_lstm(df, selected_lokasi)
+                train_and_save_lstm(df, selected_lokasi, use_transformer=use_transformer)
             st.success("✅ Semua model berhasil dilatih dan disimpan.")
 
 # Tombol Prediksi
@@ -104,11 +111,11 @@ if st.button("🔮 Prediksi"):
             elif metode == "Markov Gabungan":
                 result = top6_markov_hybrid(df)
             elif metode == "LSTM AI":
-                pred = top6_lstm(df, lokasi=selected_lokasi, return_probs=True)
+                pred = top6_lstm(df, lokasi=selected_lokasi, return_probs=True, temperature=temperature)
                 if pred:
                     result, probs = pred
             elif metode == "Ensemble AI + Markov":
-                pred = top6_lstm(df, lokasi=selected_lokasi, return_probs=True)
+                pred = top6_lstm(df, lokasi=selected_lokasi, return_probs=True, temperature=temperature)
                 if pred:
                     result, probs = pred
                     markov_result, _ = top6_markov(df)
@@ -142,7 +149,7 @@ if st.button("🔮 Prediksi"):
 
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
-                    top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10, min_conf=min_conf, power=power)
+                    top_komb = kombinasi_4d(df, lokasi=selected_lokasi, top_n=10, min_conf=min_conf, power=power, mode=voting_mode)
                     if top_komb:
                         with st.expander("💡 Simulasi Kombinasi 4D Terbaik"):
                             sim_col = st.columns(2)
@@ -200,7 +207,6 @@ if st.button("🔮 Prediksi"):
                     sns.heatmap(heat_df, annot=True, fmt=".1f", cmap="YlGnBu", ax=ax)
                     st.pyplot(fig)
 
-                # ✅ Tambahan: Akurasi Top-1 per Digit
                 st.markdown("### 🧠 Akurasi Top-1 per Digit")
                 akurasi_digit_1 = {
                     k: f"{sum(v)/len(v)*100:.2f}%" if v else "0.00%" for k, v in digit_acc.items()
