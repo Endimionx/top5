@@ -96,7 +96,7 @@ if st.button("🔮 Prediksi"):
         st.warning("❌ Minimal 11 data diperlukan.")
     else:
         with st.spinner("⏳ Melakukan prediksi..."):
-            result = None
+            result, probs = None, None
             if metode == "Markov":
                 result, _ = top6_markov(df)
             elif metode == "Markov Order-2":
@@ -104,9 +104,22 @@ if st.button("🔮 Prediksi"):
             elif metode == "Markov Gabungan":
                 result = top6_markov_hybrid(df)
             elif metode == "LSTM AI":
-                result = top6_lstm(df, lokasi=selected_lokasi)
+                pred = top6_lstm(df, lokasi=selected_lokasi, return_probs=True)
+                if pred:
+                    result, probs = pred
             elif metode == "Ensemble AI + Markov":
-                result = top6_ensemble(df, lokasi=selected_lokasi)
+                pred = top6_lstm(df, lokasi=selected_lokasi, return_probs=True)
+                if pred:
+                    result, probs = pred
+                    markov_result, _ = top6_markov(df)
+                    if markov_result:
+                        ensemble = []
+                        for i in range(4):
+                            combined = result[i] + markov_result[i]
+                            freq = {x: combined.count(x) for x in set(combined)}
+                            top6 = sorted(freq.items(), key=lambda x: -x[1])[:6]
+                            ensemble.append([x[0] for x in top6])
+                        result = ensemble
 
         if result is None:
             st.error("❌ Gagal melakukan prediksi.")
@@ -116,6 +129,17 @@ if st.button("🔮 Prediksi"):
                 for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
                     with (col1 if i % 2 == 0 else col2):
                         st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
+
+            # Confidence Bar
+            if metode in ["LSTM AI", "Ensemble AI + Markov"] and probs:
+                with st.expander("📊 Confidence Bar per Digit"):
+                    for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+                        st.markdown(f"**🔢 {label}**")
+                        digit_data = pd.DataFrame({
+                            "Digit": [str(d) for d in result[i]],
+                            "Confidence": probs[i]
+                        }).sort_values(by="Confidence", ascending=True)
+                        st.bar_chart(digit_data.set_index("Digit"))
 
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
