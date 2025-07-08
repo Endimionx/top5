@@ -1,75 +1,73 @@
-import pandas as pd
 from collections import defaultdict, Counter
-
+import numpy as np
 
 def top6_markov(df):
-    data = [f"{int(x):04d}" for x in df["angka"].values if str(x).isdigit() and len(str(x)) == 4]
-    if len(data) < 2:
-        return [[0]*4]*4, {}
+    angka_list = [int(a) for a in df["angka"] if a.isdigit()]
+    transisi = [f"{x:04d}" for x in angka_list]
+    model = [defaultdict(Counter) for _ in range(4)]
+    for i in range(1, len(transisi)):
+        for j in range(4):
+            prev = transisi[i-1][j]
+            curr = transisi[i][j]
+            model[j][prev][curr] += 1
 
-    transitions = [defaultdict(Counter) for _ in range(4)]
-    for a, b in zip(data[:-1], data[1:]):
-        for i in range(4):
-            transitions[i][a[i]][b[i]] += 1
-
-    result = []
-    for i in range(4):
-        digit_preds = []
-        for prev_digit, counts in transitions[i].items():
-            most_common = [int(d) for d, _ in counts.most_common(6)]
-            digit_preds.extend(most_common)
-        digit_preds = [d for d, _ in Counter(digit_preds).most_common(6)]
-        result.append(digit_preds[:6] + [0] * (6 - len(digit_preds)))
-    return result, transitions
-
+    hasil = []
+    for j in range(4):
+        last = transisi[-1][j]
+        counter = model[j][last]
+        top6 = [int(k) for k, _ in counter.most_common(6)] if counter else list(range(6))
+        hasil.append(top6)
+    return hasil, model
 
 def top6_markov_order2(df):
-    data = [f"{int(x):04d}" for x in df["angka"].values if str(x).isdigit() and len(str(x)) == 4]
-    if len(data) < 3:
-        return [[0]*4]*4
-
-    transitions = [defaultdict(lambda: defaultdict(Counter)) for _ in range(4)]
-    for i in range(len(data) - 2):
+    angka_list = [int(a) for a in df["angka"] if a.isdigit()]
+    transisi = [f"{x:04d}" for x in angka_list]
+    model = [defaultdict(Counter) for _ in range(4)]
+    for i in range(2, len(transisi)):
         for j in range(4):
-            d1, d2, d3 = data[i][j], data[i+1][j], data[i+2][j]
-            transitions[j][d1][d2][d3] += 1
+            prev = transisi[i-2][j] + transisi[i-1][j]
+            curr = transisi[i][j]
+            model[j][prev][curr] += 1
 
-    result = []
-    for i in range(4):
-        pred_digits = Counter()
-        for d1 in transitions[i]:
-            for d2 in transitions[i][d1]:
-                pred_digits += transitions[i][d1][d2]
-        result.append([int(k) for k, _ in pred_digits.most_common(6)])
-    return result
-
+    hasil = []
+    for j in range(4):
+        prev = transisi[-2][j] + transisi[-1][j]
+        counter = model[j][prev]
+        top6 = [int(k) for k, _ in counter.most_common(6)] if counter else list(range(6))
+        hasil.append(top6)
+    return hasil
 
 def top6_markov_hybrid(df, digit_weights=None):
-    if digit_weights is None:
-        digit_weights = [1.0, 1.0, 1.0, 1.0]
-    r1, _ = top6_markov(df)
-    r2 = top6_markov_order2(df)
-    result = []
+    basic, model1 = top6_markov(df)
+    order2 = top6_markov_order2(df)
+    hasil = []
     for i in range(4):
-        combined = r1[i] + r2[i]
-        freq = Counter(combined)
-        for k in freq:
-            freq[k] *= digit_weights[i]
-        top = [d for d, _ in freq.most_common(6)]
-        result.append(top)
-    return result
+        total = basic[i] + order2[i]
+        counter = {x: total.count(x) for x in set(total)}
+        if digit_weights:
+            for k in counter:
+                counter[k] *= digit_weights[i]
+        top = sorted(counter, key=lambda x: (-counter[x], x))[:6]
+        hasil.append(top)
+    return hasil
 
+def kombinasi_4d_markov_hybrid(df, top_n=10, digit_weights=None, mode="average"):
+    pred = top6_markov_hybrid(df, digit_weights=digit_weights)
+    prob = [{} for _ in range(4)]
+    for i in range(4):
+        for rank, val in enumerate(pred[i]):
+            prob[i][val] = (6 - rank) / 6.0  # Skor tertinggi = 1.0
 
-def kombinasi_4d_markov_hybrid(df, top_n=10, mode="average", digit_weights=None):
-    if digit_weights is None:
-        digit_weights = {"ribuan": 1.0, "ratusan": 1.0, "puluhan": 1.0, "satuan": 1.0}
-    r = top6_markov_hybrid(df, digit_weights=[digit_weights["ribuan"], digit_weights["ratusan"],
-                                              digit_weights["puluhan"], digit_weights["satuan"]])
-    from itertools import product
-    kombs = list(product(*r))
-    result = []
-    for k in kombs:
-        score = sum([digit_weights[d]*1 for d in ["ribuan", "ratusan", "puluhan", "satuan"]]) if mode == "average" else \
-                product([digit_weights[d]*1 for d in ["ribuan", "ratusan", "puluhan", "satuan"]])
-        result.append(("".join(map(str, k)), score))
-    return sorted(result, key=lambda x: -x[1])[:top_n]
+    kombinasi = []
+    for a in pred[0]:
+        for b in pred[1]:
+            for c in pred[2]:
+                for d in pred[3]:
+                    angka = f"{a}{b}{c}{d}"
+                    if mode == "average":
+                        score = (prob[0][a] + prob[1][b] + prob[2][c] + prob[3][d]) / 4
+                    else:
+                        score = prob[0][a] * prob[1][b] * prob[2][c] * prob[3][d]
+                    kombinasi.append((angka, score))
+    kombinasi = sorted(kombinasi, key=lambda x: x[1], reverse=True)[:top_n]
+    return kombinasi
