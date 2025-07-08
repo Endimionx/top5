@@ -40,7 +40,6 @@ st.title("🔮 Prediksi 4D - AI & Markov")
 # Sidebar
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
-model_type = "lstm"
 
 with st.sidebar:
     st.header("⚙️ Pengaturan")
@@ -69,7 +68,7 @@ with st.sidebar:
 # Cari putaran terbaik otomatis
 angka_list = []
 riwayat_input = ""
-best_putaran = putaran
+best_putaran = putaran if not use_auto else None
 
 if selected_lokasi and selected_hari:
     try:
@@ -80,7 +79,12 @@ if selected_lokasi and selected_hari:
                 data_try = fetch_data(selected_lokasi, selected_hari, p)
                 df_try = pd.DataFrame({"angka": data_try})
                 if len(df_try) < 11: continue
-                pred = top6_model(df_try, lokasi=selected_lokasi, model_type=model_type)
+                pred = (
+                    top6_markov(df_try)[0] if metode == "Markov" else
+                    top6_markov_order2(df_try) if metode == "Markov Order-2" else
+                    top6_markov_hybrid(df_try) if metode == "Markov Gabungan" else
+                    top6_model(df_try, lokasi=selected_lokasi, model_type=model_type)
+                )
                 if not pred: continue
                 uji_df = df_try.tail(10)
                 total, benar = 0, 0
@@ -94,7 +98,11 @@ if selected_lokasi and selected_hari:
                 if acc > best_acc:
                     best_acc = acc
                     best_putaran = p
-            st.success(f"✅ Putaran terbaik: {best_putaran} (akurasi {best_acc:.2f}%)")
+            if best_putaran:
+                st.success(f"✅ Putaran terbaik: {best_putaran} (akurasi {best_acc:.2f}%)")
+            else:
+                best_putaran = 100
+                st.warning("⚠️ Tidak ditemukan putaran optimal, default ke 100.")
 
         with st.spinner(f"🔄 Mengambil data dari API (putaran {best_putaran})..."):
             angka_list = fetch_data(selected_lokasi, selected_hari, best_putaran)
