@@ -29,6 +29,7 @@ from tensorflow.keras.callbacks import CSVLogger, EarlyStopping
 def load_training_history(path):
     return pd.read_csv(path)
 
+
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
 tampilkan_user_manual()
 
@@ -46,7 +47,7 @@ with st.sidebar:
     if cari_otomatis:
         max_putaran = st.number_input("🧮 Max Putaran Dicoba", 50, 1000, value=200)
 
-    digit_weight_input = [1.0, 1.0, 1.0, 1.0]
+    digit_weight_input = [1.0] * 4
     if metode == "Markov Gabungan":
         st.markdown("🎯 **Bobot Confidence Tiap Digit (Markov Gabungan)**")
         digit_weight_input = [
