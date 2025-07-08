@@ -2,9 +2,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.layers import (
-    Input, Embedding, Bidirectional, LSTM, Dropout,
-    Dense, LayerNormalization, MultiHeadAttention,
-    GlobalAveragePooling1D
+    Input, Embedding, Bidirectional, LSTM, Dropout, Dense,
+    LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
 )
 from tensorflow.keras.callbacks import CSVLogger, EarlyStopping
 from tensorflow.keras.utils import to_categorical
@@ -45,7 +44,7 @@ def preprocess_data(df, window_size=5):
     y = [np.array(t) for t in targets]
     return X, y
 
-def build_model(input_len, embed_dim=32, lstm_units=128, attention_heads=4, temperature=0.5):
+def build_lstm_model(input_len, embed_dim=32, lstm_units=128, attention_heads=4, temperature=0.5):
     inputs = Input(shape=(input_len,))
     x = Embedding(input_dim=10, output_dim=embed_dim)(inputs)
     x = PositionalEncoding()(x)
@@ -66,7 +65,25 @@ def build_model(input_len, embed_dim=32, lstm_units=128, attention_heads=4, temp
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
 
-def train_and_save_lstm(df, lokasi, window_size=5):
+def build_transformer_model(input_len, embed_dim=32, heads=4, temperature=0.5):
+    inputs = Input(shape=(input_len,))
+    x = Embedding(input_dim=10, output_dim=embed_dim)(inputs)
+    x = PositionalEncoding()(x)
+    for _ in range(2):
+        attn = MultiHeadAttention(num_heads=heads, key_dim=embed_dim)(x, x)
+        x = LayerNormalization()(x + attn)
+        ff = Dense(embed_dim, activation='relu')(x)
+        x = LayerNormalization()(x + ff)
+    x = GlobalAveragePooling1D()(x)
+    x = Dense(128, activation='relu')(x)
+    x = Dropout(0.3)(x)
+    logits = Dense(10)(x)
+    outputs = tf.keras.layers.Activation('softmax')(logits / temperature)
+    model = Model(inputs, outputs)
+    model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
+    return model
+
+def train_and_save_lstm(df, lokasi, window_size=5, use_transformer=False):
     if len(df) < window_size + 5:
         return
     X, y_all = preprocess_data(df, window_size=window_size)
@@ -76,7 +93,7 @@ def train_and_save_lstm(df, lokasi, window_size=5):
     os.makedirs("training_logs", exist_ok=True)
     for i in range(4):
         y = y_all[i]
-        model = build_model(input_len=X.shape[1])
+        model = build_transformer_model(X.shape[1]) if use_transformer else build_lstm_model(X.shape[1])
         log_path = f"training_logs/history_{lokasi.lower().replace(' ', '_')}_digit{i}.csv"
         callbacks = [
             CSVLogger(log_path),
@@ -103,6 +120,7 @@ def top6_lstm(df, lokasi=None, return_probs=False, temperature=0.5):
                 return None
             pred = model.predict(X, verbose=0)
             avg = np.mean(pred, axis=0)
+            avg /= avg.sum()  # Confidence normalization
             top6 = avg.argsort()[-6:][::-1]
             results.append(list(top6))
             probs.append(avg[top6])
@@ -135,15 +153,21 @@ def kombinasi_4d(df, lokasi, top_n=10, min_conf=0.0001, power=1.5, mode='product
     topk = sorted(scores, key=lambda x: -x[1])[:top_n]
     return topk
 
-def top6_ensemble(df, lokasi):
+def top6_ensemble(df, lokasi, lstm_weight=0.6, markov_weight=0.4):
     lstm_result = top6_lstm(df, lokasi=lokasi)
     markov_result, _ = top6_markov(df)
     if lstm_result is None or markov_result is None:
         return None
     ensemble = []
     for i in range(4):
-        combined = lstm_result[i] + markov_result[i]
-        freq = {x: combined.count(x) for x in set(combined)}
-        top6 = sorted(freq.items(), key=lambda x: -x[1])[:6]
+        all_digits = lstm_result[i] + markov_result[i]
+        scores = {}
+        for digit in all_digits:
+            scores[digit] = scores.get(digit, 0)
+            if digit in lstm_result[i]:
+                scores[digit] += lstm_weight
+            if digit in markov_result[i]:
+                scores[digit] += markov_weight
+        top6 = sorted(scores.items(), key=lambda x: -x[1])[:6]
         ensemble.append([x[0] for x in top6])
     return ensemble
