@@ -25,11 +25,13 @@ from lokasi_list import lokasi_list
 from user_manual import tampilkan_user_manual
 from tensorflow.keras.callbacks import CSVLogger, EarlyStopping
 
-st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
-tampilkan_user_manual()
 
 def load_training_history(path):
     return pd.read_csv(path)
+
+
+st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
+tampilkan_user_manual()
 
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
@@ -57,7 +59,6 @@ with st.sidebar:
 
 putaran = 100
 df_all = pd.DataFrame()
-angka_list = []
 
 if selected_lokasi and selected_hari:
     try:
@@ -88,7 +89,7 @@ if selected_lokasi and selected_hari:
     else:
         putaran = st.number_input("🔁 Jumlah Putaran", 20, 1000, value=100)
 
-df = pd.DataFrame()
+angka_list, df = [], pd.DataFrame()
 try:
     if not df_all.empty:
         df = df_all.tail(putaran).reset_index(drop=True)
@@ -101,11 +102,6 @@ try:
         df = pd.DataFrame({"angka": angka_list})
 except Exception as e:
     st.error(f"❌ Gagal ambil data: {e}")
-
-# ✅ Tampilkan data angka
-if angka_list:
-    with st.expander("📥 Lihat Data Angka dari API"):
-        st.code("\n".join(angka_list), language="text")
 
 # 🧠 Manajemen Model
 if metode == "LSTM AI" and not df.empty:
@@ -121,7 +117,9 @@ if metode == "LSTM AI" and not df.empty:
                         X, y_all = preprocess_data(df)
                         y = y_all[i]
                         model = build_model(input_len=X.shape[1])
-                        model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2)
+                        model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2,
+                                  callbacks=[CSVLogger(f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}_digit{i}.csv"),
+                                             EarlyStopping(patience=5, restore_best_weights=True)])
                         model.save(model_path)
                         st.success(f"✅ Model {digit} dilatih ulang.")
                 with col2:
@@ -134,7 +132,9 @@ if metode == "LSTM AI" and not df.empty:
                     X, y_all = preprocess_data(df)
                     y = y_all[i]
                     model = build_model(input_len=X.shape[1])
-                    model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2)
+                    model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2,
+                              callbacks=[CSVLogger(f"training_logs/history_{selected_lokasi.lower().replace(' ', '_')}_digit{i}.csv"),
+                                         EarlyStopping(patience=5, restore_best_weights=True)])
                     model.save(model_path)
                     st.success(f"✅ Model {digit} berhasil dilatih.")
 
@@ -151,7 +151,6 @@ if st.button("🔮 Prediksi"):
                 top6_lstm(df, lokasi=selected_lokasi) if metode == "LSTM AI" else
                 top6_ensemble(df, lokasi=selected_lokasi)
             )
-
         if result:
             with st.expander("🎯 Hasil Prediksi"):
                 for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
@@ -170,3 +169,55 @@ if st.button("🔮 Prediksi"):
                 if top_komb:
                     for komb, score in top_komb:
                         st.markdown(f"**{komb}** — ⚡ Confidence: `{score:.6f}`")
+
+            # 🔥 Heatmap dan 📈 Grafik Akurasi
+            if metode in metode_list and not df.empty:
+                with st.expander("🔥 Heatmap Akurasi per Digit"):
+                    sim_count = min(100, len(df) - 30)
+                    acc_matrix = np.zeros((4, sim_count))
+                    for i in range(sim_count):
+                        train_df = df.iloc[:-(sim_count - i)]
+                        test = df.iloc[-(sim_count - i)]
+                        try:
+                            pred = (
+                                top6_markov(train_df)[0] if metode == "Markov" else
+                                top6_markov_order2(train_df) if metode == "Markov Order-2" else
+                                top6_markov_hybrid(train_df, digit_weights=digit_weight_input) if metode == "Markov Gabungan" else
+                                top6_lstm(train_df, lokasi=selected_lokasi) if metode == "LSTM AI" else
+                                top6_ensemble(train_df, lokasi=selected_lokasi)
+                            )
+                            actual = f"{int(test['angka']):04d}"
+                            for j in range(4):
+                                acc_matrix[j][i] = 1 if int(actual[j]) in pred[j] else 0
+                        except: continue
+                    digit_acc = acc_matrix.sum(axis=1) / sim_count * 100
+                    df_heat = pd.DataFrame(digit_acc.reshape(-1, 1), index=["Ribuan", "Ratusan", "Puluhan", "Satuan"], columns=["Akurasi"])
+                    fig, ax = plt.subplots()
+                    sns.heatmap(df_heat, annot=True, cmap="YlGnBu", fmt=".2f", cbar=False, ax=ax)
+                    st.pyplot(fig)
+
+                with st.expander("📈 Grafik Akurasi terhadap Putaran"):
+                    steps = list(range(30, min(300, len(df)), 10))
+                    hasil_akurasi = []
+                    for n in steps:
+                        subset = df.tail(n).reset_index(drop=True)
+                        acc_total, acc_benar = 0, 0
+                        for i in range(min(jumlah_uji, len(subset) - 30)):
+                            train_df = subset.iloc[:-(jumlah_uji - i)]
+                            if len(train_df) < 30: continue
+                            try:
+                                pred = (
+                                    top6_markov(train_df)[0] if metode == "Markov" else
+                                    top6_markov_order2(train_df) if metode == "Markov Order-2" else
+                                    top6_markov_hybrid(train_df, digit_weights=digit_weight_input) if metode == "Markov Gabungan" else
+                                    top6_lstm(train_df, lokasi=selected_lokasi) if metode == "LSTM AI" else
+                                    top6_ensemble(train_df, lokasi=selected_lokasi)
+                                )
+                                actual = f"{int(subset.iloc[-(jumlah_uji - i)]['angka']):04d}"
+                                acc = sum(int(actual[j]) in pred[j] for j in range(4))
+                                acc_benar += acc
+                                acc_total += 4
+                            except: continue
+                        hasil_akurasi.append(acc_benar / acc_total * 100 if acc_total else 0)
+                    df_chart = pd.DataFrame({"Putaran": steps, "Akurasi": hasil_akurasi})
+                    st.line_chart(df_chart.set_index("Putaran"))
