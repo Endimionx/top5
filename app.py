@@ -79,8 +79,6 @@ if selected_lokasi and selected_hari:
 df = pd.DataFrame({"angka": angka_list})
 
 # Manajemen Model
-digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
-
 if metode == "LSTM AI":
     with st.expander("⚙️ Manajemen Model"):
         lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
@@ -89,20 +87,20 @@ if metode == "LSTM AI":
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
                 if os.path.exists(model_path):
-                    st.info(f"📂 Model {digit_labels[i]} tersedia ({model_type}).")
+                    st.info(f"📂 Model Digit-{i} tersedia ({model_type}).")
                 else:
-                    st.warning(f"⚠️ Model {digit_labels[i]} belum tersedia.")
+                    st.warning(f"⚠️ Model Digit-{i} belum tersedia.")
             with col2:
                 if os.path.exists(model_path):
-                    if st.button(f"🗑 Hapus {digit_labels[i]}", key=f"hapus_digit_{i}"):
+                    if st.button(f"🗑 Hapus Digit-{i}", key=f"hapus_digit_{i}"):
                         os.remove(model_path)
-                        st.warning(f"✅ Model {digit_labels[i]} dihapus.")
+                        st.warning(f"✅ Model Digit-{i} dihapus.")
             with col3:
                 log_path = f"training_logs/history_{lokasi_id}_digit{i}_{model_type}.csv"
                 if os.path.exists(log_path):
-                    if st.button(f"🧹 Hapus Log {digit_labels[i]}", key=f"hapus_log_{i}"):
+                    if st.button(f"🧹 Hapus Log-{i}", key=f"hapus_log_{i}"):
                         os.remove(log_path)
-                        st.info(f"🧾 Log training {digit_labels[i]} dihapus.")
+                        st.info(f"🧾 Log training Digit-{i} dihapus.")
 
         if st.button("📚 Latih & Simpan Semua Model"):
             with st.spinner(f"🔄 Melatih semua model per digit ({model_type})..."):
@@ -140,10 +138,7 @@ if st.button("🔮 Prediksi"):
                             ensemble.append([x[0] for x in top6])
                         result = ensemble
 
-        if result:
-            result = result[::-1]
-        if probs:
-            probs = probs[::-1]
+        digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
 
         if result is None:
             st.error("❌ Gagal melakukan prediksi.")
@@ -188,9 +183,6 @@ if st.button("🔮 Prediksi"):
                     df, selected_lokasi, model_type=model_type
                 )
                 if acc_top1_list is not None:
-                    acc_top1_list = acc_top1_list[::-1]
-                    acc_top6_list = acc_top6_list[::-1]
-                    top1_labels_list = top1_labels_list[::-1]
                     for i in range(4):
                         label = digit_labels[i]
                         top1_digit = top1_labels_list[i] if top1_labels_list and i < len(top1_labels_list) else "-"
@@ -220,7 +212,6 @@ if st.button("🔮 Prediksi"):
                     )
                     if pred is None:
                         continue
-                    pred = pred[::-1]
                     actual = f"{int(uji_df.iloc[i]['angka']):04d}"
                     skor = 0
                     for j, label in enumerate(digit_labels):
