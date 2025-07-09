@@ -154,13 +154,6 @@ if st.button("🔮 Prediksi"):
                     col = col1 if i < 2 else col2
                     with col:
                         st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
-        
-                
-                for i, label in enumerate(digit_labels):
-                    print(f"Test: {i}", result[i], flush=True)
-                    with (col1 if i % 2 == 0 else col2):
-                        st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
-                        
 
             if metode in ["LSTM AI", "Ensemble AI + Markov"] and probs:
                 with st.expander("📊 Confidence Bar per Digit"):
