@@ -44,6 +44,11 @@ def top6_markov(df):
         "kombinasi_populer": kombinasi
     }
 
+    print("Ribuan:", hasil[0])
+    print("Ratusan:", hasil[2])
+    print("Puluhan:", hasil[1])
+    print("Satuan:", hasil[3])
+
     return [hasil[0], hasil[2], hasil[1], hasil[3]], info
 
 # MARKOV ORDER-2
