@@ -10,7 +10,7 @@ def build_transition_matrix(data):
         for i in range(3):
             matrix[i][digits[i]][digits[i+1]] += 1
     return matrix
-    
+
 def top6_markov(df):
     data = df["angka"].astype(str).tolist()
     matrix = build_transition_matrix(data)
@@ -19,24 +19,40 @@ def top6_markov(df):
     transisi = [{k: dict(v) for k, v in matrix[i].items()} for i in range(3)]
     kombinasi = Counter(data).most_common(10)
 
-    hasil = []
+    hasil = [[], [], [], []]
 
     # Ribuan
-    top6_pos1 = [k for k, _ in freq_ribuan.most_common(6)]
-    while len(top6_pos1) < 6:
-        top6_pos1.append(random.randint(0, 9))
-    hasil.append(top6_pos1)
+    top6_ribuan = [k for k, _ in freq_ribuan.most_common(6)]
+    while len(top6_ribuan) < 6:
+        top6_ribuan.append(random.randint(0, 9))
+    hasil[0] = top6_ribuan
 
-    # Prediksi transisi untuk: ratusan, puluhan, satuan
-    for i in range(3):  # matrix[0]=rib→rat, [1]=rat→pul, [2]=pul→sat
-        kandidat = []
-        for prev_digit in matrix[i]:
-            kandidat.extend(matrix[i][prev_digit].keys())
-        kandidat = Counter(kandidat).most_common()
-        top6 = [int(k) for k, _ in kandidat[:6]]
-        while len(top6) < 6:
-            top6.append(random.randint(0, 9))
-        hasil.append(top6)  # langsung urut: ratusan, puluhan, satuan
+    # Ratusan (dari matrix[0])
+    kandidat_ratusan = []
+    for prev_digit in matrix[0]:
+        kandidat_ratusan.extend(matrix[0][prev_digit].keys())
+    top6_ratusan = [int(k) for k, _ in Counter(kandidat_ratusan).most_common(6)]
+    while len(top6_ratusan) < 6:
+        top6_ratusan.append(random.randint(0, 9))
+    hasil[1] = top6_ratusan
+
+    # Puluhan (dari matrix[1])
+    kandidat_puluhan = []
+    for prev_digit in matrix[1]:
+        kandidat_puluhan.extend(matrix[1][prev_digit].keys())
+    top6_puluhan = [int(k) for k, _ in Counter(kandidat_puluhan).most_common(6)]
+    while len(top6_puluhan) < 6:
+        top6_puluhan.append(random.randint(0, 9))
+    hasil[2] = top6_puluhan
+
+    # Satuan (dari matrix[2])
+    kandidat_satuan = []
+    for prev_digit in matrix[2]:
+        kandidat_satuan.extend(matrix[2][prev_digit].keys())
+    top6_satuan = [int(k) for k, _ in Counter(kandidat_satuan).most_common(6)]
+    while len(top6_satuan) < 6:
+        top6_satuan.append(random.randint(0, 9))
+    hasil[3] = top6_satuan
 
     info = {
         "frekuensi_ribuan": dict(freq_ribuan),
@@ -44,7 +60,8 @@ def top6_markov(df):
         "kombinasi_populer": kombinasi
     }
 
-    return [hasil[0], hasil[2], hasil[1], hasil[3]], info
+    return hasil, info
+
 # MARKOV ORDER-2
 def build_transition_matrix_order2(data):
     matrix = [{} for _ in range(2)]
