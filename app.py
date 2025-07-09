@@ -16,6 +16,7 @@ from ai_model import (
 )
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
+from ai_model import evaluate_lstm_accuracy_all_digits
 
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
 
@@ -159,6 +160,14 @@ if st.button("🔮 Prediksi"):
                             for i, (komb, score) in enumerate(top_komb):
                                 with sim_col[i % 2]:
                                     st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
+
+        acc_top1_list, acc_top6_list = evaluate_lstm_accuracy_all_digits(df, lokasi)
+        
+        if acc_top1_list is not None:
+            for i in range(4):
+                st.info(f"🎯 Digit {i+1} → Top-1 Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}")
+                else:
+                    st.warning("⚠️ Tidak bisa mengevaluasi akurasi. Model belum tersedia atau data tidak cukup.")
 
         # Evaluasi Akurasi
         with st.spinner("📏 Menghitung akurasi..."):
