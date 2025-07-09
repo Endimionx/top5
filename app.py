@@ -184,20 +184,37 @@ if st.button("🔮 Prediksi"):
                                 with sim_col[i % 2]:
                                     st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
 
-        
-    with st.expander("📊 Evaluasi Akurasi LSTM per Digit"):
-        with st.spinner("🔄 Mengevaluasi akurasi model LSTM..."):
-            acc_top1_list, acc_top6_list, top1_labels_list = evaluate_lstm_accuracy_all_digits(
-            df, selected_lokasi, model_type=model_type
+        with st.expander("📊 Evaluasi Akurasi LSTM per Digit"):
+            with st.spinner("🔄 Mengevaluasi performa model per digit..."):
+                acc_top1_list, acc_top6_list, top1_labels_list = evaluate_lstm_accuracy_all_digits(
+                    df, selected_lokasi, model_type=model_type
+                    
         )
-            if acc_top1_list is not None:
-                for i in range(4):
-                    label = ["Ribuan", "Ratusan", "Puluhan", "Satuan"][i]
-                    top1_digit = top1_labels_list[i] if top1_labels_list and i < len(top1_labels_list) else "-"
-                    st.info(f"🎯 {label} (Digit {i+1})\nTop-1 ({top1_digit}) Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}")
-            else:
-                st.warning("⚠️ Tidak bisa mengevaluasi akurasi. Model belum tersedia atau data tidak cukup.")
 
+    if acc_top1_list is not None:
+        digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
+        col_a, col_b = st.columns(2)
+
+        for i in range(4):
+            label = digit_labels[i]
+            top1_pred = top1_labels_list[i] if top1_labels_list and i < len(top1_labels_list) else "-"
+            acc1 = acc_top1_list[i]
+            acc6 = acc_top6_list[i]
+
+            info_text = (
+                f"📌 **{label}** (Digit {i+1})\n"
+                f"- 🔢 Prediksi Paling Mungkin (Top-1): `{top1_pred}`\n"
+                f"- ✅ Akurasi Top-1: `{acc1:.2%}`\n"
+                f"- 🎯 Akurasi dalam 6 besar (Top-6): `{acc6:.2%}`"
+            )
+
+            if i % 2 == 0:
+                col_a.success(info_text)
+            else:
+                col_b.success(info_text)
+    else:
+        st.warning("⚠️ Evaluasi gagal. Model mungkin belum tersedia atau data tidak mencukupi.")
+    
         # Evaluasi Akurasi
         with st.spinner("📏 Menghitung akurasi..."):
             uji_df = df.tail(min(jumlah_uji, len(df)))
