@@ -78,23 +78,6 @@ if selected_lokasi and selected_hari:
 
 df = pd.DataFrame({"angka": angka_list})
 
-with st.expander("🛠️ Debug File System"):
-    import os
-    st.write("📌 Current Working Directory:", os.getcwd())
-
-    st.subheader("📂 File di Folder `saved_models/`")
-    if os.path.exists("saved_models"):
-        model_files = os.listdir("saved_models")
-        st.code("\n".join(model_files))
-    else:
-        st.warning("Folder `saved_models/` tidak ditemukan.")
-
-    st.subheader("🔍 Status File Model per Digit")
-    lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
-    for i in range(4):
-        path = f"saved_models/{lokasi_id}_digit{i}_{model_type}.h5"
-        status = "✅ Ditemukan" if os.path.exists(path) else "❌ Tidak ditemukan"
-        st.write(f"`{path}` → {status}")
 # Manajemen Model
 if metode == "LSTM AI":
     with st.expander("⚙️ Manajemen Model"):
@@ -123,6 +106,7 @@ if metode == "LSTM AI":
             with st.spinner(f"🔄 Melatih semua model per digit ({model_type})..."):
                 train_and_save_model(df, selected_lokasi, model_type=model_type)
             st.success("✅ Semua model berhasil dilatih dan disimpan.")
+
 # Tombol Prediksi
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
@@ -184,21 +168,19 @@ if st.button("🔮 Prediksi"):
                                 with sim_col[i % 2]:
                                     st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
 
-        
-    with st.expander("📊 Evaluasi Akurasi LSTM per Digit"):
-        with st.spinner("🔄 Mengevaluasi akurasi model LSTM..."):
-            acc_top1_list, acc_top6_list, top1_labels_list = evaluate_lstm_accuracy_all_digits(
-            df, selected_lokasi, model_type=model_type
-        )
-            if acc_top1_list is not None:
-                for i in range(4):
-                    label = ["Ribuan", "Ratusan", "Puluhan", "Satuan"][i]
-                    top1_digit = top1_labels_list[i] if top1_labels_list and i < len(top1_labels_list) else "-"
-                    st.info(f"🎯 {label} (Digit {i+1})\nTop-1 ({top1_digit}) Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}")
-            else:
-                st.warning("⚠️ Tidak bisa mengevaluasi akurasi. Model belum tersedia atau data tidak cukup.")
+        with st.expander("📊 Evaluasi Akurasi LSTM per Digit"):
+            with st.spinner("🔄 Mengevaluasi akurasi model LSTM..."):
+                acc_top1_list, acc_top6_list, top1_labels_list = evaluate_lstm_accuracy_all_digits(
+                    df, selected_lokasi, model_type=model_type
+                )
+                if acc_top1_list is not None:
+                    for i in range(4):
+                        label = ["Ribuan", "Ratusan", "Puluhan", "Satuan"][i]
+                        top1_digit = top1_labels_list[i] if top1_labels_list and i < len(top1_labels_list) else "-"
+                        st.info(f"🎯 {label} (Digit {i+1})\nTop-1 ({top1_digit}) Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}")
+                else:
+                    st.warning("⚠️ Tidak bisa mengevaluasi akurasi. Model belum tersedia atau data tidak cukup.")
 
-        # Evaluasi Akurasi
         with st.spinner("📏 Menghitung akurasi..."):
             uji_df = df.tail(min(jumlah_uji, len(df)))
             total, benar = 0, 0
