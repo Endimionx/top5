@@ -82,25 +82,28 @@ df = pd.DataFrame({"angka": angka_list})
 if metode == "LSTM AI":
     with st.expander("⚙️ Manajemen Model"):
         lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
-        for i in range(4):
-            model_path = f"saved_models/{lokasi_id}_digit{i}_{model_type}.h5"
+        digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
+        for i, label in enumerate(digit_labels):
+            model_path = f"saved_models/{lokasi_id}_{label}_{model_type}.h5"
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
                 if os.path.exists(model_path):
-                    st.info(f"📂 Model Digit-{i} tersedia ({model_type}).")
+                    st.info(f"📂 Model {label.upper()} tersedia ({model_type}).")
                 else:
-                    st.warning(f"⚠️ Model Digit-{i} belum tersedia.")
+                    st.warning(f"⚠️ Model {label.upper()} belum tersedia.")
             with col2:
                 if os.path.exists(model_path):
-                    if st.button(f"🗑 Hapus Digit-{i}", key=f"hapus_digit_{i}"):
-                        os.remove(model_path)
-                        st.warning(f"✅ Model Digit-{i} dihapus.")
+                    if st.button(f"🗑 Hapus {label.upper()}", key=f"hapus_model_{label}"):
+                    os.remove(model_path)
+                    st.warning(f"✅ Model {label.upper()} dihapus.")
             with col3:
-                log_path = f"training_logs/history_{lokasi_id}_digit{i}_{model_type}.csv"
+                log_path = f"training_logs/history_{lokasi_id}_{label}_{model_type}.csv"
                 if os.path.exists(log_path):
-                    if st.button(f"🧹 Hapus Log-{i}", key=f"hapus_log_{i}"):
+                    if st.button(f"🧹 Hapus Log {label.upper()}", key=f"hapus_log_{label}"):
                         os.remove(log_path)
-                        st.info(f"🧾 Log training Digit-{i} dihapus.")
+                        st.info(f"🧾 Log training {label.upper()} dihapus.")
+                
+        
 
         if st.button("📚 Latih & Simpan Semua Model"):
             with st.spinner(f"🔄 Melatih semua model per digit ({model_type})..."):
