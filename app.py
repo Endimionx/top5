@@ -144,7 +144,7 @@ if st.button("🔮 Prediksi"):
         if probs:
             probs = probs[::-1]
 
-        digit_labels = ["Ribuan", "Puluhan", "Ratusan", "Satuan"]
+        digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
 
         if result is None:
             st.error("❌ Gagal melakukan prediksi.")
