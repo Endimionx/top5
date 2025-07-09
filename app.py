@@ -161,7 +161,7 @@ if st.button("🔮 Prediksi"):
                                 with sim_col[i % 2]:
                                     st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
 
-        acc_top1_list, acc_top6_list = evaluate_lstm_accuracy_all_digits(df, lokasi)
+        acc_top1_list, acc_top6_list = evaluate_lstm_accuracy_all_digits(df, selected_lokasi)
         
         if acc_top1_list is not None:
             for i in range(4):
