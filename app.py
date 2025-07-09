@@ -82,8 +82,9 @@ df = pd.DataFrame({"angka": angka_list})
 if metode == "LSTM AI":
     with st.expander("⚙️ Manajemen Model"):
         lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
-        for i in range(4):
-            model_path = f"saved_models/{lokasi_id}_digit{i}_{model_type}.h5"
+        digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
+        for i, label in enumerate(digit_labels):
+            model_path = f"saved_models/{lokasi_id}_{label}_{model_type}.h5"
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
                 if os.path.exists(model_path):
@@ -183,6 +184,8 @@ if st.button("🔮 Prediksi"):
                     df, selected_lokasi, model_type=model_type
                 )
                 if acc_top1_list is not None:
+                    digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
+    
                     for i in range(4):
                         label = digit_labels[i]
                         top1_digit = top1_labels_list[i] if top1_labels_list and i < len(top1_labels_list) else "-"
