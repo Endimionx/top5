@@ -112,8 +112,8 @@ def train_and_save_model(df, lokasi, window_size=5, model_type="lstm"):
 def model_exists(lokasi, model_type="lstm"):
     return all(os.path.exists(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}_{model_type}.h5") for i in range(4))
 
-def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperature=0.5):
-    X, _ = preprocess_data(df)
+def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperature=0.5, window_size=7):
+    X, _ = preprocess_data(df, window_size=window_size)
     if X.shape[0] == 0:
         return None
     results, probs = [], []
@@ -136,8 +136,8 @@ def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperatu
             return None
     return (results, probs) if return_probs else results
 
-def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power=1.5, mode='product'):
-    result, probs = top6_model(df, lokasi=lokasi, model_type=model_type, return_probs=True)
+def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power=1.5, mode='product', window_size=7):
+    result, probs = top6_model(df, lokasi=lokasi, model_type=model_type, return_probs=True, window_size=window_size)
     if result is None or probs is None:
         return []
     combinations = list(product(*result))
@@ -161,8 +161,8 @@ def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power
     topk = sorted(scores, key=lambda x: -x[1])[:top_n]
     return topk
 
-def top6_ensemble(df, lokasi, model_type="lstm", lstm_weight=0.6, markov_weight=0.4):
-    lstm_result = top6_model(df, lokasi=lokasi, model_type=model_type)
+def top6_ensemble(df, lokasi, model_type="lstm", lstm_weight=0.6, markov_weight=0.4, window_size=7):
+    lstm_result = top6_model(df, lokasi=lokasi, model_type=model_type, window_size=window_size)
     markov_result, _ = top6_markov(df)
     if lstm_result is None or markov_result is None:
         return None
