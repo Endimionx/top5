@@ -99,9 +99,11 @@ def train_and_save_model(df, lokasi, window_size=5, model_type="lstm"):
         )
         suffix = f"{model_type}"
         log_path = f"training_logs/history_{lokasi.lower().replace(' ', '_')}_digit{i}_{suffix}.csv"
+        
         callbacks = [
             CSVLogger(log_path),
-            EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+            EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
+            ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1)
         ]
         model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2, callbacks=callbacks)
         model.save(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}_{suffix}.h5")
