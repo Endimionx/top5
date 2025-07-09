@@ -44,7 +44,7 @@ def top6_markov(df):
         "kombinasi_populer": kombinasi
     }
 
-    return hasil, info
+    return [hasil[0], hasil[2], hasil[1], hasil[3]], info
 
 # MARKOV ORDER-2
 def build_transition_matrix_order2(data):
