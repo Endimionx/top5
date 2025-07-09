@@ -94,8 +94,8 @@ if metode == "LSTM AI":
             with col2:
                 if os.path.exists(model_path):
                     if st.button(f"🗑 Hapus {label.upper()}", key=f"hapus_model_{label}"):
-                    os.remove(model_path)
-                    st.warning(f"✅ Model {label.upper()} dihapus.")
+                        os.remove(model_path)
+                        st.warning(f"✅ Model {label.upper()} dihapus.")
             with col3:
                 log_path = f"training_logs/history_{lokasi_id}_{label}_{model_type}.csv"
                 if os.path.exists(log_path):
