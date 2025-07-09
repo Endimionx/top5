@@ -34,6 +34,7 @@ st.title("🔮 Prediksi 4D - AI & Markov")
 # Sidebar
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
+digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
 model_type = "lstm"
 
 with st.sidebar:
@@ -143,14 +144,13 @@ if st.button("🔮 Prediksi"):
         else:
             with st.expander("🎯 Hasil Prediksi Top 6 Digit"):
                 col1, col2 = st.columns(2)
-                digit_labels = ['Ribuan', 'Ratusan', 'Puluhan', 'Satuan']
                 for i, label in enumerate(digit_labels):
                     with (col1 if i % 2 == 0 else col2):
                         st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
 
             if metode in ["LSTM AI", "Ensemble AI + Markov"] and probs:
                 with st.expander("📊 Confidence Bar per Digit"):
-                    for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+                    for i, label in enumerate(digit_labels):
                         st.markdown(f"**🔢 {label}**")
                         digit_data = pd.DataFrame({
                             "Digit": [str(d) for d in result[i]],
@@ -182,8 +182,7 @@ if st.button("🔮 Prediksi"):
                     df, selected_lokasi, model_type=model_type
                 )
                 if acc_top1_list is not None:
-                    for i in range(4):
-                        label = ["Ribuan", "Ratusan", "Puluhan", "Satuan"][i]
+                    for i, label in enumerate(digit_labels):
                         top1_digit = top1_labels_list[i] if top1_labels_list and i < len(top1_labels_list) else "-"
                         st.info(
                             f"🎯 {label} (Digit {i+1})\nTop-1 ({top1_digit}) Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}"
@@ -195,7 +194,7 @@ if st.button("🔮 Prediksi"):
             uji_df = df.tail(min(jumlah_uji, len(df)))
             total, benar = 0, 0
             akurasi_list = []
-            digit_acc = {"Ribuan": [], "Ratusan": [], "Puluhan": [], "Satuan": []}
+            digit_acc = {label: [] for label in digit_labels}
 
             for i in range(len(uji_df)):
                 subset_df = df.iloc[:-(len(uji_df) - i)]
@@ -213,7 +212,7 @@ if st.button("🔮 Prediksi"):
                         continue
                     actual = f"{int(uji_df.iloc[i]['angka']):04d}"
                     skor = 0
-                    for j, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+                    for j, label in enumerate(digit_labels):
                         if int(actual[j]) in pred[j]:
                             skor += 1
                             digit_acc[label].append(1)
