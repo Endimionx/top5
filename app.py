@@ -82,26 +82,26 @@ df = pd.DataFrame({"angka": angka_list})
 if metode == "LSTM AI":
     with st.expander("⚙️ Manajemen Model"):
         lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
-        digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
-        for i, label in enumerate(digit_labels):
+        label_list = ["ribuan", "ratusan", "puluhan", "satuan"]
+        for i, label in enumerate(label_list):
             model_path = f"saved_models/{lokasi_id}_{label}_{model_type}.h5"
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
                 if os.path.exists(model_path):
-                    st.info(f"📂 Model {label} tersedia ({model_type}).")
+                    st.info(f"📂 Model {label.title()} tersedia ({model_type}).")
                 else:
-                    st.warning(f"⚠️ Model {label} belum tersedia.")
+                    st.warning(f"⚠️ Model {label.title()} belum tersedia.")
             with col2:
                 if os.path.exists(model_path):
-                    if st.button(f"🗑 Hapus {label}", key=f"hapus_digit_{i}"):
+                    if st.button(f"🗑 Hapus {label}", key=f"hapus_{label}"):
                         os.remove(model_path)
-                        st.warning(f"✅ Model {label} dihapus.")
+                        st.warning(f"✅ Model {label.title()} dihapus.")
             with col3:
-                log_path = f"training_logs/history_{lokasi_id}_digit{i}_{model_type}.csv"
+                log_path = f"training_logs/history_{lokasi_id}_{label}_{model_type}.csv"
                 if os.path.exists(log_path):
-                    if st.button(f"🧹 Hapus Log-{i}", key=f"hapus_log_{i}"):
+                    if st.button(f"🧹 Hapus Log-{label}", key=f"hapus_log_{label}"):
                         os.remove(log_path)
-                        st.info(f"🧾 Log training Digit-{i} dihapus.")
+                        st.info(f"🧾 Log training {label.title()} dihapus.")
 
         if st.button("📚 Latih & Simpan Semua Model"):
             with st.spinner(f"🔄 Melatih semua model per digit ({model_type})..."):
@@ -184,8 +184,6 @@ if st.button("🔮 Prediksi"):
                     df, selected_lokasi, model_type=model_type
                 )
                 if acc_top1_list is not None:
-                    digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
-    
                     for i in range(4):
                         label = digit_labels[i]
                         top1_digit = top1_labels_list[i] if top1_labels_list and i < len(top1_labels_list) else "-"
