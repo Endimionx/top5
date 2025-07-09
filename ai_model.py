@@ -11,6 +11,7 @@ import os
 import pandas as pd
 from itertools import product
 from markov_model import top6_markov
+from tensorflow.keras.callbacks import ReduceLROnPlateau
 
 class PositionalEncoding(tf.keras.layers.Layer):
     def call(self, x):
