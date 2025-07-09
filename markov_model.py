@@ -21,28 +21,22 @@ def top6_markov(df):
 
     hasil = []
 
-    # Ribuan
-    top6_ribuan = [k for k, _ in freq_ribuan.most_common(6)]
-    while len(top6_ribuan) < 6:
-        top6_ribuan.append(random.randint(0, 9))
-    hasil.append(top6_ribuan)
+    # Ribuan (digit ke-1)
+    top6_pos1 = [k for k, _ in freq_ribuan.most_common(6)]
+    while len(top6_pos1) < 6:
+        top6_pos1.append(random.randint(0, 9))
+    hasil.append(top6_pos1)  # index 0 → ribuan
 
-    # Prediksi berdasarkan transisi digit (hasil sementara: puluhan, ratusan, satuan salah urut)
+    # Ratusan (matrix[0]), Puluhan (matrix[1]), Satuan (matrix[2])
     for i in range(3):
         kandidat = []
-        for prev_digit in matrix[i]:
-            kandidat.extend(matrix[i][prev_digit].keys())
+        for prev in matrix[i]:
+            kandidat.extend(matrix[i][prev].keys())
         kandidat = Counter(kandidat).most_common()
         top6 = [int(k) for k, _ in kandidat[:6]]
         while len(top6) < 6:
             top6.append(random.randint(0, 9))
         hasil.append(top6)
-
-    # Perbaikan urutan: [ribuan, ratusan, puluhan, satuan]
-    top6_ratusan = hasil[2]
-    top6_puluhan = hasil[1]
-    top6_satuan = hasil[3]
-    hasil_fix = [hasil[0], top6_ratusan, top6_puluhan, top6_satuan]
 
     info = {
         "frekuensi_ribuan": dict(freq_ribuan),
@@ -50,7 +44,7 @@ def top6_markov(df):
         "kombinasi_populer": kombinasi
     }
 
-    return hasil_fix, info
+    return hasil, info
 
 # MARKOV ORDER-2
 def build_transition_matrix_order2(data):
