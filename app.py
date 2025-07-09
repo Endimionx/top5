@@ -159,10 +159,11 @@ if st.button("🔮 Prediksi"):
                             sim_col = st.columns(2)
                             for i, (komb, score) in enumerate(top_komb):
                                 with sim_col[i % 2]:
-                                    st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
+                           st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
 
-        acc_top1_list, acc_top6_list = evaluate_lstm_accuracy_all_digits(df, selected_lokasi)
         
+        with st.spinner("🔄 Mengevaluasi akurasi model LSTM..."):
+            acc_top1_list, acc_top6_list = evaluate_lstm_accuracy_all_digits(df, selected_lokasi)
         if acc_top1_list is not None:
             for i in range(4):
                 st.info(f"🎯 Digit {i+1} → Top-1 Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}")
