@@ -15,20 +15,20 @@ def top6_markov(df):
     data = df["angka"].astype(str).tolist()
     matrix = build_transition_matrix(data)
 
-    # Statistik tambahan
     freq_ribuan = Counter([int(x[0]) for x in data])
     transisi = [{k: dict(v) for k, v in matrix[i].items()} for i in range(3)]
     kombinasi = Counter(data).most_common(10)
 
     hasil = []
 
-    # Ribuan (posisi pertama)
+    # Ribuan
     top6_pos1 = [k for k, _ in freq_ribuan.most_common(6)]
     while len(top6_pos1) < 6:
         top6_pos1.append(random.randint(0, 9))
     hasil.append(top6_pos1)
 
-    # Prediksi berdasarkan transisi digit
+    # Prediksi ratusan, puluhan, satuan (dalam urutan benar)
+    transisi_prediksi = []
     for i in range(3):
         all_trans = matrix[i]
         kandidat = []
@@ -38,7 +38,12 @@ def top6_markov(df):
         top6 = [int(k) for k, _ in kandidat[:6]]
         while len(top6) < 6:
             top6.append(random.randint(0, 9))
-        hasil.append(top6)
+        transisi_prediksi.append(top6)
+
+    # Koreksi urutan: [ratusan, puluhan, satuan]
+    hasil.append(transisi_prediksi[1])  # ratusan
+    hasil.append(transisi_prediksi[0])  # puluhan
+    hasil.append(transisi_prediksi[2])  # satuan
 
     info = {
         "frekuensi_ribuan": dict(freq_ribuan),
