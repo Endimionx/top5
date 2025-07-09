@@ -26,7 +26,7 @@ class PositionalEncoding(tf.keras.layers.Layer):
         pos_encoding = tf.expand_dims(pos_encoding, 0)
         return x + tf.cast(pos_encoding, tf.float32)
 
-def preprocess_data(df, window_size=5):
+def preprocess_data(df, window_size=7):
     if len(df) < window_size + 1:
         return np.array([]), [np.array([]) for _ in range(4)]
     sequences, targets = [], [[] for _ in range(4)]
@@ -75,7 +75,7 @@ def build_transformer_model(input_len, embed_dim=32, heads=4, temperature=0.5):
         ff = Dense(embed_dim, activation='relu')(x)
         x = LayerNormalization()(x + ff)
     x = GlobalAveragePooling1D()(x)
-    x = Dense(128, activation='relu')(x)
+    x = Dense(256, activation='relu')(x)
     x = Dropout(0.3)(x)
     logits = Dense(10)(x)
     outputs = tf.keras.layers.Activation('softmax')(logits / temperature)
@@ -105,7 +105,7 @@ def train_and_save_model(df, lokasi, window_size=5, model_type="lstm"):
             EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
             ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1)
         ]
-        model.fit(X, y, epochs=50, batch_size=16, verbose=0, validation_split=0.2, callbacks=callbacks)
+        model.fit(X, y, epochs=50, batch_size=32, verbose=0, validation_split=0.2, callbacks=callbacks)
         model.save(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}_{suffix}.h5")
 
 def model_exists(lokasi, model_type="lstm"):
@@ -154,7 +154,8 @@ def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power
         if not valid:
             continue
         score = np.prod(digit_scores) if mode == 'product' else np.mean(digit_scores)
-        if score >= min_conf:
+        dynamic_threshold = np.median([s for _, s in scores]) if scores else min_conf
+        if score >= dynamic_threshold:
             scores.append(("".join(map(str, combo)), score))
     topk = sorted(scores, key=lambda x: -x[1])[:top_n]
     return topk
@@ -171,9 +172,10 @@ def top6_ensemble(df, lokasi, model_type="lstm", lstm_weight=0.6, markov_weight=
         for digit in all_digits:
             scores[digit] = scores.get(digit, 0)
             if digit in lstm_result[i]:
-                scores[digit] += lstm_weight
+                scores[digit] += lstm_weight * (1.0 / (1 + lstm_result[i].index(digit)))
             if digit in markov_result[i]:
-                scores[digit] += markov_weight
+                scores[digit] += markov_weight * (1.0 / (1 + markov_result[i].index(digit)))
+            
         top6 = sorted(scores.items(), key=lambda x: -x[1])[:6]
         ensemble.append([x[0] for x in top6])
     return ensemble
