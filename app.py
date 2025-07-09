@@ -143,7 +143,7 @@ if st.button("🔮 Prediksi"):
             # result[1], result[2] = result[2], result[1]
         
 
-        digit_labels = ["Ribuan", "Puluhan", "Ratusan", "Satuan"]
+        digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
 
         if result is None:
             st.error("❌ Gagal melakukan prediksi.")
@@ -153,6 +153,10 @@ if st.button("🔮 Prediksi"):
                 for i, label in enumerate(digit_labels):
                     with (col1 if i % 2 == 0 else col2):
                         st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
+                        print(f"Ribuan: {i}", result[i], flush=True)
+                        print(f"Ratusan: {i}", result[i], flush=True)
+                        print(f"Puluhan: {i}", result[i], flush=True)
+                        print(f"Satuan: {i}", result[i], flush=True)
 
             if metode in ["LSTM AI", "Ensemble AI + Markov"] and probs:
                 with st.expander("📊 Confidence Bar per Digit"):
