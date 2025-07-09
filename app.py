@@ -88,14 +88,14 @@ if metode == "LSTM AI":
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
                 if os.path.exists(model_path):
-                    st.info(f"📂 Model Digit-{i} tersedia ({model_type}).")
+                    st.info(f"📂 Model {label} tersedia ({model_type}).")
                 else:
-                    st.warning(f"⚠️ Model Digit-{i} belum tersedia.")
+                    st.warning(f"⚠️ Model {label} belum tersedia.")
             with col2:
                 if os.path.exists(model_path):
-                    if st.button(f"🗑 Hapus Digit-{i}", key=f"hapus_digit_{i}"):
+                    if st.button(f"🗑 Hapus {label}", key=f"hapus_digit_{i}"):
                         os.remove(model_path)
-                        st.warning(f"✅ Model Digit-{i} dihapus.")
+                        st.warning(f"✅ Model {label} dihapus.")
             with col3:
                 log_path = f"training_logs/history_{lokasi_id}_digit{i}_{model_type}.csv"
                 if os.path.exists(log_path):
