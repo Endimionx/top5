@@ -143,7 +143,7 @@ if st.button("🔮 Prediksi"):
             # result[1], result[2] = result[2], result[1]
         
 
-        digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
+        digit_labels = ["Ribuan", "Puluhan", "Ratusan", "Satuan"]
 
         if result is None:
             st.error("❌ Gagal melakukan prediksi.")
