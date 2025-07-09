@@ -78,11 +78,23 @@ if selected_lokasi and selected_hari:
 
 df = pd.DataFrame({"angka": angka_list})
 
-with st.expander("📁 Debug File Model"):
+with st.expander("🛠️ Debug File System"):
     import os
-    model_files = os.listdir("saved_models") if os.path.exists("saved_models") else []
-    st.write("📂 File dalam folder `saved_models/`:")
-    st.code("\n".join(model_files) if model_files else "Tidak ada file.")
+    st.write("📌 Current Working Directory:", os.getcwd())
+
+    st.subheader("📂 File di Folder `saved_models/`")
+    if os.path.exists("saved_models"):
+        model_files = os.listdir("saved_models")
+        st.code("\n".join(model_files))
+    else:
+        st.warning("Folder `saved_models/` tidak ditemukan.")
+
+    st.subheader("🔍 Status File Model per Digit")
+    lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
+    for i in range(4):
+        path = f"saved_models/{lokasi_id}_digit{i}_{model_type}.h5"
+        status = "✅ Ditemukan" if os.path.exists(path) else "❌ Tidak ditemukan"
+        st.write(f"`{path}` → {status}")
 # Manajemen Model
 if metode == "LSTM AI":
     with st.expander("⚙️ Manajemen Model"):
