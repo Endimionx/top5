@@ -211,6 +211,7 @@ def evaluate_lstm_accuracy_all_digits(df, lokasi, model_type="lstm", window_size
             return None, None
         try:
             model = load_model(path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
+            model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
             print(f"[DEBUG] Model input shape: {model.input_shape}, X shape: {X.shape}")
             
             if model.input_shape[1] != X.shape[1]:
