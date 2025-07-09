@@ -166,8 +166,8 @@ if st.button("🔮 Prediksi"):
         if acc_top1_list is not None:
             for i in range(4):
                 st.info(f"🎯 Digit {i+1} → Top-1 Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}")
-                else:
-                    st.warning("⚠️ Tidak bisa mengevaluasi akurasi. Model belum tersedia atau data tidak cukup.")
+        else:
+            st.warning("⚠️ Tidak bisa mengevaluasi akurasi. Model belum tersedia atau data tidak cukup.")
 
         # Evaluasi Akurasi
         with st.spinner("📏 Menghitung akurasi..."):
