@@ -140,7 +140,7 @@ if st.button("🔮 Prediksi"):
 
         # Perbaikan urutan ratusan dan puluhan untuk Markov
         if metode in ["Markov", "Markov Order-2", "Markov Gabungan"]:
-            result[1], result[2] = result[2], result[1]
+            # result[1], result[2] = result[2], result[1]
 
         digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
 
