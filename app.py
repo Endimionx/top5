@@ -163,7 +163,7 @@ if st.button("🔮 Prediksi"):
 
         
         with st.spinner("🔄 Mengevaluasi akurasi model LSTM..."):
-            acc_top1_list, acc_top6_list = evaluate_lstm_accuracy_all_digits(df, selected_lokasi)
+            acc_top1_list, acc_top6_list = evaluate_lstm_accuracy_all_digits(df, selected_lokasi, model_type=model_type)
         if acc_top1_list is not None:
             for i in range(4):
                 st.info(f"🎯 Digit {i+1} → Top-1 Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}")
