@@ -159,7 +159,7 @@ if st.button("🔮 Prediksi"):
                             sim_col = st.columns(2)
                             for i, (komb, score) in enumerate(top_komb):
                                 with sim_col[i % 2]:
-                           st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
+                                    st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
 
         
         with st.spinner("🔄 Mengevaluasi akurasi model LSTM..."):
