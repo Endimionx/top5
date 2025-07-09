@@ -5,13 +5,14 @@ from tensorflow.keras.layers import (
     Input, Embedding, Bidirectional, LSTM, Dropout, Dense,
     LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
 )
-from tensorflow.keras.callbacks import CSVLogger, EarlyStopping
+from tensorflow.keras.callbacks import CSVLogger, EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.utils import to_categorical
 import os
 import pandas as pd
 from itertools import product
 from markov_model import top6_markov
-from tensorflow.keras.callbacks import ReduceLROnPlateau
+
+DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 
 class PositionalEncoding(tf.keras.layers.Layer):
     def call(self, x):
@@ -29,8 +30,9 @@ class PositionalEncoding(tf.keras.layers.Layer):
 
 def preprocess_data(df, window_size=7):
     if len(df) < window_size + 1:
-        return np.array([]), [np.array([]) for _ in range(4)]
-    sequences, targets = [], [[] for _ in range(4)]
+        return np.array([]), {label: np.array([]) for label in DIGIT_LABELS}
+    sequences = []
+    targets = {label: [] for label in DIGIT_LABELS}
     angka = df["angka"].values
     for i in range(len(angka) - window_size):
         window = angka[i:i+window_size]
@@ -39,11 +41,11 @@ def preprocess_data(df, window_size=7):
         seq = [int(d) for num in window[:-1] for d in f"{int(num):04d}"]
         sequences.append(seq)
         target_digits = [int(d) for d in f"{int(window[-1]):04d}"]
-        for j in range(4):
-            targets[j].append(to_categorical(target_digits[j], num_classes=10))
+        for j, label in enumerate(DIGIT_LABELS):
+            targets[label].append(to_categorical(target_digits[j], num_classes=10))
     X = np.array(sequences)
-    y = [np.array(t) for t in targets]
-    return X, y
+    y_dict = {label: np.array(targets[label]) for label in DIGIT_LABELS}
+    return X, y_dict
 
 def build_lstm_model(input_len, embed_dim=32, lstm_units=128, attention_heads=4, temperature=0.5):
     inputs = Input(shape=(input_len,))
@@ -87,38 +89,38 @@ def build_transformer_model(input_len, embed_dim=32, heads=4, temperature=0.5):
 def train_and_save_model(df, lokasi, window_size=7, model_type="lstm"):
     if len(df) < window_size + 5:
         return
-    X, y_all = preprocess_data(df, window_size=window_size)
+    X, y_dict = preprocess_data(df, window_size=window_size)
     if X.shape[0] == 0:
         return
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
-    for i in range(4):
-        y = y_all[i]
-        model = (
-            build_transformer_model(X.shape[1]) if model_type == "transformer"
-            else build_lstm_model(X.shape[1])
-        )
-        suffix = f"{model_type}"
-        log_path = f"training_logs/history_{lokasi.lower().strip().replace(' ', '_')}_digit{i}_{suffix}.csv"
-        
+    for label in DIGIT_LABELS:
+        y = y_dict[label]
+        model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
+        suffix = model_type
+        loc_id = lokasi.lower().strip().replace(" ", "_")
+        log_path = f"training_logs/history_{loc_id}_{label}_{suffix}.csv"
+        model_path = f"saved_models/{loc_id}_{label}_{suffix}.h5"
         callbacks = [
             CSVLogger(log_path),
             EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
             ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1)
         ]
         model.fit(X, y, epochs=50, batch_size=32, verbose=0, validation_split=0.2, callbacks=callbacks)
-        model.save(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}_{suffix}.h5")
+        model.save(model_path)
 
 def model_exists(lokasi, model_type="lstm"):
-    return all(os.path.exists(f"saved_models/{lokasi.lower().strip().replace(' ', '_')}_digit{i}_{model_type}.h5") for i in range(4))
+    loc_id = lokasi.lower().strip().replace(" ", "_")
+    return all(os.path.exists(f"saved_models/{loc_id}_{label}_{model_type}.h5") for label in DIGIT_LABELS)
 
 def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperature=0.5, window_size=7):
     X, _ = preprocess_data(df, window_size=window_size)
     if X.shape[0] == 0:
         return None
     results, probs = [], []
-    for i in range(4):
-        path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}_{model_type}.h5"
+    loc_id = lokasi.lower().replace(" ", "_")
+    for label in DIGIT_LABELS:
+        path = f"saved_models/{loc_id}_{label}_{model_type}.h5"
         if not os.path.exists(path):
             return None
         try:
@@ -127,12 +129,12 @@ def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperatu
                 return None
             pred = model.predict(X, verbose=0)
             avg = np.mean(pred, axis=0)
-            avg /= avg.sum()  # Confidence normalization
+            avg /= avg.sum()
             top6 = avg.argsort()[-6:][::-1]
             results.append(list(top6))
             probs.append(avg[top6])
         except Exception as e:
-            print(f"[{model_type.upper()} ERROR digit {i}] {e}")
+            print(f"[ERROR {label}] {e}")
             return None
     return (results, probs) if return_probs else results
 
@@ -158,8 +160,7 @@ def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power
         dynamic_threshold = np.median([s for _, s in scores]) if scores else min_conf
         if score >= dynamic_threshold:
             scores.append(("".join(map(str, combo)), score))
-    topk = sorted(scores, key=lambda x: -x[1])[:top_n]
-    return topk
+    return sorted(scores, key=lambda x: -x[1])[:top_n]
 
 def top6_ensemble(df, lokasi, model_type="lstm", lstm_weight=0.6, markov_weight=0.4, window_size=7):
     lstm_result = top6_model(df, lokasi=lokasi, model_type=model_type, window_size=window_size)
@@ -176,15 +177,11 @@ def top6_ensemble(df, lokasi, model_type="lstm", lstm_weight=0.6, markov_weight=
                 scores[digit] += lstm_weight * (1.0 / (1 + lstm_result[i].index(digit)))
             if digit in markov_result[i]:
                 scores[digit] += markov_weight * (1.0 / (1 + markov_result[i].index(digit)))
-            
         top6 = sorted(scores.items(), key=lambda x: -x[1])[:6]
         ensemble.append([x[0] for x in top6])
     return ensemble
 
 def evaluate_top6_accuracy(model, X, y_true):
-    """
-    Menghitung akurasi Top-6 dari prediksi model untuk satu digit.
-    """
     pred = model.predict(X, verbose=0)
     top6 = np.argsort(pred, axis=1)[:, -6:]
     true_labels = np.argmax(y_true, axis=1)
@@ -192,62 +189,28 @@ def evaluate_top6_accuracy(model, X, y_true):
     return correct / len(true_labels)
 
 def evaluate_lstm_accuracy_all_digits(df, lokasi, model_type="lstm", window_size=7):
-    print(f"[DEBUG] Mulai evaluasi akurasi untuk lokasi: {lokasi}, model_type: {model_type}")
-    
-    X, y_all = preprocess_data(df, window_size=window_size)
-    print(f"[DEBUG] X shape: {X.shape}")
-    
-    if X.shape[0] == 0 or any(y.shape[0] == 0 for y in y_all):
-        print("[DEBUG] ❌ Data hasil preprocessing kosong.")
+    X, y_dict = preprocess_data(df, window_size=window_size)
+    if X.shape[0] == 0:
         return None, None, None
-
-    acc_top1_list, acc_top6_list = [], []
-    label_accuracy_list = []
-
-    for i in range(4):
-        path = f"saved_models/{lokasi.lower().strip().replace(' ', '_')}_digit{i}_{model_type}.h5"
-        print(f"[DEBUG] Cek file model: {path}")
+    acc_top1_list, acc_top6_list, label_accuracy_list = [], [], []
+    loc_id = lokasi.lower().strip().replace(" ", "_")
+    for label in DIGIT_LABELS:
+        path = f"saved_models/{loc_id}_{label}_{model_type}.h5"
         if not os.path.exists(path):
-            print(f"[DEBUG] ❌ File model tidak ditemukan: {path}")
             return None, None, None
-        try:
-            model = load_model(path, compile=True, custom_objects={"PositionalEncoding": PositionalEncoding})
-            print(f"[DEBUG] Model input shape: {model.input_shape}, X shape: {X.shape}")
-            
-            if model.input_shape[1] != X.shape[1]:
-                print(f"[DEBUG] ❌ Input shape mismatch untuk digit {i}")
-                return None, None, None
-            
-            y_true = y_all[i]
-            print(f"[DEBUG] y_true shape (digit {i}): {y_true.shape}")
-            
-            if y_true.shape[0] != X.shape[0]:
-                print(f"[DEBUG] ❌ Jumlah sample X dan y tidak cocok untuk digit {i}")
-                return None, None, None
-
-            # Evaluasi akurasi top-1 dan top-6
-            acc_top1 = model.evaluate(X, y_true, verbose=0)[1]
-            acc_top6 = evaluate_top6_accuracy(model, X, y_true)
-            acc_top1_list.append(acc_top1)
-            acc_top6_list.append(acc_top6)
-            print(f"[DEBUG] Digit {i}: acc_top1={acc_top1:.4f}, acc_top6={acc_top6:.4f}")
-
-            # Hitung akurasi per label 0-9
-            y_true_labels = np.argmax(y_true, axis=1)
-            y_pred_labels = np.argmax(model.predict(X, verbose=0), axis=1)
-
-            label_acc = {}
-            for label in range(10):
-                idx = np.where(y_true_labels == label)[0]
-                if len(idx) > 0:
-                    benar = np.sum(y_pred_labels[idx] == label)
-                    label_acc[label] = benar / len(idx)
-                else:
-                    label_acc[label] = None  # tidak ada sample ground truth
-            label_accuracy_list.append(label_acc)
-
-        except Exception as e:
-            print(f"[DEBUG] ❌ ERROR loading/evaluating model digit {i}: {e}")
+        model = load_model(path, compile=True, custom_objects={"PositionalEncoding": PositionalEncoding})
+        if model.input_shape[1] != X.shape[1]:
             return None, None, None
-
+        y_true = y_dict[label]
+        acc_top1 = model.evaluate(X, y_true, verbose=0)[1]
+        acc_top6 = evaluate_top6_accuracy(model, X, y_true)
+        acc_top1_list.append(acc_top1)
+        acc_top6_list.append(acc_top6)
+        y_true_labels = np.argmax(y_true, axis=1)
+        y_pred_labels = np.argmax(model.predict(X, verbose=0), axis=1)
+        label_acc = {}
+        for d in range(10):
+            idx = np.where(y_true_labels == d)[0]
+            label_acc[d] = np.mean(y_pred_labels[idx] == d) if len(idx) > 0 else None
+        label_accuracy_list.append(label_acc)
     return acc_top1_list, acc_top6_list, label_accuracy_list
