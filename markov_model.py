@@ -44,10 +44,10 @@ def top6_markov(df):
         "kombinasi_populer": kombinasi
     }
 
-    print("Ribuan:", hasil[0], flush=true)
-    print("Ratusan:", hasil[1], flush=true)
-    print("Puluhan:", hasil[2], flush=true)
-    print("Satuan:", hasil[3], flush=true)
+    print("Ribuan:", hasil[0], flush=True)
+    print("Ratusan:", hasil[1], flush=True)
+    print("Puluhan:", hasil[2], flush=True)
+    print("Satuan:", hasil[3], flush=True)
 
     return [hasil[0], hasil[1], hasil[2], hasil[3]], info
 
