@@ -180,3 +180,36 @@ def top6_ensemble(df, lokasi, model_type="lstm", lstm_weight=0.6, markov_weight=
         top6 = sorted(scores.items(), key=lambda x: -x[1])[:6]
         ensemble.append([x[0] for x in top6])
     return ensemble
+
+def evaluate_top6_accuracy(model, X, y_true):
+    """
+    Menghitung akurasi Top-6 dari prediksi model untuk satu digit.
+    """
+    pred = model.predict(X, verbose=0)
+    top6 = np.argsort(pred, axis=1)[:, -6:]
+    true_labels = np.argmax(y_true, axis=1)
+    correct = sum([true_labels[i] in top6[i] for i in range(len(true_labels))])
+    return correct / len(true_labels)
+
+def evaluate_lstm_accuracy_all_digits(df, lokasi, model_type="lstm", window_size=7):
+    X, y_all = preprocess_data(df, window_size=window_size)
+    if X.shape[0] == 0:
+        return None, None
+    acc_top1_list, acc_top6_list = [], []
+    for i in range(4):
+        path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}_{model_type}.h5"
+        if not os.path.exists(path):
+            return None, None
+        try:
+            model = load_model(path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
+            if model.input_shape[1] != X.shape[1]:
+                return None, None
+            y_true = y_all[i]
+            acc_top1 = model.evaluate(X, y_true, verbose=0)[1]
+            acc_top6 = evaluate_top6_accuracy(model, X, y_true)
+            acc_top1_list.append(acc_top1)
+            acc_top6_list.append(acc_top6)
+        except Exception as e:
+            print(f"[EVAL ERROR digit {i}] {e}")
+            return None, None
+    return acc_top1_list, acc_top6_list
