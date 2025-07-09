@@ -21,34 +21,34 @@ def top6_markov(df):
 
     hasil = [[], [], [], []]
 
-    # Ribuan
+    # Ribuan (digit ke-0)
     top6_ribuan = [k for k, _ in freq_ribuan.most_common(6)]
     while len(top6_ribuan) < 6:
         top6_ribuan.append(random.randint(0, 9))
     hasil[0] = top6_ribuan
 
-    # Ratusan (dari matrix[0])
+    # Ratusan (digit ke-1), dari transisi ribuan -> ratusan = matrix[0]
     kandidat_ratusan = []
-    for prev_digit in matrix[0]:
-        kandidat_ratusan.extend(matrix[0][prev_digit].keys())
+    for prev in matrix[0]:
+        kandidat_ratusan.extend(matrix[0][prev].keys())
     top6_ratusan = [int(k) for k, _ in Counter(kandidat_ratusan).most_common(6)]
     while len(top6_ratusan) < 6:
         top6_ratusan.append(random.randint(0, 9))
     hasil[1] = top6_ratusan
 
-    # Puluhan (dari matrix[1])
+    # Puluhan (digit ke-2), dari transisi ratusan -> puluhan = matrix[1]
     kandidat_puluhan = []
-    for prev_digit in matrix[1]:
-        kandidat_puluhan.extend(matrix[1][prev_digit].keys())
+    for prev in matrix[1]:
+        kandidat_puluhan.extend(matrix[1][prev].keys())
     top6_puluhan = [int(k) for k, _ in Counter(kandidat_puluhan).most_common(6)]
     while len(top6_puluhan) < 6:
         top6_puluhan.append(random.randint(0, 9))
     hasil[2] = top6_puluhan
 
-    # Satuan (dari matrix[2])
+    # Satuan (digit ke-3), dari transisi puluhan -> satuan = matrix[2]
     kandidat_satuan = []
-    for prev_digit in matrix[2]:
-        kandidat_satuan.extend(matrix[2][prev_digit].keys())
+    for prev in matrix[2]:
+        kandidat_satuan.extend(matrix[2][prev].keys())
     top6_satuan = [int(k) for k, _ in Counter(kandidat_satuan).most_common(6)]
     while len(top6_satuan) < 6:
         top6_satuan.append(random.randint(0, 9))
@@ -85,30 +85,30 @@ def top6_markov_order2(df):
     top_pairs = Counter(pairs).most_common(6)
     d1, d2 = top_pairs[0][0][0], top_pairs[0][0][1]
 
-    top6_d1 = list(set([int(p[0][0]) for p in top_pairs]))
-    top6_d2 = list(set([int(p[0][1]) for p in top_pairs]))
-    while len(top6_d1) < 6:
-        top6_d1.append(random.randint(0, 9))
-    while len(top6_d2) < 6:
-        top6_d2.append(random.randint(0, 9))
+    top6_ribuan = list(set([int(p[0][0]) for p in top_pairs]))
+    top6_ratusan = list(set([int(p[0][1]) for p in top_pairs]))
+    while len(top6_ribuan) < 6:
+        top6_ribuan.append(random.randint(0, 9))
+    while len(top6_ratusan) < 6:
+        top6_ratusan.append(random.randint(0, 9))
 
-    hasil = [top6_d1, top6_d2]
+    hasil = [top6_ribuan, top6_ratusan]
 
     key1 = d1 + d2
     dist3 = matrix[0].get(key1, {})
-    top6_d3 = sorted(dist3.items(), key=lambda x: -x[1])
-    top6_d3 = [int(k) for k, _ in top6_d3[:6]]
-    while len(top6_d3) < 6:
-        top6_d3.append(random.randint(0, 9))
-    hasil.append(top6_d3)
+    top6_puluhan = sorted(dist3.items(), key=lambda x: -x[1])
+    top6_puluhan = [int(k) for k, _ in top6_puluhan[:6]]
+    while len(top6_puluhan) < 6:
+        top6_puluhan.append(random.randint(0, 9))
+    hasil.append(top6_puluhan)
 
-    key2 = d2 + str(top6_d3[0])
+    key2 = d2 + str(top6_puluhan[0])
     dist4 = matrix[1].get(key2, {})
-    top6_d4 = sorted(dist4.items(), key=lambda x: -x[1])
-    top6_d4 = [int(k) for k, _ in top6_d4[:6]]
-    while len(top6_d4) < 6:
-        top6_d4.append(random.randint(0, 9))
-    hasil.append(top6_d4)
+    top6_satuan = sorted(dist4.items(), key=lambda x: -x[1])
+    top6_satuan = [int(k) for k, _ in top6_satuan[:6]]
+    while len(top6_satuan) < 6:
+        top6_satuan.append(random.randint(0, 9))
+    hasil.append(top6_satuan)
 
     return hasil
 
