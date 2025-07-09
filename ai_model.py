@@ -99,7 +99,7 @@ def train_and_save_model(df, lokasi, window_size=7, model_type="lstm"):
             else build_lstm_model(X.shape[1])
         )
         suffix = f"{model_type}"
-        log_path = f"training_logs/history_{lokasi.lower().replace(' ', '_')}_digit{i}_{suffix}.csv"
+        log_path = f"training_logs/history_{lokasi.lower().strip().replace(' ', '_')}_digit{i}_{suffix}.csv"
         
         callbacks = [
             CSVLogger(log_path),
@@ -110,7 +110,7 @@ def train_and_save_model(df, lokasi, window_size=7, model_type="lstm"):
         model.save(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}_{suffix}.h5")
 
 def model_exists(lokasi, model_type="lstm"):
-    return all(os.path.exists(f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}_{model_type}.h5") for i in range(4))
+    return all(os.path.exists(f"saved_models/{lokasi.lower().strip().replace(' ', '_')}_digit{i}_{model_type}.h5") for i in range(4))
 
 def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperature=0.5, window_size=7):
     X, _ = preprocess_data(df, window_size=window_size)
@@ -204,7 +204,7 @@ def evaluate_lstm_accuracy_all_digits(df, lokasi, model_type="lstm", window_size
     acc_top1_list, acc_top6_list = [], []
 
     for i in range(4):
-        path = f"saved_models/{lokasi.lower().replace(' ', '_')}_digit{i}_{model_type}.h5"
+        path = f"saved_models/{lokasi.lower().strip().replace(' ', '_')}_digit{i}_{model_type}.h5"
         print(f"[DEBUG] Cek file model: {path}")
         if not os.path.exists(path):
             print(f"[DEBUG] ❌ File model tidak ditemukan: {path}")
