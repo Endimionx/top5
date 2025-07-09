@@ -10,8 +10,7 @@ def build_transition_matrix(data):
         for i in range(3):
             matrix[i][digits[i]][digits[i+1]] += 1
     return matrix
-
-def top6_markov(df):
+    
 def top6_markov(df):
     data = df["angka"].astype(str).tolist()
     matrix = build_transition_matrix(data)
