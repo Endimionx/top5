@@ -12,11 +12,11 @@ from ai_model import (
     train_and_save_model,
     kombinasi_4d,
     top6_ensemble,
-    model_exists
+    model_exists,
+    evaluate_lstm_accuracy_all_digits
 )
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
-from ai_model import evaluate_lstm_accuracy_all_digits
 
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
 
@@ -138,18 +138,24 @@ if st.button("🔮 Prediksi"):
                             ensemble.append([x[0] for x in top6])
                         result = ensemble
 
+        # Perbaikan urutan ratusan dan puluhan untuk Markov
+        if metode in ["Markov", "Markov Order-2", "Markov Gabungan"]:
+            result[1], result[2] = result[2], result[1]
+
+        digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
+
         if result is None:
             st.error("❌ Gagal melakukan prediksi.")
         else:
             with st.expander("🎯 Hasil Prediksi Top 6 Digit"):
                 col1, col2 = st.columns(2)
-                for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+                for i, label in enumerate(digit_labels):
                     with (col1 if i % 2 == 0 else col2):
                         st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
 
             if metode in ["LSTM AI", "Ensemble AI + Markov"] and probs:
                 with st.expander("📊 Confidence Bar per Digit"):
-                    for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+                    for i, label in enumerate(digit_labels):
                         st.markdown(f"**🔢 {label}**")
                         digit_data = pd.DataFrame({
                             "Digit": [str(d) for d in result[i]],
@@ -175,7 +181,7 @@ if st.button("🔮 Prediksi"):
                 )
                 if acc_top1_list is not None:
                     for i in range(4):
-                        label = ["Ribuan", "Ratusan", "Puluhan", "Satuan"][i]
+                        label = digit_labels[i]
                         top1_digit = top1_labels_list[i] if top1_labels_list and i < len(top1_labels_list) else "-"
                         st.info(f"🎯 {label} (Digit {i+1})\nTop-1 ({top1_digit}) Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}")
                 else:
@@ -185,7 +191,7 @@ if st.button("🔮 Prediksi"):
             uji_df = df.tail(min(jumlah_uji, len(df)))
             total, benar = 0, 0
             akurasi_list = []
-            digit_acc = {"Ribuan": [], "Ratusan": [], "Puluhan": [], "Satuan": []}
+            digit_acc = {k: [] for k in digit_labels}
 
             for i in range(len(uji_df)):
                 subset_df = df.iloc[:-(len(uji_df) - i)]
@@ -201,9 +207,11 @@ if st.button("🔮 Prediksi"):
                     )
                     if pred is None:
                         continue
+                    if metode in ["Markov", "Markov Order-2", "Markov Gabungan"]:
+                        pred[1], pred[2] = pred[2], pred[1]
                     actual = f"{int(uji_df.iloc[i]['angka']):04d}"
                     skor = 0
-                    for j, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+                    for j, label in enumerate(digit_labels):
                         if int(actual[j]) in pred[j]:
                             skor += 1
                             digit_acc[label].append(1)
