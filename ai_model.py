@@ -133,6 +133,8 @@ def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperatu
             top6 = avg.argsort()[-6:][::-1]
             results.append(list(top6))
             probs.append(avg[top6])
+            print(f"{label}", list(top6), flush=True)
+            
         except Exception as e:
             print(f"[ERROR {label}] {e}")
             return None
