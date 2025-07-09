@@ -78,11 +78,6 @@ if selected_lokasi and selected_hari:
 
 df = pd.DataFrame({"angka": angka_list})
 
-with st.expander("📁 Debug File Model"):
-    import os
-    model_files = os.listdir("saved_models") if os.path.exists("saved_models") else []
-    st.write("📂 File dalam folder `saved_models/`:")
-    st.code("\n".join(model_files) if model_files else "Tidak ada file.")
 # Manajemen Model
 if metode == "LSTM AI":
     with st.expander("⚙️ Manajemen Model"):
