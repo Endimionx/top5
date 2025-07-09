@@ -143,7 +143,8 @@ if st.button("🔮 Prediksi"):
         else:
             with st.expander("🎯 Hasil Prediksi Top 6 Digit"):
                 col1, col2 = st.columns(2)
-                for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+                digit_labels = ['Ribuan', 'Ratusan', 'Puluhan', 'Satuan']
+                for i, label in enumerate(digit_labels):
                     with (col1 if i % 2 == 0 else col2):
                         st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
 
