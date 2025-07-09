@@ -12,11 +12,11 @@ from ai_model import (
     train_and_save_model,
     kombinasi_4d,
     top6_ensemble,
-    model_exists,
-    evaluate_lstm_accuracy_all_digits
+    model_exists
 )
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
+from ai_model import evaluate_lstm_accuracy_all_digits
 
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
 
@@ -78,6 +78,23 @@ if selected_lokasi and selected_hari:
 
 df = pd.DataFrame({"angka": angka_list})
 
+with st.expander("🛠️ Debug File System"):
+    import os
+    st.write("📌 Current Working Directory:", os.getcwd())
+
+    st.subheader("📂 File di Folder `saved_models/`")
+    if os.path.exists("saved_models"):
+        model_files = os.listdir("saved_models")
+        st.code("\n".join(model_files))
+    else:
+        st.warning("Folder `saved_models/` tidak ditemukan.")
+
+    st.subheader("🔍 Status File Model per Digit")
+    lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
+    for i in range(4):
+        path = f"saved_models/{lokasi_id}_digit{i}_{model_type}.h5"
+        status = "✅ Ditemukan" if os.path.exists(path) else "❌ Tidak ditemukan"
+        st.write(f"`{path}` → {status}")
 # Manajemen Model
 if metode == "LSTM AI":
     with st.expander("⚙️ Manajemen Model"):
@@ -106,7 +123,6 @@ if metode == "LSTM AI":
             with st.spinner(f"🔄 Melatih semua model per digit ({model_type})..."):
                 train_and_save_model(df, selected_lokasi, model_type=model_type)
             st.success("✅ Semua model berhasil dilatih dan disimpan.")
-
 # Tombol Prediksi
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
@@ -168,32 +184,66 @@ if st.button("🔮 Prediksi"):
                                 with sim_col[i % 2]:
                                     st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
 
-        with st.expander("📊 Evaluasi Akurasi LSTM per Digit"):
-            with st.spinner("🔄 Mengevaluasi performa model per digit..."):
-                acc_top1_list, acc_top6_list, top1_labels_list = evaluate_lstm_accuracy_all_digits(
-                    df, selected_lokasi, model_type=model_type
-                )
+        
+        with st.spinner("🔄 Mengevaluasi akurasi model LSTM..."):
+            acc_top1_list, acc_top6_list = evaluate_lstm_accuracy_all_digits(df, selected_lokasi, model_type=model_type)
+        if acc_top1_list is not None:
+            for i in range(4):
+                st.info(f"🎯 Digit {i+1} → Top-1 Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}")
+        else:
+            st.warning("⚠️ Tidak bisa mengevaluasi akurasi. Model belum tersedia atau data tidak cukup.")
 
-            if acc_top1_list is not None:
-                digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
-                col_a, col_b = st.columns(2)
+        # Evaluasi Akurasi
+        with st.spinner("📏 Menghitung akurasi..."):
+            uji_df = df.tail(min(jumlah_uji, len(df)))
+            total, benar = 0, 0
+            akurasi_list = []
+            digit_acc = {"Ribuan": [], "Ratusan": [], "Puluhan": [], "Satuan": []}
 
-                for i in range(4):
-                    label = digit_labels[i]
-                    top1_pred = top1_labels_list[i] if top1_labels_list and i < len(top1_labels_list) else "-"
-                    acc1 = acc_top1_list[i]
-                    acc6 = acc_top6_list[i]
-
-                    info_text = (
-                        f"### 📌 {label} (Digit-{i+1})\n"
-                        f"- 🔢 **Prediksi Paling Mungkin (Top-1):** `{top1_pred}`\n"
-                        f"- ✅ **Akurasi Top-1:** `{acc1:.2%}`\n"
-                        f"- 🎯 **Akurasi Top-6:** `{acc6:.2%}`"
+            for i in range(len(uji_df)):
+                subset_df = df.iloc[:-(len(uji_df) - i)]
+                if len(subset_df) < 20:
+                    continue
+                try:
+                    pred = (
+                        top6_markov(subset_df)[0] if metode == "Markov" else
+                        top6_markov_order2(subset_df) if metode == "Markov Order-2" else
+                        top6_markov_hybrid(subset_df) if metode == "Markov Gabungan" else
+                        top6_model(subset_df, lokasi=selected_lokasi, model_type=model_type) if metode == "LSTM AI" else
+                        top6_ensemble(subset_df, lokasi=selected_lokasi, model_type=model_type)
                     )
+                    if pred is None:
+                        continue
+                    actual = f"{int(uji_df.iloc[i]['angka']):04d}"
+                    skor = 0
+                    for j, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+                        if int(actual[j]) in pred[j]:
+                            skor += 1
+                            digit_acc[label].append(1)
+                        else:
+                            digit_acc[label].append(0)
+                    total += 4
+                    benar += skor
+                    akurasi_list.append(skor / 4 * 100)
+                except:
+                    continue
 
-                    if i % 2 == 0:
-                        col_a.success(info_text)
-                    else:
-                        col_b.success(info_text)
+            if total > 0:
+                st.success(f"📈 Akurasi {metode}: {benar / total * 100:.2f}%")
+                with st.expander("📊 Grafik Akurasi"):
+                    st.line_chart(pd.DataFrame({"Akurasi (%)": akurasi_list}))
+                with st.expander("🔥 Heatmap Akurasi per Digit"):
+                    heat_df = pd.DataFrame({
+                        k: [sum(v) / len(v) * 100 if v else 0]
+                        for k, v in digit_acc.items()
+                    })
+                    fig, ax = plt.subplots()
+                    sns.heatmap(heat_df, annot=True, fmt=".1f", cmap="YlGnBu", ax=ax)
+                    st.pyplot(fig)
+                st.markdown("### 🧠 Akurasi Top-1 per Digit")
+                akurasi_digit_1 = {
+                    k: f"{sum(v)/len(v)*100:.2f}%" if v else "0.00%" for k, v in digit_acc.items()
+                }
+                st.table(pd.DataFrame(akurasi_digit_1.items(), columns=["Digit", "Top-1 Akurasi"]))
             else:
-                st.warning("⚠️ Evaluasi gagal. Model mungkin belum tersedia atau data tidak mencukupi.")
+                st.warning("⚠️ Tidak cukup data untuk evaluasi akurasi.")
