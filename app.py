@@ -12,11 +12,11 @@ from ai_model import (
     train_and_save_model,
     kombinasi_4d,
     top6_ensemble,
-    model_exists
+    model_exists,
+    evaluate_lstm_accuracy_all_digits
 )
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
-from ai_model import evaluate_lstm_accuracy_all_digits
 
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
 
@@ -159,8 +159,15 @@ if st.button("🔮 Prediksi"):
 
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
-                    top_komb = kombinasi_4d(df, lokasi=selected_lokasi, model_type=model_type,
-                                            top_n=10, min_conf=min_conf, power=power, mode=voting_mode)
+                    top_komb = kombinasi_4d(
+                        df,
+                        lokasi=selected_lokasi,
+                        model_type=model_type,
+                        top_n=10,
+                        min_conf=min_conf,
+                        power=power,
+                        mode=voting_mode
+                    )
                     if top_komb:
                         with st.expander("💡 Simulasi Kombinasi 4D Terbaik"):
                             sim_col = st.columns(2)
@@ -177,7 +184,9 @@ if st.button("🔮 Prediksi"):
                     for i in range(4):
                         label = ["Ribuan", "Ratusan", "Puluhan", "Satuan"][i]
                         top1_digit = top1_labels_list[i] if top1_labels_list and i < len(top1_labels_list) else "-"
-                        st.info(f"🎯 {label} (Digit {i+1})\nTop-1 ({top1_digit}) Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}")
+                        st.info(
+                            f"🎯 {label} (Digit {i+1})\nTop-1 ({top1_digit}) Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}"
+                        )
                 else:
                     st.warning("⚠️ Tidak bisa mengevaluasi akurasi. Model belum tersedia atau data tidak cukup.")
 
