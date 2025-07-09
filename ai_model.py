@@ -12,7 +12,7 @@ import pandas as pd
 from itertools import product
 from markov_model import top6_markov
 
-DIGIT_LABELS = ["satuan", "puluhan", "ratusan", "ribuan"]
+DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 
 class PositionalEncoding(tf.keras.layers.Layer):
     def call(self, x):
@@ -133,8 +133,8 @@ def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperatu
             top6 = avg.argsort()[-6:][::-1]
             results.append(list(top6))
             probs.append(avg[top6])
-            print(f"{label}", list(top6), flush=True)
-            
+            print(f"reault {label}", list(top6), flush=True)
+            print(f"probs {label}", list(top6), flush=True)
         except Exception as e:
             print(f"[ERROR {label}] {e}")
             return None
