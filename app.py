@@ -34,7 +34,6 @@ st.title("🔮 Prediksi 4D - AI & Markov")
 # Sidebar
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
-digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
 model_type = "lstm"
 
 with st.sidebar:
@@ -139,6 +138,14 @@ if st.button("🔮 Prediksi"):
                             ensemble.append([x[0] for x in top6])
                         result = ensemble
 
+        # 🔄 Perbaikan urutan digit
+        if result:
+            result = result[::-1]
+        if probs:
+            probs = probs[::-1]
+
+        digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
+
         if result is None:
             st.error("❌ Gagal melakukan prediksi.")
         else:
@@ -182,7 +189,11 @@ if st.button("🔮 Prediksi"):
                     df, selected_lokasi, model_type=model_type
                 )
                 if acc_top1_list is not None:
-                    for i, label in enumerate(digit_labels):
+                    acc_top1_list = acc_top1_list[::-1]
+                    acc_top6_list = acc_top6_list[::-1]
+                    top1_labels_list = top1_labels_list[::-1]
+                    for i in range(4):
+                        label = digit_labels[i]
                         top1_digit = top1_labels_list[i] if top1_labels_list and i < len(top1_labels_list) else "-"
                         st.info(
                             f"🎯 {label} (Digit {i+1})\nTop-1 ({top1_digit}) Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}"
@@ -194,7 +205,7 @@ if st.button("🔮 Prediksi"):
             uji_df = df.tail(min(jumlah_uji, len(df)))
             total, benar = 0, 0
             akurasi_list = []
-            digit_acc = {label: [] for label in digit_labels}
+            digit_acc = {k: [] for k in digit_labels}
 
             for i in range(len(uji_df)):
                 subset_df = df.iloc[:-(len(uji_df) - i)]
@@ -210,6 +221,7 @@ if st.button("🔮 Prediksi"):
                     )
                     if pred is None:
                         continue
+                    pred = pred[::-1]  # perbaikan urutan prediksi
                     actual = f"{int(uji_df.iloc[i]['angka']):04d}"
                     skor = 0
                     for j, label in enumerate(digit_labels):
