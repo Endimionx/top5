@@ -84,7 +84,7 @@ def build_transformer_model(input_len, embed_dim=32, heads=4, temperature=0.5):
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
 
-def train_and_save_model(df, lokasi, window_size=5, model_type="lstm"):
+def train_and_save_model(df, lokasi, window_size=7, model_type="lstm"):
     if len(df) < window_size + 5:
         return
     X, y_all = preprocess_data(df, window_size=window_size)
