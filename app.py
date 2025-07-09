@@ -185,13 +185,18 @@ if st.button("🔮 Prediksi"):
                                     st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
 
         
+    with st.expander("📊 Evaluasi Akurasi LSTM per Digit"):
         with st.spinner("🔄 Mengevaluasi akurasi model LSTM..."):
-            acc_top1_list, acc_top6_list = evaluate_lstm_accuracy_all_digits(df, selected_lokasi, model_type=model_type)
-        if acc_top1_list is not None:
-            for i in range(4):
-                st.info(f"🎯 Digit {i+1} → Top-1 Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}")
-        else:
-            st.warning("⚠️ Tidak bisa mengevaluasi akurasi. Model belum tersedia atau data tidak cukup.")
+            acc_top1_list, acc_top6_list, top1_labels_list = evaluate_lstm_accuracy_all_digits(
+            df, selected_lokasi, model_type=model_type
+        )
+            if acc_top1_list is not None:
+                for i in range(4):
+                    label = ["Ribuan", "Ratusan", "Puluhan", "Satuan"][i]
+                    top1_digit = top1_labels_list[i] if top1_labels_list and i < len(top1_labels_list) else "-"
+                    st.info(f"🎯 {label} (Digit {i+1})\nTop-1 ({top1_digit}) Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}")
+            else:
+                st.warning("⚠️ Tidak bisa mengevaluasi akurasi. Model belum tersedia atau data tidak cukup.")
 
         # Evaluasi Akurasi
         with st.spinner("📏 Menghitung akurasi..."):
