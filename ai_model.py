@@ -118,12 +118,13 @@ def model_exists(lokasi, model_type="lstm"):
     loc_id = lokasi.lower().strip().replace(" ", "_")
     return all(os.path.exists(f"saved_models/{loc_id}_{label}_{model_type}.h5") for label in DIGIT_LABELS)
 
-def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperature=0.5, window_size=7):
+def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperature=0.5, window_size=7, mode_prediksi="hybrid", threshold=0.001):
     X, _ = preprocess_data(df, window_size=window_size)
     if X.shape[0] == 0:
         return None
     results, probs = [], []
     loc_id = lokasi.lower().replace(" ", "_")
+    
     for label in DIGIT_LABELS:
         path = f"saved_models/{loc_id}_{label}_{model_type}.h5"
         if not os.path.exists(path):
@@ -134,17 +135,29 @@ def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperatu
                 return None
             pred = model.predict(X, verbose=0)
             avg = np.mean(pred, axis=0)
-            avg /= avg.sum()
-            top6 = avg.argsort()[-6:][::-1]
-            results.append(list(top6))
-            probs.append(avg[top6])
+            avg /= np.sum(avg)  # Normalize
+
+            if mode_prediksi == "confidence":
+                top6 = avg.argsort()[-6:][::-1]
+            elif mode_prediksi == "ranked":
+                score_dict = {i: (1.0 / (1 + rank)) for rank, i in enumerate(avg.argsort()[::-1])}
+                top6 = sorted(score_dict.items(), key=lambda x: -x[1])[:6]
+                top6 = [d for d, _ in top6]
+            else:  # hybrid
+                score_dict = {i: avg[i] * (1.0 / (1 + rank)) for rank, i in enumerate(avg.argsort()[::-1])}
+                sorted_scores = sorted(score_dict.items(), key=lambda x: -x[1])
+                top6 = [d for d, score in sorted_scores if avg[d] >= threshold][:6]
+
+            results.append(top6)
+            probs.append([avg[d] for d in top6])
         except Exception as e:
             print(f"[ERROR {label}] {e}")
             return None
+
     return (results, probs) if return_probs else results
 
-def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power=1.5, mode='product', window_size=7):
-    result, probs = top6_model(df, lokasi=lokasi, model_type=model_type, return_probs=True, window_size=window_size)
+def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power=1.5, mode='product', window_size=7, mode_prediksi="hybrid"):
+    result, probs = top6_model(df, lokasi=lokasi, model_type=model_type, return_probs=True, window_size=window_size, mode_prediksi=mode_prediksi)
     if result is None or probs is None:
         return []
     combinations = list(product(*result))
@@ -162,8 +175,7 @@ def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power
         if not valid:
             continue
         score = np.prod(digit_scores) if mode == 'product' else np.mean(digit_scores)
-        dynamic_threshold = np.median([s for _, s in scores]) if scores else min_conf
-        if score >= dynamic_threshold:
+        if score >= min_conf:
             scores.append(("".join(map(str, combo)), score))
     return sorted(scores, key=lambda x: -x[1])[:top_n]
 
