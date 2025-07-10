@@ -96,7 +96,6 @@ def train_and_save_model(df, lokasi, window_size=7, model_type="lstm"):
     os.makedirs("training_logs", exist_ok=True)
     for label in DIGIT_LABELS:
         y = y_dict[label]
-        model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
         suffix = model_type
         loc_id = lokasi.lower().strip().replace(" ", "_")
         log_path = f"training_logs/history_{loc_id}_{label}_{suffix}.csv"
@@ -106,6 +105,12 @@ def train_and_save_model(df, lokasi, window_size=7, model_type="lstm"):
             EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
             ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1)
         ]
+        if os.path.exists(model_path):
+            model = load_model(model_path, compile=True, custom_objects={"PositionalEncoding": PositionalEncoding})
+            print(f"[INFO] Fine-tuning model {label}")
+        else:
+            model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
+            print(f"[INFO] Training baru model {label}")
         model.fit(X, y, epochs=50, batch_size=32, verbose=0, validation_split=0.2, callbacks=callbacks)
         model.save(model_path)
 
@@ -133,8 +138,6 @@ def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperatu
             top6 = avg.argsort()[-6:][::-1]
             results.append(list(top6))
             probs.append(avg[top6])
-            print(f"reault {label}", list(top6), flush=True)
-            print(f"probs {label}", list(top6), flush=True)
         except Exception as e:
             print(f"[ERROR {label}] {e}")
             return None
