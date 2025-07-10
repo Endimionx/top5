@@ -82,7 +82,7 @@ df = pd.DataFrame({"angka": angka_list})
 
 # Manajemen Model
 if metode == "LSTM AI":
-    mode_prediksi = st.selectbox("🧬 Mode Prediksi", ["soft", "rank"])
+    mode_prediksi = st.selectbox("🎯 Mode Prediksi Top6", ["confidence", "ranked", "hybrid"])
     with st.expander("⚙️ Manajemen Model"):
         lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
         digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
