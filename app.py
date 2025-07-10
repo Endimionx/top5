@@ -107,14 +107,13 @@ if metode == "LSTM AI":
                 train_and_save_model(df, selected_lokasi, model_type=model_type)
             st.success("✅ Semua model berhasil dilatih dan disimpan.")
 
-# Evaluasi Otomatis Banyak Putaran
+# Evaluasi Putaran Terbaik
 with st.expander("🧪 Evaluasi Putaran Terbaik"):
     enable_eval = st.checkbox("🔍 Uji Banyak Putaran", value=False)
     if enable_eval:
         start = st.number_input("Putaran Awal", 50, 5000, 50, step=50)
         end = st.number_input("Putaran Akhir", start + 50, 5000, 200, step=50)
         step = st.number_input("Step", 10, 500, 50)
-
         eval_hasil = []
         putaran_range = list(range(start, end + 1, step))
 
@@ -164,3 +163,79 @@ with st.expander("🧪 Evaluasi Putaran Terbaik"):
             st.success(f"🎯 Putaran terbaik: {best_row[0]} dengan akurasi {best_row[1]:.2f}%")
         else:
             st.warning("⚠️ Tidak ada hasil yang bisa dievaluasi.")
+
+# Tombol Prediksi
+if st.button("🔮 Prediksi"):
+    if len(df) < 11:
+        st.warning("❌ Minimal 11 data diperlukan.")
+    else:
+        with st.spinner("⏳ Melakukan prediksi..."):
+            result, probs = None, None
+            if metode == "Markov":
+                result, _ = top6_markov(df)
+            elif metode == "Markov Order-2":
+                result = top6_markov_order2(df)
+            elif metode == "Markov Gabungan":
+                result = top6_markov_hybrid(df)
+            elif metode == "LSTM AI":
+                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature)
+                if pred: result, probs = pred
+            elif metode == "Ensemble AI + Markov":
+                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature)
+                if pred:
+                    result, probs = pred
+                    markov_result, _ = top6_markov(df)
+                    if markov_result:
+                        ensemble = []
+                        for i in range(4):
+                            combined = result[i] + markov_result[i]
+                            freq = {x: combined.count(x) for x in set(combined)}
+                            top6 = sorted(freq.items(), key=lambda x: -x[1])[:6]
+                            ensemble.append([x[0] for x in top6])
+                        result = ensemble
+
+        digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
+
+        if result is None:
+            st.error("❌ Gagal melakukan prediksi.")
+        else:
+            with st.expander("🎯 Hasil Prediksi Top 6 Digit"):
+                col1, col2 = st.columns(2)
+                for i, label in enumerate(digit_labels):
+                    col = col1 if i < 2 else col2
+                    with col:
+                        st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
+
+            if metode in ["LSTM AI", "Ensemble AI + Markov"] and probs:
+                with st.expander("📊 Confidence Bar per Digit"):
+                    for i, label in enumerate(digit_labels):
+                        st.markdown(f"**🔢 {label}**")
+                        digit_data = pd.DataFrame({
+                            "Digit": [str(d) for d in result[i]],
+                            "Confidence": probs[i]
+                        }).sort_values(by="Confidence", ascending=True)
+                        st.bar_chart(digit_data.set_index("Digit"))
+
+            if metode in ["LSTM AI", "Ensemble AI + Markov"]:
+                with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
+                    top_komb = kombinasi_4d(df, lokasi=selected_lokasi, model_type=model_type,
+                                            top_n=10, min_conf=min_conf, power=power, mode=voting_mode)
+                    if top_komb:
+                        with st.expander("💡 Simulasi Kombinasi 4D Terbaik"):
+                            sim_col = st.columns(2)
+                            for i, (komb, score) in enumerate(top_komb):
+                                with sim_col[i % 2]:
+                                    st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
+
+        with st.expander("📊 Evaluasi Akurasi LSTM per Digit"):
+            with st.spinner("🔄 Mengevaluasi akurasi model LSTM..."):
+                acc_top1_list, acc_top6_list, top1_labels_list = evaluate_lstm_accuracy_all_digits(
+                    df, selected_lokasi, model_type=model_type
+                )
+                if acc_top1_list is not None:
+                    for i in range(4):
+                        label = digit_labels[i]
+                        top1_digit = top1_labels_list[i] if top1_labels_list and i < len(top1_labels_list) else "-"
+                        st.info(f"🎯 {label} (Digit {i+1})\nTop-1 ({top1_digit}) Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}")
+                else:
+                    st.warning("⚠️ Tidak bisa mengevaluasi akurasi. Model belum tersedia atau data tidak cukup.")
