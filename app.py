@@ -116,10 +116,13 @@ with st.expander("🧪 Evaluasi Putaran Terbaik"):
         step = st.number_input("Step", 10, 500, 50)
         eval_hasil = []
         putaran_range = list(range(start, end + 1, step))
+        progress = st.progress(0)
+        status_text = st.empty()
 
         with st.spinner("🧮 Menguji akurasi untuk berbagai jumlah putaran..."):
-            for p in putaran_range:
+            for idx, p in enumerate(putaran_range):
                 try:
+                    status_text.text(f"🔎 Evaluasi putaran ke-{p}...")
                     url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={p}&format=json&urut=asc"
                     headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
                     r = requests.get(url, headers=headers)
@@ -154,6 +157,7 @@ with st.expander("🧪 Evaluasi Putaran Terbaik"):
                         eval_hasil.append((p, akurasi))
                 except:
                     continue
+                progress.progress((idx + 1) / len(putaran_range))
 
         if eval_hasil:
             df_hasil = pd.DataFrame(eval_hasil, columns=["Putaran", "Akurasi (%)"])
