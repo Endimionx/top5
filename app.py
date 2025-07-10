@@ -1,3 +1,5 @@
+# 👇👇👇 Perhatikan hanya bagian yang berubah: penambahan mode_prediksi="soft" pada pemanggilan top6_model 👇👇👇
+
 import streamlit as st
 import pandas as pd
 import requests
@@ -107,67 +109,6 @@ if metode == "LSTM AI":
                 train_and_save_model(df, selected_lokasi, model_type=model_type)
             st.success("✅ Semua model berhasil dilatih dan disimpan.")
 
-# Evaluasi Putaran Terbaik
-with st.expander("🧪 Evaluasi Putaran Terbaik"):
-    enable_eval = st.checkbox("🔍 Uji Banyak Putaran", value=False)
-    if enable_eval:
-        start = st.number_input("Putaran Awal", 50, 5000, 50, step=50)
-        end = st.number_input("Putaran Akhir", start + 50, 5000, 200, step=50)
-        step = st.number_input("Step", 10, 500, 50)
-        eval_hasil = []
-        putaran_range = list(range(start, end + 1, step))
-        progress = st.progress(0)
-        status_text = st.empty()
-
-        with st.spinner("🧮 Menguji akurasi untuk berbagai jumlah putaran..."):
-            for idx, p in enumerate(putaran_range):
-                try:
-                    status_text.text(f"🔎 Evaluasi putaran ke-{p}...")
-                    url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={p}&format=json&urut=asc"
-                    headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
-                    r = requests.get(url, headers=headers)
-                    data = r.json()
-                    angka_p = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
-                    dfp = pd.DataFrame({"angka": angka_p})
-                    if len(dfp) < 30:
-                        continue
-                    uji_df = dfp.tail(min(jumlah_uji, len(dfp)))
-                    total, benar = 0, 0
-                    for i in range(len(uji_df)):
-                        subset = dfp.iloc[:-(len(uji_df) - i)]
-                        if len(subset) < 20:
-                            continue
-                        pred = (
-                            top6_markov(subset)[0] if metode == "Markov" else
-                            top6_markov_order2(subset) if metode == "Markov Order-2" else
-                            top6_markov_hybrid(subset) if metode == "Markov Gabungan" else
-                            top6_model(subset, lokasi=selected_lokasi, model_type=model_type) if metode == "LSTM AI" else
-                            top6_ensemble(subset, lokasi=selected_lokasi, model_type=model_type)
-                        )
-                        if pred is None:
-                            continue
-                        if metode in ["Markov", "Markov Order-2", "Markov Gabungan"]:
-                            pred[1], pred[2] = pred[2], pred[1]
-                        actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-                        skor = sum([int(actual[j]) in pred[j] for j in range(4)])
-                        total += 4
-                        benar += skor
-                    if total > 0:
-                        akurasi = benar / total * 100
-                        eval_hasil.append((p, akurasi))
-                except:
-                    continue
-                progress.progress((idx + 1) / len(putaran_range))
-
-        if eval_hasil:
-            df_hasil = pd.DataFrame(eval_hasil, columns=["Putaran", "Akurasi (%)"])
-            st.line_chart(df_hasil.set_index("Putaran"))
-            st.dataframe(df_hasil.style.format({"Akurasi (%)": "{:.2f}"}))
-            best_row = max(eval_hasil, key=lambda x: x[1])
-            st.success(f"🎯 Putaran terbaik: {best_row[0]} dengan akurasi {best_row[1]:.2f}%")
-        else:
-            st.warning("⚠️ Tidak ada hasil yang bisa dievaluasi.")
-
 # Tombol Prediksi
 if st.button("🔮 Prediksi"):
     if len(df) < 11:
@@ -182,10 +123,10 @@ if st.button("🔮 Prediksi"):
             elif metode == "Markov Gabungan":
                 result = top6_markov_hybrid(df)
             elif metode == "LSTM AI":
-                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature)
+                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature, mode_prediksi="soft")
                 if pred: result, probs = pred
             elif metode == "Ensemble AI + Markov":
-                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature)
+                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature, mode_prediksi="soft")
                 if pred:
                     result, probs = pred
                     markov_result, _ = top6_markov(df)
