@@ -124,10 +124,10 @@ if st.button("🔮 Prediksi"):
             elif metode == "Markov Gabungan":
                 result = top6_markov_hybrid(df)
             elif metode == "LSTM AI":
-                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature, mode_prediksi="soft")
+                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature, mode_prediksi=mode_prediksi)
                 if pred: result, probs = pred
             elif metode == "Ensemble AI + Markov":
-                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature, mode_prediksi="soft")
+                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature, mode_prediksi=mode_prediksi)
                 if pred:
                     result, probs = pred
                     markov_result, _ = top6_markov(df)
