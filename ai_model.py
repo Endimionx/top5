@@ -113,7 +113,6 @@ def build_gru_model(input_len, embed_dim=32, gru_units=128, temperature=0.5):
     return model
 
 def train_and_save_model(df, lokasi, model_type="lstm", window_size=7):
-def train_and_save_model(df, lokasi, model_type="lstm", window_size=7):
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
 
