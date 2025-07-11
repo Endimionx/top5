@@ -34,7 +34,6 @@ st.title("🔮 Prediksi 4D - AI & Markov")
 # Sidebar
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
-model_type = "lstm"
 
 with st.sidebar:
     st.header("⚙️ Pengaturan")
@@ -86,6 +85,7 @@ if metode == "LSTM AI":
     with st.expander("⚙️ Manajemen Model"):
         lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
         digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
+
         for i, label in enumerate(digit_labels):
             model_path = f"saved_models/{lokasi_id}_{label}_{model_type}.h5"
             col1, col2, col3 = st.columns([2, 1, 1])
@@ -105,21 +105,24 @@ if metode == "LSTM AI":
                     if st.button(f"🧹 Hapus Log {label.upper()}", key=f"hapus_log_{label}"):
                         os.remove(log_path)
                         st.info(f"🧾 Log training {label.upper()} dihapus.")
-        if st.button("📑 Tampilkan Training Logs"):
+
+        show_logs = st.checkbox("📑 Tampilkan Training Logs")
+        if show_logs:
             with st.expander("🧾 Detail Training Logs"):
-                for i, label in enumerate(digit_labels):
+                for label in digit_labels:
                     log_path = f"training_logs/history_{lokasi_id}_{label}_{model_type}.csv"
                     type_path = f"training_logs/best_model_type_{lokasi_id}_{label}.txt"
                     st.markdown(f"### 📌 {label.upper()}")
                     if os.path.exists(log_path):
                         df_log = pd.read_csv(log_path)
-                        st.dataframe(df_log.tail(10))  # tampilkan 10 terakhir
+                        st.dataframe(df_log.tail(10))
                     else:
                         st.warning(f"Log belum tersedia untuk {label}")
                     if os.path.exists(type_path):
                         with open(type_path) as f:
                             info = f.read().strip()
                         st.info(f"Model terbaik: `{info}`")
+
         if st.button("📚 Latih & Simpan Semua Model"):
             with st.spinner(f"🔄 Melatih semua model per digit ({model_type})..."):
                 train_and_save_model(df, selected_lokasi, model_type=model_type, window_size=window_size)
@@ -139,10 +142,12 @@ if st.button("🔮 Prediksi"):
             elif metode == "Markov Gabungan":
                 result = top6_markov_hybrid(df)
             elif metode == "LSTM AI":
-                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature, mode_prediksi=mode_prediksi, window_size=window_size)
+                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True,
+                                  temperature=temperature, mode_prediksi=mode_prediksi, window_size=window_size)
                 if pred: result, probs = pred
             elif metode == "Ensemble AI + Markov":
-                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature, mode_prediksi=mode_prediksi, window_size=window_size)
+                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True,
+                                  temperature=temperature, mode_prediksi=mode_prediksi, window_size=window_size)
                 if pred:
                     result, probs = pred
                     markov_result, _ = top6_markov(df)
