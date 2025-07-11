@@ -113,51 +113,95 @@ def build_gru_model(input_len, embed_dim=32, gru_units=128, temperature=0.5):
     return model
 
 def train_and_save_model(df, lokasi, model_type="lstm", window_size=7):
+def train_and_save_model(df, lokasi, model_type="lstm", window_size=7):
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
+
     X, y_dict = preprocess_data(df, window_size=window_size)
     if X.shape[0] == 0:
+        print("[ERROR] Data tidak cukup untuk pelatihan.")
         return
+
     loc_id = lokasi.lower().strip().replace(" ", "_")
+
+    def build_gru_model(input_len, embed_dim=32, gru_units=128, temperature=0.5):
+        inputs = Input(shape=(input_len,))
+        x = Embedding(input_dim=10, output_dim=embed_dim)(inputs)
+        x = PositionalEncoding()(x)
+        x = Bidirectional(tf.keras.layers.GRU(gru_units, return_sequences=True))(x)
+        x = LayerNormalization()(x)
+        x = Dropout(0.3)(x)
+        x = Bidirectional(tf.keras.layers.GRU(gru_units, return_sequences=True))(x)
+        x = LayerNormalization()(x)
+        x = GlobalAveragePooling1D()(x)
+        skip = x
+        x = Dense(256, activation='relu')(x)
+        x = Dropout(0.2)(x)
+        x = Dense(128, activation='relu')(x)
+        x = tf.keras.layers.Add()([x, skip])
+        logits = Dense(10)(x)
+        outputs = tf.keras.layers.Activation('softmax')(logits / temperature)
+        model = Model(inputs, outputs)
+        model.compile(optimizer="adam", loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1), metrics=["accuracy"])
+        return model
+
+    def try_model(build_fn, label, name):
+        try:
+            print(f"[INFO] Training {name} model untuk {label}...")
+            model = build_fn(X.shape[1])
+            history = model.fit(
+                X, y_dict[label],
+                epochs=30, batch_size=32,
+                validation_split=0.2, verbose=0
+            )
+            val_acc = max(history.history['val_accuracy'])
+            return model, val_acc
+        except Exception as e:
+            print(f"[ERROR] Model {name} gagal dilatih untuk {label}: {e}")
+            return None, 0.0
+
     candidates = [
-        ("LSTM", lambda input_len: build_lstm_model(input_len)),
-        ("Transformer", lambda input_len: build_transformer_model(input_len)),
-        ("GRU", lambda input_len: build_gru_model(input_len)),
+        ("LSTM", lambda input_len: build_lstm_model(input_len, lstm_units=128)),
+        ("Transformer", lambda input_len: build_transformer_model(input_len, heads=4)),
+        ("GRU", lambda input_len: build_gru_model(input_len, gru_units=128)),
     ]
+
     for label in DIGIT_LABELS:
-        best_model, best_score, best_name = None, 0.0, ""
+        best_model = None
+        best_score = 0.0
+        best_name = ""
+
         for name, fn in candidates:
-            try:
-                model = fn(X.shape[1])
-                history = model.fit(
-                    X, y_dict[label],
-                    epochs=30, batch_size=32,
-                    validation_split=0.2, verbose=0
-                )
-                val_acc = max(history.history['val_accuracy'])
-                if val_acc > best_score:
-                    best_model, best_score, best_name = model, val_acc, name
-            except Exception as e:
-                print(f"[ERROR] {label} {name}: {e}")
+            model, val_acc = try_model(fn, label, name)
+            if val_acc > best_score:
+                best_model = model
+                best_score = val_acc
+                best_name = name
+
         if best_model:
             model_path = f"saved_models/{loc_id}_{label}_{model_type}.h5"
             log_path = f"training_logs/history_{loc_id}_{label}_{model_type}.csv"
             type_path = f"training_logs/best_model_type_{loc_id}_{label}.txt"
-            best_model.fit(
-                X, y_dict[label],
-                epochs=50, batch_size=32,
-                validation_split=0.2,
-                callbacks=[
-                    CSVLogger(log_path),
-                    EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
-                    ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3)
-                ],
-                verbose=0
-            )
-            best_model.save(model_path)
-            with open(type_path, "w") as f:
-                f.write(f"{best_name}\t{best_score:.4f}")
 
+            try:
+                best_model.fit(
+                    X, y_dict[label],
+                    epochs=50, batch_size=32,
+                    validation_split=0.2,
+                    callbacks=[
+                        CSVLogger(log_path),
+                        EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
+                        ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3)
+                    ],
+                    verbose=0
+                )
+                best_model.save(model_path)
+                with open(type_path, "w") as f:
+                    f.write(f"{best_name}\t{best_score:.4f}")
+                print(f"[✅] Model {label.upper()} ({best_name}) berhasil disimpan.")
+            except Exception as e:
+                print(f"[ERROR] Gagal menyimpan model {label}: {e}")
+                
 def model_exists(lokasi, model_type="lstm"):
     loc_id = lokasi.lower().strip().replace(" ", "_")
     return all(os.path.exists(f"saved_models/{loc_id}_{label}_{model_type}.h5") for label in DIGIT_LABELS)
