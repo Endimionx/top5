@@ -222,3 +222,38 @@ def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperatu
         results.append(top6)
         probs.append([avg[d] for d in top6])
     return (results, probs) if return_probs else results
+    
+
+def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power=1.5, mode='product', window_size=7, mode_prediksi="hybrid"):
+    result, probs = top6_model(
+        df,
+        lokasi=lokasi,
+        model_type=model_type,
+        return_probs=True,
+        window_size=window_size,
+        mode_prediksi=mode_prediksi
+    )
+
+    if result is None or probs is None:
+        print("[WARNING] kombinasi_4d: result or probs is None.")
+        return []
+
+    combinations = list(product(*result))
+    scores = []
+
+    for combo in combinations:
+        try:
+            digit_scores = [
+                probs[i][result[i].index(combo[i])] ** power
+                for i in range(4)
+            ]
+        except Exception as e:
+            print(f"[WARNING] Skip combo {combo}: {e}")
+            continue
+
+        score = np.prod(digit_scores) if mode == 'product' else np.mean(digit_scores)
+        if score >= min_conf:
+            scores.append(("".join(map(str, combo)), score))
+
+    sorted_scores = sorted(scores, key=lambda x: -x[1])[:top_n]
+    return sorted_scores
