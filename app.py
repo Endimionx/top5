@@ -86,12 +86,17 @@ if metode == "LSTM AI":
         lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
         digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
 
-        for i, label in enumerate(digit_labels):
+        for label in digit_labels:
+            best_model_type_path = f"training_logs/best_model_type_{lokasi_id}_{label}.txt"
+            model_type_used = model_type
+            if os.path.exists(best_model_type_path):
+                with open(best_model_type_path) as f:
+                    model_type_used = f.read().strip().split("\t")[0].lower()
             model_path = f"saved_models/{lokasi_id}_{label}_{model_type}.h5"
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
                 if os.path.exists(model_path):
-                    st.info(f"📂 Model {label.upper()} tersedia ({model_type}).")
+                    st.info(f"📂 Model {label.upper()} tersedia ({model_type_used}).")
                 else:
                     st.warning(f"⚠️ Model {label.upper()} belum tersedia.")
             with col2:
@@ -146,19 +151,9 @@ if st.button("🔮 Prediksi"):
                                   temperature=temperature, mode_prediksi=mode_prediksi, window_size=window_size)
                 if pred: result, probs = pred
             elif metode == "Ensemble AI + Markov":
-                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True,
-                                  temperature=temperature, mode_prediksi=mode_prediksi, window_size=window_size)
-                if pred:
-                    result, probs = pred
-                    markov_result, _ = top6_markov(df)
-                    if markov_result:
-                        ensemble = []
-                        for i in range(4):
-                            combined = result[i] + markov_result[i]
-                            freq = {x: combined.count(x) for x in set(combined)}
-                            top6 = sorted(freq.items(), key=lambda x: -x[1])[:6]
-                            ensemble.append([x[0] for x in top6])
-                        result = ensemble
+                result = top6_ensemble(df, lokasi=selected_lokasi, model_type=model_type,
+                                       lstm_weight=0.6, markov_weight=0.4,
+                                       window_size=window_size, mode_prediksi=mode_prediksi)
 
         digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
 
