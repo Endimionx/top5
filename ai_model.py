@@ -63,7 +63,7 @@ def build_lstm_model(input_len, embed_dim=32, lstm_units=128, attention_heads=4,
     x = Dense(256, activation='relu')(x)
     x = Dropout(0.2)(x)
     x = Dense(128, activation='relu')(x)
-    x = tf.keras.layers.Add()([x, skip])  # residual connection
+    x = tf.keras.layers.Add()([x, skip])
     logits = Dense(10)(x)
     outputs = tf.keras.layers.Activation('softmax')(logits / temperature)
     model = Model(inputs, outputs)
@@ -91,75 +91,58 @@ def build_transformer_model(input_len, embed_dim=32, heads=4, temperature=0.5):
     model.compile(optimizer="adam", loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1), metrics=["accuracy"])
     return model
 
+def build_gru_model(input_len, embed_dim=32, gru_units=128, temperature=0.5):
+    inputs = Input(shape=(input_len,))
+    x = Embedding(input_dim=10, output_dim=embed_dim)(inputs)
+    x = PositionalEncoding()(x)
+    x = Bidirectional(tf.keras.layers.GRU(gru_units, return_sequences=True))(x)
+    x = LayerNormalization()(x)
+    x = Dropout(0.3)(x)
+    x = Bidirectional(tf.keras.layers.GRU(gru_units, return_sequences=True))(x)
+    x = LayerNormalization()(x)
+    x = GlobalAveragePooling1D()(x)
+    skip = x
+    x = Dense(256, activation='relu')(x)
+    x = Dropout(0.2)(x)
+    x = Dense(128, activation='relu')(x)
+    x = tf.keras.layers.Add()([x, skip])
+    logits = Dense(10)(x)
+    outputs = tf.keras.layers.Activation('softmax')(logits / temperature)
+    model = Model(inputs, outputs)
+    model.compile(optimizer="adam", loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1), metrics=["accuracy"])
+    return model
+
 def train_and_save_model(df, lokasi, model_type="lstm", window_size=7):
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
-
     X, y_dict = preprocess_data(df, window_size=window_size)
     if X.shape[0] == 0:
         return
-
     loc_id = lokasi.lower().strip().replace(" ", "_")
-
-    def try_model(build_fn, label, model_name):
-        try:
-            model = build_fn(X.shape[1])
-            history = model.fit(
-                X, y_dict[label],
-                epochs=30, batch_size=32,
-                validation_split=0.2, verbose=0
-            )
-            val_acc = max(history.history['val_accuracy'])
-            return model, val_acc
-        except Exception as e:
-            print(f"[ERROR model {model_name} - {label}]: {e}")
-            return None, 0.0
-
-    def build_gru_model(input_len, embed_dim=32, gru_units=128, temperature=0.5):
-        inputs = Input(shape=(input_len,))
-        x = Embedding(input_dim=10, output_dim=embed_dim)(inputs)
-        x = PositionalEncoding()(x)
-        x = Bidirectional(tf.keras.layers.GRU(gru_units, return_sequences=True))(x)
-        x = LayerNormalization()(x)
-        x = Dropout(0.3)(x)
-        x = Bidirectional(tf.keras.layers.GRU(gru_units, return_sequences=True))(x)
-        x = LayerNormalization()(x)
-        x = GlobalAveragePooling1D()(x)
-        skip = x
-        x = Dense(256, activation='relu')(x)
-        x = Dropout(0.2)(x)
-        x = Dense(128, activation='relu')(x)
-        x = tf.keras.layers.Add()([x, skip])
-        logits = Dense(10)(x)
-        outputs = tf.keras.layers.Activation('softmax')(logits / temperature)
-        model = Model(inputs, outputs)
-        model.compile(optimizer="adam", loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1), metrics=["accuracy"])
-        return model
-
     candidates = [
-        ("LSTM", lambda input_len: build_lstm_model(input_len, lstm_units=128)),
-        ("Transformer", lambda input_len: build_transformer_model(input_len, heads=4)),
-        ("GRU", lambda input_len: build_gru_model(input_len, gru_units=128)),
+        ("LSTM", lambda input_len: build_lstm_model(input_len)),
+        ("Transformer", lambda input_len: build_transformer_model(input_len)),
+        ("GRU", lambda input_len: build_gru_model(input_len)),
     ]
-
     for label in DIGIT_LABELS:
-        best_model = None
-        best_score = 0.0
-        best_name = ""
-
+        best_model, best_score, best_name = None, 0.0, ""
         for name, fn in candidates:
-            model, val_acc = try_model(fn, label, name)
-            if val_acc > best_score:
-                best_score = val_acc
-                best_model = model
-                best_name = name
-
+            try:
+                model = fn(X.shape[1])
+                history = model.fit(
+                    X, y_dict[label],
+                    epochs=30, batch_size=32,
+                    validation_split=0.2, verbose=0
+                )
+                val_acc = max(history.history['val_accuracy'])
+                if val_acc > best_score:
+                    best_model, best_score, best_name = model, val_acc, name
+            except Exception as e:
+                print(f"[ERROR] {label} {name}: {e}")
         if best_model:
-            print(f"[INFO] Model terbaik untuk {label}: {best_name} ({best_score:.4f})")
             model_path = f"saved_models/{loc_id}_{label}_{model_type}.h5"
             log_path = f"training_logs/history_{loc_id}_{label}_{model_type}.csv"
             type_path = f"training_logs/best_model_type_{loc_id}_{label}.txt"
-
             best_model.fit(
                 X, y_dict[label],
                 epochs=50, batch_size=32,
@@ -172,9 +155,9 @@ def train_and_save_model(df, lokasi, model_type="lstm", window_size=7):
                 verbose=0
             )
             best_model.save(model_path)
-
             with open(type_path, "w") as f:
                 f.write(f"{best_name}\t{best_score:.4f}")
+
 def model_exists(lokasi, model_type="lstm"):
     loc_id = lokasi.lower().strip().replace(" ", "_")
     return all(os.path.exists(f"saved_models/{loc_id}_{label}_{model_type}.h5") for label in DIGIT_LABELS)
@@ -185,31 +168,27 @@ def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperatu
         return None
     results, probs = [], []
     loc_id = lokasi.lower().replace(" ", "_")
-    
     for label in DIGIT_LABELS:
         path = f"saved_models/{loc_id}_{label}_{model_type}.h5"
         if not os.path.exists(path):
             return None
-        try:
-            model = load_model(path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
-            if model.input_shape[1] != X.shape[1]:
-                return None
-            pred = model.predict(X, verbose=0)
-            avg = np.mean(pred, axis=0)
-            avg /= np.sum(avg)
-            if mode_prediksi == "confidence":
-                top6 = avg.argsort()[-6:][::-1]
-            elif mode_prediksi == "ranked":
-                score_dict = {i: (1.0 / (1 + rank)) for rank, i in enumerate(avg.argsort()[::-1])}
-                top6 = [d for d, _ in sorted(score_dict.items(), key=lambda x: -x[1])[:6]]
-            else:  # hybrid
-                score_dict = {i: avg[i] * (1.0 / (1 + rank)) for rank, i in enumerate(avg.argsort()[::-1])}
-                sorted_scores = sorted(score_dict.items(), key=lambda x: -x[1])
-                top6 = [d for d, score in sorted_scores if avg[d] >= threshold][:6]
-            results.append(top6)
-            probs.append([avg[d] for d in top6])
-        except:
+        model = load_model(path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
+        if model.input_shape[1] != X.shape[1]:
             return None
+        pred = model.predict(X, verbose=0)
+        avg = np.mean(pred, axis=0)
+        avg /= np.sum(avg)
+        if mode_prediksi == "confidence":
+            top6 = avg.argsort()[-6:][::-1]
+        elif mode_prediksi == "ranked":
+            score_dict = {i: (1.0 / (1 + rank)) for rank, i in enumerate(avg.argsort()[::-1])}
+            top6 = [d for d, _ in sorted(score_dict.items(), key=lambda x: -x[1])[:6]]
+        else:
+            score_dict = {i: avg[i] * (1.0 / (1 + rank)) for rank, i in enumerate(avg.argsort()[::-1])}
+            sorted_scores = sorted(score_dict.items(), key=lambda x: -x[1])
+            top6 = [d for d, score in sorted_scores if avg[d] >= threshold][:6]
+        results.append(top6)
+        probs.append([avg[d] for d in top6])
     return (results, probs) if return_probs else results
 
 def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power=1.5, mode='product', window_size=7, mode_prediksi="hybrid"):
