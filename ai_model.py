@@ -123,40 +123,34 @@ def train_and_save_model(df, lokasi, model_type="lstm", window_size=7):
 
     loc_id = lokasi.lower().strip().replace(" ", "_")
 
-    def try_model(build_fn, label, name):
-        try:
-            print(f"[INFO] Training {name} untuk {label}...")
-            model = build_fn(X.shape[1])
-            history = model.fit(
-                X, y_dict[label],
-                epochs=30, batch_size=32,
-                validation_split=0.2, verbose=0
-            )
-            val_acc = max(history.history['val_accuracy'])
-            return model, val_acc
-        except Exception as e:
-            print(f"[ERROR] Model {name} gagal dilatih untuk {label}: {e}")
-            return None, 0.0
-
     candidates = [
-        ("lstm", lambda input_len: build_lstm_model(input_len)),
-        ("transformer", lambda input_len: build_transformer_model(input_len)),
-        ("gru", lambda input_len: build_gru_model(input_len)),
+        ("LSTM", lambda input_len: build_lstm_model(input_len)),
+        ("Transformer", lambda input_len: build_transformer_model(input_len)),
+        ("GRU", lambda input_len: build_gru_model(input_len)),
     ]
 
     for label in DIGIT_LABELS:
         best_model, best_score, best_name = None, 0.0, ""
         for name, fn in candidates:
-            model, val_acc = try_model(fn, label, name)
-            if val_acc > best_score:
-                best_model, best_score, best_name = model, val_acc, name
+            try:
+                model = fn(X.shape[1])
+                history = model.fit(
+                    X, y_dict[label],
+                    epochs=30, batch_size=32,
+                    validation_split=0.2, verbose=0
+                )
+                val_acc = max(history.history['val_accuracy'])
+                if val_acc > best_score:
+                    best_model, best_score, best_name = model, val_acc, name
+            except Exception as e:
+                print(f"[ERROR] Gagal melatih model {name} untuk {label}: {e}")
 
         if best_model:
-            model_path = f"saved_models/{loc_id}_{label}_{best_name}.h5"
-            log_path = f"training_logs/history_{loc_id}_{label}_{best_name}.csv"
-            type_path = f"training_logs/best_model_type_{loc_id}_{label}.txt"
-
             try:
+                model_path = f"saved_models/{loc_id}_{label}_{model_type}.h5"
+                log_path = f"training_logs/history_{loc_id}_{label}_{model_type}.csv"
+                type_path = f"training_logs/best_model_type_{loc_id}_{label}.txt"
+
                 best_model.fit(
                     X, y_dict[label],
                     epochs=50, batch_size=32,
@@ -171,22 +165,13 @@ def train_and_save_model(df, lokasi, model_type="lstm", window_size=7):
                 best_model.save(model_path)
                 with open(type_path, "w") as f:
                     f.write(f"{best_name}\t{best_score:.4f}")
-                print(f"[✅] Model {label.upper()} ({best_name}) disimpan.")
+                print(f"[✅] Model {label.upper()} ({best_name}) berhasil disimpan.")
             except Exception as e:
-                print(f"[ERROR] Gagal simpan model {label}: {e}")
+                print(f"[ERROR] Gagal menyimpan model {label}: {e}")
 
 def model_exists(lokasi, model_type="lstm"):
     loc_id = lokasi.lower().strip().replace(" ", "_")
-    for label in DIGIT_LABELS:
-        type_path = f"training_logs/best_model_type_{loc_id}_{label}.txt"
-        if not os.path.exists(type_path):
-            return False
-        with open(type_path) as f:
-            best_type = f.read().split("\t")[0].strip()
-        path = f"saved_models/{loc_id}_{label}_{best_type}.h5"
-        if not os.path.exists(path):
-            return False
-    return True
+    return all(os.path.exists(f"saved_models/{loc_id}_{label}_{model_type}.h5") for label in DIGIT_LABELS)
 
 def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperature=0.5, window_size=7, mode_prediksi="hybrid", threshold=0.001):
     X, _ = preprocess_data(df, window_size=window_size)
@@ -195,13 +180,7 @@ def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperatu
     results, probs = [], []
     loc_id = lokasi.lower().replace(" ", "_")
     for label in DIGIT_LABELS:
-        type_path = f"training_logs/best_model_type_{loc_id}_{label}.txt"
-        if os.path.exists(type_path):
-            with open(type_path) as f:
-                best_type = f.read().split("\t")[0].strip()
-        else:
-            best_type = model_type
-        path = f"saved_models/{loc_id}_{label}_{best_type}.h5"
+        path = f"saved_models/{loc_id}_{label}_{model_type}.h5"
         if not os.path.exists(path):
             return None
         model = load_model(path, compile=False, custom_objects={"PositionalEncoding": PositionalEncoding})
@@ -222,38 +201,70 @@ def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperatu
         results.append(top6)
         probs.append([avg[d] for d in top6])
     return (results, probs) if return_probs else results
-    
 
 def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power=1.5, mode='product', window_size=7, mode_prediksi="hybrid"):
-    result, probs = top6_model(
-        df,
-        lokasi=lokasi,
-        model_type=model_type,
-        return_probs=True,
-        window_size=window_size,
-        mode_prediksi=mode_prediksi
-    )
-
+    result, probs = top6_model(df, lokasi=lokasi, model_type=model_type, return_probs=True, window_size=window_size, mode_prediksi=mode_prediksi)
     if result is None or probs is None:
-        print("[WARNING] kombinasi_4d: result or probs is None.")
         return []
-
     combinations = list(product(*result))
     scores = []
-
     for combo in combinations:
         try:
-            digit_scores = [
-                probs[i][result[i].index(combo[i])] ** power
-                for i in range(4)
-            ]
-        except Exception as e:
-            print(f"[WARNING] Skip combo {combo}: {e}")
+            digit_scores = [probs[i][result[i].index(combo[i])] ** power for i in range(4)]
+        except:
             continue
-
         score = np.prod(digit_scores) if mode == 'product' else np.mean(digit_scores)
         if score >= min_conf:
             scores.append(("".join(map(str, combo)), score))
+    return sorted(scores, key=lambda x: -x[1])[:top_n]
 
-    sorted_scores = sorted(scores, key=lambda x: -x[1])[:top_n]
-    return sorted_scores
+def top6_ensemble(df, lokasi, model_type="lstm", lstm_weight=0.6, markov_weight=0.4, window_size=7, mode_prediksi="hybrid"):
+    lstm_result, lstm_probs = top6_model(df, lokasi=lokasi, model_type=model_type, return_probs=True, window_size=window_size, mode_prediksi=mode_prediksi)
+    markov_result, _ = top6_markov(df)
+    if lstm_result is None or markov_result is None:
+        return None
+    ensemble = []
+    for i in range(4):
+        combined_digits = set(lstm_result[i] + markov_result[i])
+        scores = {}
+        for digit in combined_digits:
+            lstm_score = lstm_weight * lstm_probs[i][lstm_result[i].index(digit)] if digit in lstm_result[i] else 0
+            markov_score = markov_weight * (1.0 / (1 + markov_result[i].index(digit))) if digit in markov_result[i] else 0
+            scores[digit] = lstm_score + markov_score
+        top6 = sorted(scores.items(), key=lambda x: -x[1])[:6]
+        ensemble.append([d for d, _ in top6])
+    return ensemble
+
+def evaluate_top6_accuracy(model, X, y_true):
+    pred = model.predict(X, verbose=0)
+    top6 = np.argsort(pred, axis=1)[:, -6:]
+    true_labels = np.argmax(y_true, axis=1)
+    correct = sum([true_labels[i] in top6[i] for i in range(len(true_labels))])
+    return correct / len(true_labels)
+
+def evaluate_lstm_accuracy_all_digits(df, lokasi, model_type="lstm", window_size=7):
+    X, y_dict = preprocess_data(df, window_size=window_size)
+    if X.shape[0] == 0:
+        return None, None, None
+    acc_top1_list, acc_top6_list, label_accuracy_list = [], [], []
+    loc_id = lokasi.lower().strip().replace(" ", "_")
+    for label in DIGIT_LABELS:
+        path = f"saved_models/{loc_id}_{label}_{model_type}.h5"
+        if not os.path.exists(path):
+            return None, None, None
+        model = load_model(path, compile=True, custom_objects={"PositionalEncoding": PositionalEncoding})
+        if model.input_shape[1] != X.shape[1]:
+            return None, None, None
+        y_true = y_dict[label]
+        acc_top1 = model.evaluate(X, y_true, verbose=0)[1]
+        acc_top6 = evaluate_top6_accuracy(model, X, y_true)
+        acc_top1_list.append(acc_top1)
+        acc_top6_list.append(acc_top6)
+        y_true_labels = np.argmax(y_true, axis=1)
+        y_pred_labels = np.argmax(model.predict(X, verbose=0), axis=1)
+        label_acc = {}
+        for d in range(10):
+            idx = np.where(y_true_labels == d)[0]
+            label_acc[d] = np.mean(y_pred_labels[idx] == d) if len(idx) > 0 else None
+        label_accuracy_list.append(label_acc)
+    return acc_top1_list, acc_top6_list, label_accuracy_list
