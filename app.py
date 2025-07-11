@@ -1,5 +1,3 @@
-# 👇👇👇 Perhatikan hanya bagian yang berubah: penambahan mode_prediksi="soft" pada pemanggilan top6_model 👇👇👇
-
 import streamlit as st
 import pandas as pd
 import requests
@@ -51,8 +49,10 @@ with st.sidebar:
     temperature = 0.5
     voting_mode = "product"
     model_type = "lstm"
+    window_size = 7
 
     if metode in ["LSTM AI", "Ensemble AI + Markov"]:
+        window_size = st.slider("🪟 Window Size", 5, 10, 7)
         min_conf = st.slider("🔎 Minimum Confidence", 0.0001, 0.01, 0.0005, step=0.0001, format="%.4f")
         power = st.slider("📈 Confidence Power", 0.5, 3.0, 1.5, step=0.1)
         temperature = st.slider("🌡️ Temperature Scaling", 0.1, 2.0, 0.5, step=0.1)
@@ -107,7 +107,7 @@ if metode == "LSTM AI":
                         st.info(f"🧾 Log training {label.upper()} dihapus.")
         if st.button("📚 Latih & Simpan Semua Model"):
             with st.spinner(f"🔄 Melatih semua model per digit ({model_type})..."):
-                train_and_save_model(df, selected_lokasi, model_type=model_type)
+                train_and_save_model(df, selected_lokasi, model_type=model_type, window_size=window_size)
             st.success("✅ Semua model berhasil dilatih dan disimpan.")
 
 # Tombol Prediksi
@@ -124,10 +124,10 @@ if st.button("🔮 Prediksi"):
             elif metode == "Markov Gabungan":
                 result = top6_markov_hybrid(df)
             elif metode == "LSTM AI":
-                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature, mode_prediksi=mode_prediksi)
+                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature, mode_prediksi=mode_prediksi, window_size=window_size)
                 if pred: result, probs = pred
             elif metode == "Ensemble AI + Markov":
-                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature, mode_prediksi=mode_prediksi)
+                pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True, temperature=temperature, mode_prediksi=mode_prediksi, window_size=window_size)
                 if pred:
                     result, probs = pred
                     markov_result, _ = top6_markov(df)
@@ -165,7 +165,8 @@ if st.button("🔮 Prediksi"):
             if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
                     top_komb = kombinasi_4d(df, lokasi=selected_lokasi, model_type=model_type,
-                                            top_n=10, min_conf=min_conf, power=power, mode=voting_mode)
+                                            top_n=10, min_conf=min_conf, power=power, mode=voting_mode,
+                                            window_size=window_size, mode_prediksi=mode_prediksi)
                     if top_komb:
                         with st.expander("💡 Simulasi Kombinasi 4D Terbaik"):
                             sim_col = st.columns(2)
@@ -176,7 +177,7 @@ if st.button("🔮 Prediksi"):
         with st.expander("📊 Evaluasi Akurasi LSTM per Digit"):
             with st.spinner("🔄 Mengevaluasi akurasi model LSTM..."):
                 acc_top1_list, acc_top6_list, top1_labels_list = evaluate_lstm_accuracy_all_digits(
-                    df, selected_lokasi, model_type=model_type
+                    df, selected_lokasi, model_type=model_type, window_size=window_size
                 )
                 if acc_top1_list is not None:
                     for i in range(4):
@@ -185,58 +186,3 @@ if st.button("🔮 Prediksi"):
                         st.info(f"🎯 {label} (Digit {i+1})\nTop-1 ({top1_digit}) Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}")
                 else:
                     st.warning("⚠️ Tidak bisa mengevaluasi akurasi. Model belum tersedia atau data tidak cukup.")
-        with st.spinner("📏 Menghitung akurasi..."):
-            uji_df = df.tail(min(jumlah_uji, len(df)))
-            total, benar = 0, 0
-            akurasi_list = []
-            digit_acc = {k: [] for k in digit_labels}
-
-            for i in range(len(uji_df)):
-                subset_df = df.iloc[:-(len(uji_df) - i)]
-                if len(subset_df) < 20:
-                    continue
-                try:
-                    pred = (
-                        top6_markov(subset_df)[0] if metode == "Markov" else
-                        top6_markov_order2(subset_df) if metode == "Markov Order-2" else
-                        top6_markov_hybrid(subset_df) if metode == "Markov Gabungan" else
-                        top6_model(subset_df, lokasi=selected_lokasi, model_type=model_type) if metode == "LSTM AI" else
-                        top6_ensemble(subset_df, lokasi=selected_lokasi, model_type=model_type)
-                    )
-                    if pred is None:
-                        continue
-                    if metode in ["Markov", "Markov Order-2", "Markov Gabungan"]:
-                        pred[1], pred[2] = pred[2], pred[1]
-                    actual = f"{int(uji_df.iloc[i]['angka']):04d}"
-                    skor = 0
-                    for j, label in enumerate(digit_labels):
-                        if int(actual[j]) in pred[j]:
-                            skor += 1
-                            digit_acc[label].append(1)
-                        else:
-                            digit_acc[label].append(0)
-                    total += 4
-                    benar += skor
-                    akurasi_list.append(skor / 4 * 100)
-                except:
-                    continue
-
-            if total > 0:
-                st.success(f"📈 Akurasi {metode}: {benar / total * 100:.2f}%")
-                with st.expander("📊 Grafik Akurasi"):
-                    st.line_chart(pd.DataFrame({"Akurasi (%)": akurasi_list}))
-                with st.expander("🔥 Heatmap Akurasi per Digit"):
-                    heat_df = pd.DataFrame({
-                        k: [sum(v) / len(v) * 100 if v else 0]
-                        for k, v in digit_acc.items()
-                    })
-                    fig, ax = plt.subplots()
-                    sns.heatmap(heat_df, annot=True, fmt=".1f", cmap="YlGnBu", ax=ax)
-                    st.pyplot(fig)
-                st.markdown("### 🧠 Akurasi Top-1 per Digit")
-                akurasi_digit_1 = {
-                    k: f"{sum(v)/len(v)*100:.2f}%" if v else "0.00%" for k, v in digit_acc.items()
-                }
-                st.table(pd.DataFrame(akurasi_digit_1.items(), columns=["Digit", "Top-1 Akurasi"]))
-            else:
-                st.warning("⚠️ Tidak cukup data untuk evaluasi akurasi.")
