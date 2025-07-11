@@ -105,6 +105,21 @@ if metode == "LSTM AI":
                     if st.button(f"🧹 Hapus Log {label.upper()}", key=f"hapus_log_{label}"):
                         os.remove(log_path)
                         st.info(f"🧾 Log training {label.upper()} dihapus.")
+        if st.button("📑 Tampilkan Training Logs"):
+            with st.expander("🧾 Detail Training Logs"):
+                for i, label in enumerate(digit_labels):
+                    log_path = f"training_logs/history_{lokasi_id}_{label}_{model_type}.csv"
+                    type_path = f"training_logs/best_model_type_{lokasi_id}_{label}.txt"
+                    st.markdown(f"### 📌 {label.upper()}")
+                    if os.path.exists(log_path):
+                        df_log = pd.read_csv(log_path)
+                        st.dataframe(df_log.tail(10))  # tampilkan 10 terakhir
+                    else:
+                        st.warning(f"Log belum tersedia untuk {label}")
+                    if os.path.exists(type_path):
+                        with open(type_path) as f:
+                            info = f.read().strip()
+                        st.info(f"Model terbaik: `{info}`")
         if st.button("📚 Latih & Simpan Semua Model"):
             with st.spinner(f"🔄 Melatih semua model per digit ({model_type})..."):
                 train_and_save_model(df, selected_lokasi, model_type=model_type, window_size=window_size)
