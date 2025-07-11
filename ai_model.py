@@ -154,6 +154,11 @@ def train_and_save_model(df, lokasi, model_type="lstm", window_size=7):
                 f.write(f"{best_name}\t{best_score:.4f}")
             print(f"[✅] {label.upper()} ({best_name}) disimpan.")
 
+def model_exists(lokasi, model_type="lstm"):
+    loc_id = lokasi.lower().strip().replace(" ", "_")
+    return all(os.path.exists(f"saved_models/{loc_id}_{label}_{model_type}.h5") for label in DIGIT_LABELS)
+
+
 def top6_model(df, lokasi, model_type="lstm", return_probs=False, temperature=0.5, window_size=7, mode_prediksi="hybrid", threshold=0.001):
     X, _ = preprocess_data(df, window_size=window_size)
     if X.shape[0] == 0:
