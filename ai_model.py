@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.layers import (
-    Input, Embedding, Bidirectional, LSTM, Dropout, Dense,
+    Input, Embedding, Bidirectional, LSTM, GRU, Dropout, Dense,
     LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
 )
 from tensorflow.keras.callbacks import CSVLogger, EarlyStopping, ReduceLROnPlateau
@@ -95,10 +95,10 @@ def build_gru_model(input_len, embed_dim=32, gru_units=128, temperature=0.5):
     inputs = Input(shape=(input_len,))
     x = Embedding(input_dim=10, output_dim=embed_dim)(inputs)
     x = PositionalEncoding()(x)
-    x = Bidirectional(tf.keras.layers.GRU(gru_units, return_sequences=True))(x)
+    x = Bidirectional(GRU(gru_units, return_sequences=True))(x)
     x = LayerNormalization()(x)
     x = Dropout(0.3)(x)
-    x = Bidirectional(tf.keras.layers.GRU(gru_units, return_sequences=True))(x)
+    x = Bidirectional(GRU(gru_units, return_sequences=True))(x)
     x = LayerNormalization()(x)
     x = GlobalAveragePooling1D()(x)
     skip = x
@@ -123,9 +123,6 @@ def train_and_save_model(df, lokasi, model_type="lstm", window_size=7):
 
     loc_id = lokasi.lower().strip().replace(" ", "_")
 
-    def build_gru_model(input_len, embed_dim=32, gru_units=128, temperature=0.5):
-    
-
     def try_model(build_fn, label, name):
         try:
             print(f"[INFO] Training {name} model untuk {label}...")
@@ -142,22 +139,17 @@ def train_and_save_model(df, lokasi, model_type="lstm", window_size=7):
             return None, 0.0
 
     candidates = [
-        ("LSTM", lambda input_len: build_lstm_model(input_len, lstm_units=128)),
-        ("Transformer", lambda input_len: build_transformer_model(input_len, heads=4)),
-        ("GRU", lambda input_len: build_gru_model(input_len, gru_units=128)),
+        ("LSTM", lambda input_len: build_lstm_model(input_len)),
+        ("Transformer", lambda input_len: build_transformer_model(input_len)),
+        ("GRU", lambda input_len: build_gru_model(input_len)),
     ]
 
     for label in DIGIT_LABELS:
-        best_model = None
-        best_score = 0.0
-        best_name = ""
-
+        best_model, best_score, best_name = None, 0.0, ""
         for name, fn in candidates:
             model, val_acc = try_model(fn, label, name)
             if val_acc > best_score:
-                best_model = model
-                best_score = val_acc
-                best_name = name
+                best_model, best_score, best_name = model, val_acc, name
 
         if best_model:
             model_path = f"saved_models/{loc_id}_{label}_{model_type}.h5"
@@ -182,7 +174,7 @@ def train_and_save_model(df, lokasi, model_type="lstm", window_size=7):
                 print(f"[✅] Model {label.upper()} ({best_name}) berhasil disimpan.")
             except Exception as e:
                 print(f"[ERROR] Gagal menyimpan model {label}: {e}")
-                
+
 def model_exists(lokasi, model_type="lstm"):
     loc_id = lokasi.lower().strip().replace(" ", "_")
     return all(os.path.exists(f"saved_models/{loc_id}_{label}_{model_type}.h5") for label in DIGIT_LABELS)
