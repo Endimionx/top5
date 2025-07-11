@@ -59,13 +59,15 @@ def build_lstm_model(input_len, embed_dim=32, lstm_units=128, attention_heads=4,
     x = MultiHeadAttention(num_heads=attention_heads, key_dim=embed_dim)(x, x)
     x = Dropout(0.2)(x)
     x = GlobalAveragePooling1D()(x)
-    x = Dense(512, activation='relu')(x)
-    x = Dropout(0.3)(x)
+    skip = x
+    x = Dense(256, activation='relu')(x)
+    x = Dropout(0.2)(x)
     x = Dense(128, activation='relu')(x)
+    x = tf.keras.layers.Add()([x, skip])  # residual connection
     logits = Dense(10)(x)
     outputs = tf.keras.layers.Activation('softmax')(logits / temperature)
     model = Model(inputs, outputs)
-    model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
+    model.compile(optimizer="adam", loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1), metrics=["accuracy"])
     return model
 
 def build_transformer_model(input_len, embed_dim=32, heads=4, temperature=0.5):
@@ -78,24 +80,34 @@ def build_transformer_model(input_len, embed_dim=32, heads=4, temperature=0.5):
         ff = Dense(embed_dim, activation='relu')(x)
         x = LayerNormalization()(x + ff)
     x = GlobalAveragePooling1D()(x)
+    skip = x
     x = Dense(256, activation='relu')(x)
     x = Dropout(0.3)(x)
+    x = Dense(128, activation='relu')(x)
+    x = tf.keras.layers.Add()([x, skip])
     logits = Dense(10)(x)
     outputs = tf.keras.layers.Activation('softmax')(logits / temperature)
     model = Model(inputs, outputs)
-    model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
+    model.compile(optimizer="adam", loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1), metrics=["accuracy"])
     return model
 
-def train_and_save_model(df, lokasi, window_size=7, model_type="lstm"):
-    if len(df) < window_size + 5:
-        return
-    X, y_dict = preprocess_data(df, window_size=window_size)
-    if X.shape[0] == 0:
-        return
+def train_and_save_model(df, lokasi, model_type="lstm"):
     os.makedirs("saved_models", exist_ok=True)
     os.makedirs("training_logs", exist_ok=True)
+    X_all, y_all = [], {label: [] for label in DIGIT_LABELS}
+    for ws in [5, 6, 7]:
+        X, y_dict = preprocess_data(df, window_size=ws)
+        if X.shape[0] == 0: continue
+        X_all.append(X)
+        for label in DIGIT_LABELS:
+            y_all[label].append(y_dict[label])
+    if not X_all: return
+    X_all = np.concatenate(X_all)
     for label in DIGIT_LABELS:
-        y = y_dict[label]
+        y_all[label] = np.concatenate(y_all[label])
+
+    for label in DIGIT_LABELS:
+        y = y_all[label]
         suffix = model_type
         loc_id = lokasi.lower().strip().replace(" ", "_")
         log_path = f"training_logs/history_{loc_id}_{label}_{suffix}.csv"
@@ -103,15 +115,13 @@ def train_and_save_model(df, lokasi, window_size=7, model_type="lstm"):
         callbacks = [
             CSVLogger(log_path),
             EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
-            ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1)
+            ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3)
         ]
         if os.path.exists(model_path):
             model = load_model(model_path, compile=True, custom_objects={"PositionalEncoding": PositionalEncoding})
-            print(f"[INFO] Fine-tuning model {label}")
         else:
-            model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
-            print(f"[INFO] Training baru model {label}")
-        model.fit(X, y, epochs=50, batch_size=32, verbose=0, validation_split=0.2, callbacks=callbacks)
+            model = build_transformer_model(X_all.shape[1]) if model_type == "transformer" else build_lstm_model(X_all.shape[1])
+        model.fit(X_all, y, epochs=50, batch_size=32, verbose=0, validation_split=0.2, callbacks=callbacks)
         model.save(model_path)
 
 def model_exists(lokasi, model_type="lstm"):
@@ -135,25 +145,20 @@ def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperatu
                 return None
             pred = model.predict(X, verbose=0)
             avg = np.mean(pred, axis=0)
-            avg /= np.sum(avg)  # Normalize
-
+            avg /= np.sum(avg)
             if mode_prediksi == "confidence":
                 top6 = avg.argsort()[-6:][::-1]
             elif mode_prediksi == "ranked":
                 score_dict = {i: (1.0 / (1 + rank)) for rank, i in enumerate(avg.argsort()[::-1])}
-                top6 = sorted(score_dict.items(), key=lambda x: -x[1])[:6]
-                top6 = [d for d, _ in top6]
+                top6 = [d for d, _ in sorted(score_dict.items(), key=lambda x: -x[1])[:6]]
             else:  # hybrid
                 score_dict = {i: avg[i] * (1.0 / (1 + rank)) for rank, i in enumerate(avg.argsort()[::-1])}
                 sorted_scores = sorted(score_dict.items(), key=lambda x: -x[1])
                 top6 = [d for d, score in sorted_scores if avg[d] >= threshold][:6]
-
             results.append(top6)
             probs.append([avg[d] for d in top6])
-        except Exception as e:
-            print(f"[ERROR {label}] {e}")
+        except:
             return None
-
     return (results, probs) if return_probs else results
 
 def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power=1.5, mode='product', window_size=7, mode_prediksi="hybrid"):
@@ -163,24 +168,17 @@ def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power
     combinations = list(product(*result))
     scores = []
     for combo in combinations:
-        digit_scores = []
-        valid = True
-        for i in range(4):
-            try:
-                idx = result[i].index(combo[i])
-                digit_scores.append(probs[i][idx] ** power)
-            except:
-                valid = False
-                break
-        if not valid:
+        try:
+            digit_scores = [probs[i][result[i].index(combo[i])] ** power for i in range(4)]
+        except:
             continue
         score = np.prod(digit_scores) if mode == 'product' else np.mean(digit_scores)
         if score >= min_conf:
             scores.append(("".join(map(str, combo)), score))
     return sorted(scores, key=lambda x: -x[1])[:top_n]
 
-def top6_ensemble(df, lokasi, model_type="lstm", lstm_weight=0.6, markov_weight=0.4, window_size=7):
-    lstm_result = top6_model(df, lokasi=lokasi, model_type=model_type, window_size=window_size)
+def top6_ensemble(df, lokasi, model_type="lstm", lstm_weight=0.6, markov_weight=0.4, window_size=7, mode_prediksi="hybrid"):
+    lstm_result = top6_model(df, lokasi=lokasi, model_type=model_type, window_size=window_size, mode_prediksi=mode_prediksi)
     markov_result, _ = top6_markov(df)
     if lstm_result is None or markov_result is None:
         return None
@@ -194,8 +192,8 @@ def top6_ensemble(df, lokasi, model_type="lstm", lstm_weight=0.6, markov_weight=
                 scores[digit] += lstm_weight * (1.0 / (1 + lstm_result[i].index(digit)))
             if digit in markov_result[i]:
                 scores[digit] += markov_weight * (1.0 / (1 + markov_result[i].index(digit)))
-        top6 = sorted(scores.items(), key=lambda x: -x[1])[:6]
-        ensemble.append([x[0] for x in top6])
+        top6 = [x[0] for x in sorted(scores.items(), key=lambda x: -x[1])[:6]]
+        ensemble.append(top6)
     return ensemble
 
 def evaluate_top6_accuracy(model, X, y_true):
