@@ -124,25 +124,7 @@ def train_and_save_model(df, lokasi, model_type="lstm", window_size=7):
     loc_id = lokasi.lower().strip().replace(" ", "_")
 
     def build_gru_model(input_len, embed_dim=32, gru_units=128, temperature=0.5):
-        inputs = Input(shape=(input_len,))
-        x = Embedding(input_dim=10, output_dim=embed_dim)(inputs)
-        x = PositionalEncoding()(x)
-        x = Bidirectional(tf.keras.layers.GRU(gru_units, return_sequences=True))(x)
-        x = LayerNormalization()(x)
-        x = Dropout(0.3)(x)
-        x = Bidirectional(tf.keras.layers.GRU(gru_units, return_sequences=True))(x)
-        x = LayerNormalization()(x)
-        x = GlobalAveragePooling1D()(x)
-        skip = x
-        x = Dense(256, activation='relu')(x)
-        x = Dropout(0.2)(x)
-        x = Dense(128, activation='relu')(x)
-        x = tf.keras.layers.Add()([x, skip])
-        logits = Dense(10)(x)
-        outputs = tf.keras.layers.Activation('softmax')(logits / temperature)
-        model = Model(inputs, outputs)
-        model.compile(optimizer="adam", loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1), metrics=["accuracy"])
-        return model
+    
 
     def try_model(build_fn, label, name):
         try:
