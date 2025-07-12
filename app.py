@@ -80,8 +80,38 @@ if selected_lokasi and selected_hari:
 
 df = pd.DataFrame({"angka": angka_list})
 
+
 # Manajemen Model
 if metode == "LSTM AI":
+    # File Explorer
+    with st.expander("🗂️ File Explorer (saved_models & training_logs)"):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("### 📁 saved_models/")
+            model_dir = "saved_models"
+            if os.path.exists(model_dir):
+                models = os.listdir(model_dir)
+                if models:
+                    for m in sorted(models):
+                        st.markdown(f"- `{m}`")
+                        
+                else:
+                    st.info("Tidak ada file model.")
+            else:
+                st.warning("Folder `saved_models/` belum tersedia.")
+        with col2:
+            st.markdown("### 📁 training_logs/")
+            log_dir = "training_logs"
+            if os.path.exists(log_dir):
+                logs = os.listdir(log_dir)
+                if logs:
+                    for l in sorted(logs):
+                        st.markdown(f"- `{l}`")
+                else:
+                    st.info("Tidak ada file log.")
+            else:
+                st.warning("Folder `training_logs/` belum tersedia.")
+                
     with st.expander("⚙️ Manajemen Model"):
         lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
         digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
