@@ -52,7 +52,7 @@ with st.sidebar:
     window_size = 7
 
     if metode in ["LSTM AI", "Ensemble AI + Markov"]:
-        window_size = st.slider("🪟 Window Size", 3, 20, 7)
+        window_size = st.slider("🪟 Window Size", 3, 30, 7)
         min_conf = st.slider("🔎 Minimum Confidence", 0.0001, 0.01, 0.0005, step=0.0001, format="%.4f")
         power = st.slider("📈 Confidence Power", 0.5, 3.0, 1.5, step=0.1)
         temperature = st.slider("🌡️ Temperature Scaling", 0.1, 2.0, 0.5, step=0.1)
