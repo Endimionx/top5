@@ -135,25 +135,22 @@ def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperatu
                 return None
             pred = model.predict(X, verbose=0)
             avg = np.mean(pred, axis=0)
-            avg /= np.sum(avg)  # Normalize
-
+            avg /= np.sum(avg)
             if mode_prediksi == "confidence":
                 top6 = avg.argsort()[-6:][::-1]
             elif mode_prediksi == "ranked":
                 score_dict = {i: (1.0 / (1 + rank)) for rank, i in enumerate(avg.argsort()[::-1])}
                 top6 = sorted(score_dict.items(), key=lambda x: -x[1])[:6]
                 top6 = [d for d, _ in top6]
-            else:  # hybrid
+            else:
                 score_dict = {i: avg[i] * (1.0 / (1 + rank)) for rank, i in enumerate(avg.argsort()[::-1])}
                 sorted_scores = sorted(score_dict.items(), key=lambda x: -x[1])
                 top6 = [d for d, score in sorted_scores if avg[d] >= threshold][:6]
-
             results.append(top6)
             probs.append([avg[d] for d in top6])
         except Exception as e:
             print(f"[ERROR {label}] {e}")
             return None
-
     return (results, probs) if return_probs else results
 
 def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power=1.5, mode='product', window_size=7, mode_prediksi="hybrid"):
