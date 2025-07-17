@@ -32,35 +32,32 @@ def preprocess_data(df, window_size=7):
     if len(df) < window_size + 1:
         return np.array([]), {label: np.array([]) for label in DIGIT_LABELS}
     
+    angka = df["angka"].values
+    total_data = len(angka)
+
+    # Hitung berapa banyak window yang bisa dibentuk dari belakang
+    num_windows = (total_data - 1) // window_size
+
+    # Hitung posisi mulai agar window terakhir tepat di akhir
+    start_index = total_data - (num_windows * window_size + 1)
+    if start_index < 0:
+        start_index = 0
+
     sequences = []
     targets = {label: [] for label in DIGIT_LABELS}
-    angka = df["angka"].values
-    
-    for i in range(len(angka) - window_size):
+
+    for i in range(start_index, total_data - window_size):
         window = angka[i:i+window_size+1]
-        if any(len(x) != 4 or not x.isdigit() for x in window):
+        if any(len(str(x)) != 4 or not str(x).isdigit() for x in window):
             continue
-        
         seq = [int(d) for num in window[:-1] for d in f"{int(num):04d}"]
         sequences.append(seq)
-        
         target_digits = [int(d) for d in f"{int(window[-1]):04d}"]
         for j, label in enumerate(DIGIT_LABELS):
             targets[label].append(to_categorical(target_digits[j], num_classes=10))
     
     X = np.array(sequences)
     y_dict = {label: np.array(targets[label]) for label in DIGIT_LABELS}
-    return X, y_dict
-def preprocess_data_target_last(df, window_size=7):
-    if len(df) < window_size + 1:
-        return np.array([]), {label: np.array([]) for label in DIGIT_LABELS}
-    angka = df["angka"].values[-(window_size+1):]
-    if any(len(x) != 4 or not x.isdigit() for x in angka):
-        return np.array([]), {label: np.array([]) for label in DIGIT_LABELS}
-    seq = [int(d) for num in angka[:-1] for d in f"{int(num):04d}"]
-    target_digits = [int(d) for d in f"{int(angka[-1]):04d}"]
-    X = np.array([seq])
-    y_dict = {label: np.array([to_categorical(target_digits[i], num_classes=10)]) for i, label in enumerate(DIGIT_LABELS)}
     return X, y_dict
 
 def build_lstm_model(input_len, embed_dim=32, lstm_units=128, attention_heads=4, temperature=0.5):
@@ -135,7 +132,7 @@ def model_exists(lokasi, model_type="lstm"):
     return all(os.path.exists(f"saved_models/{loc_id}_{label}_{model_type}.h5") for label in DIGIT_LABELS)
 
 def top6_model(df, lokasi=None, model_type="lstm", return_probs=False, temperature=0.5, window_size=7, mode_prediksi="hybrid", threshold=0.001):
-    X, _ = preprocess_data_target_last(df, window_size=window_size)
+    X, _ = preprocess_data(df, window_size=window_size)
     if X.shape[0] == 0:
         return None
     results, probs = [], []
