@@ -103,7 +103,7 @@ def train_and_save_model(df, lokasi, window_size=7, model_type="lstm"):
             print(f"[INFO] Fine-tuning model {label}")
         else:
             model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
-            print(f"[INFO] Training baru model ⁶label}")
+            # print(f"[INFO] Training baru model ⁶label}")
         model.fit(X, y, epochs=50, batch_size=32, verbose=0, validation_split=0.2, callbacks=callbacks)
         model.save(model_path)
 
