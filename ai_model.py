@@ -216,7 +216,7 @@ def evaluate_top6_accuracy(model, X, y_true):
     return correct / len(true_labels)
 
 def evaluate_lstm_accuracy_all_digits(df, lokasi, model_type="lstm", window_size=7):
-    X, y_dict = preprocess_data_target_last(df, window_size=window_size)
+    X, y_dict = preprocess_data(df, window_size=window_size)
     if X.shape[0] == 0:
         return None, None, None
     acc_top1_list, acc_top6_list, label_accuracy_list = [], [], []
