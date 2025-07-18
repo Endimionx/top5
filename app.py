@@ -200,10 +200,10 @@ if st.button("🔮 Prediksi"):
 
 if st.button("🔍 Cari Window Size Terbaik"):
     with st.spinner("🔎 Mencari window size terbaik per digit..."):
-    best_window_dict = {}
-    for label in ["ribuan", "ratusan", "puluhan", "satuan"]:
-        best_ws = find_best_window_size_with_model_fast(
-            df, label, lokasi=selected_lokasi, model_type=model_type, min_ws=4, max_ws=16
-        )
+        best_window_dict = {}
+        for label in ["ribuan", "ratusan", "puluhan", "satuan"]:
+            best_ws = find_best_window_size_with_model_fast(
+                df, label, lokasi=selected_lokasi, model_type=model_type, min_ws=4, max_ws=16
+                )
         best_window_dict[label] = best_ws
-    st.success(f"✅ Window size terbaik ditemukan: {best_window_dict}")
+        st.success(f"✅ Window size terbaik ditemukan: {best_window_dict}")
