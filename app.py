@@ -31,6 +31,43 @@ st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
 st.title("🔮 Prediksi 4D - AI & Markov")
 
+def find_best_window_size_per_digit(df, lokasi, model_type="lstm", window_range=(3, 15)):
+    best_window_dict = {}
+    loc_id = lokasi.lower().strip().replace(" ", "_")
+    
+    for label in DIGIT_LABELS:
+        best_acc = 0
+        best_window = 7  # Default fallback
+        print(f"\n🔍 Mencari window terbaik untuk digit: {label}")
+        
+        for ws in range(window_range[0], window_range[1] + 1):
+            X, y_dict = preprocess_data(df, window_size=ws)
+            if X.shape[0] == 0 or label not in y_dict:
+                continue
+            y = y_dict[label]
+            model_path = f"saved_models/{loc_id}_{label}_{model_type}.h5"
+            if not os.path.exists(model_path):
+                print(f"⚠️ Model belum ada untuk {label} dengan window {ws}")
+                continue
+            
+            try:
+                model = load_model(model_path, compile=True, custom_objects={"PositionalEncoding": PositionalEncoding})
+                if model.input_shape[1] != X.shape[1]:
+                    print(f"❌ Window size tidak cocok (model: {model.input_shape[1]}, data: {X.shape[1]})")
+                    continue
+                acc = model.evaluate(X, y, verbose=0)[1]
+                print(f"✅ Window {ws} → Akurasi: {acc:.4f}")
+                if acc > best_acc:
+                    best_acc = acc
+                    best_window = ws
+            except Exception as e:
+                print(f"[ERROR] {label} WS {ws}: {e}")
+                continue
+        
+        best_window_dict[label] = best_window
+        print(f"🏆 Best window {label}: {best_window} (acc: {best_acc:.4f})")
+    
+    return best_window_dict
 # Sidebar
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
