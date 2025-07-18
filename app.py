@@ -61,27 +61,27 @@ with st.sidebar:
         model_type = "transformer" if use_transformer else "lstm"
         mode_prediksi = st.selectbox("🎯 Mode Prediksi Top6", ["confidence", "ranked", "hybrid"])
 
-# Ambil Data
-angka_list = []
-riwayat_input = ""
-df = pd.DataFrame()
-if selected_lokasi and selected_hari:
+# Ambil & Edit Data (persisten dengan session_state)
+if "angka_list" not in st.session_state:
+    st.session_state.angka_list = []
+
+if st.button("🔄 Ambil Data dari API"):
     try:
         with st.spinner("🔄 Mengambil data dari API..."):
             url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
             headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
             response = requests.get(url, headers=headers)
             data = response.json()
-            angka_list = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
-            df = pd.DataFrame({"angka": angka_list})
-            st.success(f"✅ {len(angka_list)} angka berhasil diambil.")
-
-        # ✏️ Editable Table
-        with st.expander("📥 Edit Data Sebelum Digunakan"):
-            df = st.data_editor(df, num_rows="dynamic", key="editable_df")
-
+            angka_api = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
+            st.session_state.angka_list = angka_api
+            st.success(f"✅ {len(angka_api)} angka berhasil diambil.")
     except Exception as e:
         st.error(f"❌ Gagal ambil data API: {e}")
+
+riwayat_input = "\n".join(st.session_state.angka_list)
+riwayat_input = st.text_area("📝 Edit Data Angka Manual (1 per baris):", value=riwayat_input, height=300)
+st.session_state.angka_list = [x.strip() for x in riwayat_input.splitlines() if x.strip().isdigit() and len(x.strip()) == 4]
+df = pd.DataFrame({"angka": st.session_state.angka_list})
 
 # Manajemen Model
 if metode == "LSTM AI":
