@@ -281,7 +281,7 @@ def evaluate_lstm_accuracy_all_digits(df, lokasi, model_type="lstm", window_size
             label_accuracy_list.append({})
 
     return acc_top1_list, acc_top6_list, label_accuracy_list
-def find_best_window_size_with_model(df, label, lokasi, model_type="lstm", min_ws=3, max_ws=20):
+def find_best_window_size_with_model(df, label, lokasi, model_type="lstm", min_ws=3, max_ws=30):
     best_ws = min_ws
     best_acc = 0
     loc_id = lokasi.lower().strip().replace(" ", "_")
