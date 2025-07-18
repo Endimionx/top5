@@ -183,7 +183,7 @@ if st.button("🔮 Prediksi"):
         with st.expander("📊 Evaluasi Akurasi LSTM per Digit"):
             with st.spinner("🔄 Mengevaluasi akurasi model..."):
                 acc_top1_list, acc_top6_list, top1_labels_list = evaluate_lstm_accuracy_all_digits(
-                    df, selected_lokasi, model_type=model_type, window_dict=window_per_digit
+                    df, selected_lokasi, model_type=model_type, window_size=window_per_digit
                 )
                 if acc_top1_list:
                     for i in range(4):
