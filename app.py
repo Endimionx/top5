@@ -31,6 +31,8 @@ st_lottie(lottie_predict, speed=1, height=150, key="prediksi")
 
 st.title("🔮 Prediksi 4D - AI & Markov")
 
+DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
+
 def find_best_window_size_per_digit(df, lokasi, model_type="lstm", window_range=(3, 15)):
     best_window_dict = {}
     loc_id = lokasi.lower().strip().replace(" ", "_")
