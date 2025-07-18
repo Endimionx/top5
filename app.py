@@ -232,9 +232,14 @@ if st.button("🔮 Prediksi"):
                 else:
                     st.warning("⚠️ Tidak bisa evaluasi. Model belum tersedia atau data kurang.")
 
-if st.button("🔍 Cari Window Size Terbaik (Auto)"):
-    with st.spinner("🔄 Mencari window size terbaik..."):
-        window_per_digit = find_best_window_size_with_model(
-            df, lokasi=selected_lokasi, model_type=model_type
-        )
-        st.success(f"✅ Window size terbaik ditemukan: {window_per_digit}")
+if st.button("🔍 Cari Window Size Terbaik"):
+    with st.spinner("🔎 Mencari window size terbaik per digit..."):
+        best_window_dict = {}
+        for label in ["ribuan", "ratusan", "puluhan", "satuan"]:
+            best_ws = find_best_window_size_with_model(
+                df, label, lokasi=selected_lokasi, model_type=model_type,
+                min_ws=3, max_ws=20
+            )
+            best_window_dict[label] = best_ws
+        st.success("✅ Window size terbaik ditemukan.")
+        st.write(best_window_dict)
