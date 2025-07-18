@@ -95,7 +95,10 @@ if metode == "LSTM AI":
             model_path = f"saved_models/{lokasi_id}_{label}_{model_type}.h5"
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
-                st.info(f"📂 Model {label.upper()} tersedia.") if os.path.exists(model_path) else st.warning(f"⚠️ Model {label.upper()} belum tersedia.")
+                if os.path.exists(model_path):
+                    st.info(f"📂 Model {label.upper()} tersedia.")
+                else:
+                    st.warning(f"⚠️ Model {label.upper()} belum tersedia.")
             with col2:
                 if os.path.exists(model_path):
                     if st.button(f"🗑 Hapus {label.upper()}", key=f"hapus_model_{label}"):
