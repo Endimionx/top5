@@ -102,10 +102,14 @@ def train_and_save_model(df, lokasi, window_dict, model_type="lstm"):
         window_size = window_dict.get(label, 7)
         if len(df) < window_size + 5:
             continue
+        
+        # Penting: panggil ulang preprocess_data di setiap label agar window_size sesuai
         X, y_dict = preprocess_data(df, window_size=window_size)
-        if X.shape[0] == 0:
-            continue
         y = y_dict[label]
+
+        if X.shape[0] == 0 or y.shape[0] == 0:
+            continue
+
         suffix = model_type
         loc_id = lokasi.lower().strip().replace(" ", "_")
         log_path = f"training_logs/history_{loc_id}_{label}_{suffix}.csv"
@@ -115,10 +119,12 @@ def train_and_save_model(df, lokasi, window_dict, model_type="lstm"):
             EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
             ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1)
         ]
+
         if os.path.exists(model_path):
             model = load_model(model_path, compile=True, custom_objects={"PositionalEncoding": PositionalEncoding})
         else:
             model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
+
         model.fit(X, y, epochs=50, batch_size=32, verbose=0, validation_split=0.2, callbacks=callbacks)
         model.save(model_path)
 
