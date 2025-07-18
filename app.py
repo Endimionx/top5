@@ -237,9 +237,13 @@ if st.button("🔍 Cari Window Size Terbaik"):
         best_window_dict = {}
         for label in ["ribuan", "ratusan", "puluhan", "satuan"]:
             best_ws = find_best_window_size_with_model(
-                df, label, lokasi=selected_lokasi, model_type=model_type,
-                min_ws=3, max_ws=20
-            )
+                df=df,
+                label=label,
+                lokasi=selected_lokasi,
+                model_type=model_type,
+                min_ws=3,
+                max_ws=20
+                )
             best_window_dict[label] = best_ws
         st.success("✅ Window size terbaik ditemukan.")
         st.write(best_window_dict)
