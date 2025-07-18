@@ -34,43 +34,41 @@ st.title("🔮 Prediksi 4D - AI & Markov")
 
 DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 
-def find_best_window_size_per_digit(df, lokasi, model_type="lstm", window_range=(3, 15)):
-    best_window_dict = {}
+def find_best_window_size_with_model(df, lokasi, model_type="lstm", min_ws=3, max_ws=15, eval_split=0.2):
+    best_windows = {}
     loc_id = lokasi.lower().strip().replace(" ", "_")
-    
+
     for label in DIGIT_LABELS:
         best_acc = 0
-        best_window = 7  # Default fallback
-        print(f"\n🔍 Mencari window terbaik untuk digit: {label}")
-        
-        for ws in range(window_range[0], window_range[1] + 1):
+        best_ws = min_ws
+        print(f"🔍 Mencari window terbaik untuk: {label.upper()}")
+        for ws in range(min_ws, max_ws + 1):
             X, y_dict = preprocess_data(df, window_size=ws)
-            if X.shape[0] == 0 or label not in y_dict:
+            if X.shape[0] < 10:
                 continue
             y = y_dict[label]
-            model_path = f"saved_models/{loc_id}_{label}_{model_type}.h5"
-            if not os.path.exists(model_path):
-                print(f"⚠️ Model belum ada untuk {label} dengan window {ws}")
+            split = int(len(X) * (1 - eval_split))
+            X_train, X_val = X[:split], X[split:]
+            y_train, y_val = y[:split], y[split:]
+            if len(X_val) < 5:
                 continue
-            
+
             try:
-                model = load_model(model_path, compile=True, custom_objects={"PositionalEncoding": PositionalEncoding})
-                if model.input_shape[1] != X.shape[1]:
-                    print(f"❌ Window size tidak cocok (model: {model.input_shape[1]}, data: {X.shape[1]})")
-                    continue
-                acc = model.evaluate(X, y, verbose=0)[1]
-                print(f"✅ Window {ws} → Akurasi: {acc:.4f}")
+                model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
+                model.fit(X_train, y_train, epochs=10, batch_size=16, verbose=0)
+                acc = model.evaluate(X_val, y_val, verbose=0)[1]
+                print(f"  🪟 WS={ws}: acc={acc:.4f}")
                 if acc > best_acc:
                     best_acc = acc
-                    best_window = ws
+                    best_ws = ws
             except Exception as e:
-                print(f"[ERROR] {label} WS {ws}: {e}")
+                print(f"[ERROR {label} WS={ws}] {e}")
                 continue
-        
-        best_window_dict[label] = best_window
-        print(f"🏆 Best window {label}: {best_window} (acc: {best_acc:.4f})")
-    
-    return best_window_dict
+
+        best_windows[label] = best_ws
+        print(f"✅ Best WS for {label.upper()}: {best_ws} (acc={best_acc:.4f})")
+
+    return best_windows
 # Sidebar
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
@@ -233,10 +231,9 @@ if st.button("🔮 Prediksi"):
                 else:
                     st.warning("⚠️ Tidak bisa evaluasi. Model belum tersedia atau data kurang.")
 
-if st.button("🔎 Cari Window Size Terbaik"):
-    with st.spinner("🔍 Mencari window size terbaik per digit..."):
-        window_dict = find_best_window_size_per_digit(
-            df, selected_lokasi, model_type=model_type, window_range=(3, 15)
+if st.button("🔍 Cari Window Size Terbaik (Auto)"):
+    with st.spinner("🔄 Mencari window size terbaik..."):
+        window_per_digit = find_best_window_size_with_model(
+            df, lokasi=selected_lokasi, model_type=model_type
         )
-        st.session_state.best_window_dict = window_dict
-        st.success(f"✅ Selesai. Hasil: {window_dict}")
+        st.success(f"✅ Window size terbaik ditemukan: {window_per_digit}")
