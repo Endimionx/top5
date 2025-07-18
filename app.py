@@ -13,7 +13,8 @@ from ai_model import (
     kombinasi_4d,
     top6_ensemble,
     model_exists,
-    evaluate_lstm_accuracy_all_digits
+    evaluate_lstm_accuracy_all_digits,
+    preprocess_data
 )
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
