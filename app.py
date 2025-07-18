@@ -64,6 +64,7 @@ with st.sidebar:
 # Ambil Data
 angka_list = []
 riwayat_input = ""
+df = pd.DataFrame()
 if selected_lokasi and selected_hari:
     try:
         with st.spinner("🔄 Mengambil data dari API..."):
@@ -72,14 +73,15 @@ if selected_lokasi and selected_hari:
             response = requests.get(url, headers=headers)
             data = response.json()
             angka_list = [item["result"] for item in data.get("data", []) if len(item["result"]) == 4 and item["result"].isdigit()]
-            riwayat_input = "\n".join(angka_list)
+            df = pd.DataFrame({"angka": angka_list})
             st.success(f"✅ {len(angka_list)} angka berhasil diambil.")
-            with st.expander("📥 Lihat Data"):
-                st.code(riwayat_input, language="text")
+
+        # ✏️ Editable Table
+        with st.expander("📥 Edit Data Sebelum Digunakan"):
+            df = st.data_editor(df, num_rows="dynamic", key="editable_df")
+
     except Exception as e:
         st.error(f"❌ Gagal ambil data API: {e}")
-
-df = pd.DataFrame({"angka": angka_list})
 
 # Manajemen Model
 if metode == "LSTM AI":
