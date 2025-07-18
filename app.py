@@ -14,7 +14,8 @@ from ai_model import (
     top6_ensemble,
     model_exists,
     evaluate_lstm_accuracy_all_digits,
-    preprocess_data
+    preprocess_data,
+    find_best_window_size_with_model
 )
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
