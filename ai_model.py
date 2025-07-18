@@ -220,3 +220,58 @@ def model_exists(lokasi, model_type="lstm"):
         if not os.path.exists(model_path):
             return False
     return True
+    
+def evaluate_lstm_accuracy_all_digits(df, lokasi, model_type="lstm", window_size=7):
+    if isinstance(window_size, int):
+        # Jika window_size adalah angka tunggal, ubah jadi dict semua digit
+        window_dict = {label: window_size for label in ["ribuan", "ratusan", "puluhan", "satuan"]}
+    else:
+        window_dict = window_size
+
+    acc_top1_list, acc_top6_list, label_accuracy_list = [], [], []
+    loc_id = lokasi.lower().strip().replace(" ", "_")
+
+    for label in ["ribuan", "ratusan", "puluhan", "satuan"]:
+        ws = window_dict.get(label, 7)
+        X, y_dict = preprocess_data(df, window_size=ws)
+        if X.shape[0] == 0:
+            acc_top1_list.append(0)
+            acc_top6_list.append(0)
+            label_accuracy_list.append({})
+            continue
+
+        y_true = y_dict[label]
+        path = f"saved_models/{loc_id}_{label}_{model_type}.h5"
+        if not os.path.exists(path):
+            acc_top1_list.append(0)
+            acc_top6_list.append(0)
+            label_accuracy_list.append({})
+            continue
+
+        try:
+            model = load_model(path, compile=True, custom_objects={"PositionalEncoding": PositionalEncoding})
+            if model.input_shape[1] != X.shape[1]:
+                acc_top1_list.append(0)
+                acc_top6_list.append(0)
+                label_accuracy_list.append({})
+                continue
+
+            acc_top1 = model.evaluate(X, y_true, verbose=0)[1]
+            acc_top6 = evaluate_top6_accuracy(model, X, y_true)
+            acc_top1_list.append(acc_top1)
+            acc_top6_list.append(acc_top6)
+
+            y_true_labels = np.argmax(y_true, axis=1)
+            y_pred_labels = np.argmax(model.predict(X, verbose=0), axis=1)
+            label_acc = {}
+            for d in range(10):
+                idx = np.where(y_true_labels == d)[0]
+                label_acc[d] = np.mean(y_pred_labels[idx] == d) if len(idx) > 0 else None
+            label_accuracy_list.append(label_acc)
+        except Exception as e:
+            print(f"[ERROR EVALUATE {label}] {e}")
+            acc_top1_list.append(0)
+            acc_top6_list.append(0)
+            label_accuracy_list.append({})
+
+    return acc_top1_list, acc_top6_list, label_accuracy_list
