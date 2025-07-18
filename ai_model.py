@@ -282,6 +282,21 @@ def evaluate_lstm_accuracy_all_digits(df, lokasi, model_type="lstm", window_size
             label_accuracy_list.append({})
 
     return acc_top1_list, acc_top6_list, label_accuracy_list
+def evaluate_top6_accuracy(model, X, y_true):
+    """
+    Menghitung akurasi top-6: apakah label benar termasuk dalam 6 prediksi teratas.
+    """
+    try:
+        y_pred = model.predict(X, verbose=0)
+        y_true_labels = np.argmax(y_true, axis=1)
+        top6_preds = np.argsort(y_pred, axis=1)[:, -6:]
+        correct = np.array([
+            true_label in top6 for true_label, top6 in zip(y_true_labels, top6_preds)
+        ])
+        return np.mean(correct)
+    except Exception as e:
+        print(f"[ERROR evaluate_top6_accuracy] {e}")
+        return 0.0
 def find_best_window_size_with_model(df, label, lokasi, model_type="lstm", min_ws=3, max_ws=30):
     best_ws = min_ws
     best_acc = 0
