@@ -109,7 +109,7 @@ if metode == "LSTM AI":
                         st.info(f"🧾 Log training {label.upper()} dihapus.")
         if st.button("📚 Latih & Simpan Semua Model"):
             with st.spinner("🔄 Melatih semua model..."):
-                train_and_save_model(df, selected_lokasi, model_type=model_type, window_size=window_per_digit)
+                train_and_save_model(df, selected_lokasi, window_dict=window_per_digit, model_type=model_type)
             st.success("✅ Model berhasil dilatih.")
 
 # Tombol Prediksi
@@ -127,11 +127,11 @@ if st.button("🔮 Prediksi"):
                 result = top6_markov_hybrid(df)
             elif metode == "LSTM AI":
                 pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True,
-                                  temperature=temperature, mode_prediksi=mode_prediksi, window_size=window_per_digit)
+                                  temperature=temperature, mode_prediksi=mode_prediksi, window_dict=window_per_digit)
                 if pred: result, probs = pred
             elif metode == "Ensemble AI + Markov":
                 pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True,
-                                  temperature=temperature, mode_prediksi=mode_prediksi, window_size=window_per_digit)
+                                  temperature=temperature, mode_prediksi=mode_prediksi, window_dict=window_per_digit)
                 if pred:
                     result, probs = pred
                     markov_result, _ = top6_markov(df)
@@ -169,7 +169,7 @@ if st.button("🔮 Prediksi"):
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
                     top_komb = kombinasi_4d(df, lokasi=selected_lokasi, model_type=model_type,
                                             top_n=10, min_conf=min_conf, power=power,
-                                            mode=voting_mode, window_size=window_per_digit, mode_prediksi=mode_prediksi)
+                                            mode=voting_mode, window_dict=window_per_digit, mode_prediksi=mode_prediksi)
                     if top_komb:
                         with st.expander("💡 Simulasi Kombinasi 4D Terbaik"):
                             sim_col = st.columns(2)
@@ -180,7 +180,7 @@ if st.button("🔮 Prediksi"):
         with st.expander("📊 Evaluasi Akurasi LSTM per Digit"):
             with st.spinner("🔄 Mengevaluasi akurasi model..."):
                 acc_top1_list, acc_top6_list, top1_labels_list = evaluate_lstm_accuracy_all_digits(
-                    df, selected_lokasi, model_type=model_type, window_size=window_per_digit
+                    df, selected_lokasi, model_type=model_type, window_dict=window_per_digit
                 )
                 if acc_top1_list:
                     for i in range(4):
