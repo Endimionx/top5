@@ -212,3 +212,11 @@ def top6_ensemble(df, lokasi, model_type="lstm", lstm_weight=0.6, markov_weight=
         top6 = sorted(scores.items(), key=lambda x: -x[1])[:6]
         ensemble.append([x[0] for x in top6])
     return ensemble
+    
+def model_exists(lokasi, model_type="lstm"):
+    loc_id = lokasi.lower().strip().replace(" ", "_")
+    for label in ["ribuan", "ratusan", "puluhan", "satuan"]:
+        model_path = f"saved_models/{loc_id}_{label}_{model_type}.h5"
+        if not os.path.exists(model_path):
+            return False
+    return True
