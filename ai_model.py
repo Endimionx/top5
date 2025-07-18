@@ -335,7 +335,8 @@ def find_best_window_size_with_model_fast(df, label, lokasi, model_type="lstm", 
 
     for ws in range(min_ws, max_ws + 1):  # coba semua ws, ganjil & genap
         try:
-            X, y_dict = preprocess_data(df.iloc[-200:], window_size=ws)
+            subset_len = int(0.75 * len(df))  # 75% terakhir dari data
+            X, y_dict = preprocess_data(df.iloc[-subset_len:], window_size=ws)
             y = y_dict[label]
             if X.shape[0] == 0 or y.shape[0] == 0:
                 continue
