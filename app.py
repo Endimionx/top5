@@ -35,41 +35,7 @@ st.title("🔮 Prediksi 4D - AI & Markov")
 
 DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 
-def find_best_window_size_with_model(df, lokasi, model_type="lstm", min_ws=3, max_ws=15, eval_split=0.2):
-    best_windows = {}
-    loc_id = lokasi.lower().strip().replace(" ", "_")
 
-    for label in DIGIT_LABELS:
-        best_acc = 0
-        best_ws = min_ws
-        print(f"🔍 Mencari window terbaik untuk: {label.upper()}")
-        for ws in range(min_ws, max_ws + 1):
-            X, y_dict = preprocess_data(df, window_size=ws)
-            if X.shape[0] < 10:
-                continue
-            y = y_dict[label]
-            split = int(len(X) * (1 - eval_split))
-            X_train, X_val = X[:split], X[split:]
-            y_train, y_val = y[:split], y[split:]
-            if len(X_val) < 5:
-                continue
-
-            try:
-                model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
-                model.fit(X_train, y_train, epochs=10, batch_size=16, verbose=0)
-                acc = model.evaluate(X_val, y_val, verbose=0)[1]
-                print(f"  🪟 WS={ws}: acc={acc:.4f}")
-                if acc > best_acc:
-                    best_acc = acc
-                    best_ws = ws
-            except Exception as e:
-                print(f"[ERROR {label} WS={ws}] {e}")
-                continue
-
-        best_windows[label] = best_ws
-        print(f"✅ Best WS for {label.upper()}: {best_ws} (acc={best_acc:.4f})")
-
-    return best_windows
 # Sidebar
 hari_list = ["harian", "kemarin", "2hari", "3hari", "4hari", "5hari"]
 metode_list = ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"]
