@@ -50,9 +50,12 @@ with st.sidebar:
     voting_mode = "product"
     model_type = "lstm"
     window_size = 7
+    window_per_digit = {}
 
     if metode in ["LSTM AI", "Ensemble AI + Markov"]:
-        window_size = st.slider("🪟 Window Size", 3, 30, 7)
+        st.markdown("### 🪟 Window Size per Digit")
+        for label in ["ribuan", "ratusan", "puluhan", "satuan"]:
+            window_per_digit[label] = st.slider(f"🪟 {label.upper()}", 3, 30, 7, key=f"win_{label}")
         min_conf = st.slider("🔎 Minimum Confidence", 0.0001, 0.01, 0.0005, step=0.0001, format="%.4f")
         power = st.slider("📈 Confidence Power", 0.5, 3.0, 1.5, step=0.1)
         temperature = st.slider("🌡️ Temperature Scaling", 0.1, 2.0, 0.5, step=0.1)
@@ -61,7 +64,7 @@ with st.sidebar:
         model_type = "transformer" if use_transformer else "lstm"
         mode_prediksi = st.selectbox("🎯 Mode Prediksi Top6", ["confidence", "ranked", "hybrid"])
 
-# Ambil & Edit Data (persisten dengan session_state)
+# Ambil & Edit Data
 if "angka_list" not in st.session_state:
     st.session_state.angka_list = []
 
@@ -88,14 +91,11 @@ if metode == "LSTM AI":
     with st.expander("⚙️ Manajemen Model"):
         lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
         digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
-        for i, label in enumerate(digit_labels):
+        for label in digit_labels:
             model_path = f"saved_models/{lokasi_id}_{label}_{model_type}.h5"
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
-                if os.path.exists(model_path):
-                    st.info(f"📂 Model {label.upper()} tersedia ({model_type}).")
-                else:
-                    st.warning(f"⚠️ Model {label.upper()} belum tersedia.")
+                st.info(f"📂 Model {label.upper()} tersedia.") if os.path.exists(model_path) else st.warning(f"⚠️ Model {label.upper()} belum tersedia.")
             with col2:
                 if os.path.exists(model_path):
                     if st.button(f"🗑 Hapus {label.upper()}", key=f"hapus_model_{label}"):
@@ -108,14 +108,14 @@ if metode == "LSTM AI":
                         os.remove(log_path)
                         st.info(f"🧾 Log training {label.upper()} dihapus.")
         if st.button("📚 Latih & Simpan Semua Model"):
-            with st.spinner(f"🔄 Melatih semua model per digit ({model_type})..."):
-                train_and_save_model(df, selected_lokasi, model_type=model_type, window_size=window_size)
-            st.success("✅ Semua model berhasil dilatih dan disimpan.")
+            with st.spinner("🔄 Melatih semua model..."):
+                train_and_save_model(df, selected_lokasi, model_type=model_type, window_size=window_per_digit)
+            st.success("✅ Model berhasil dilatih.")
 
 # Tombol Prediksi
 if st.button("🔮 Prediksi"):
-    if len(df) < window_size + 1:
-        st.warning(f"❌ Minimal {window_size + 1} data diperlukan.")
+    if len(df) < max(window_per_digit.values()) + 1:
+        st.warning("❌ Jumlah data tidak mencukupi untuk prediksi.")
     else:
         with st.spinner("⏳ Melakukan prediksi..."):
             result, probs = None, None
@@ -127,11 +127,11 @@ if st.button("🔮 Prediksi"):
                 result = top6_markov_hybrid(df)
             elif metode == "LSTM AI":
                 pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True,
-                                  temperature=temperature, mode_prediksi=mode_prediksi, window_size=window_size)
+                                  temperature=temperature, mode_prediksi=mode_prediksi, window_size=window_per_digit)
                 if pred: result, probs = pred
             elif metode == "Ensemble AI + Markov":
                 pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True,
-                                  temperature=temperature, mode_prediksi=mode_prediksi, window_size=window_size)
+                                  temperature=temperature, mode_prediksi=mode_prediksi, window_size=window_per_digit)
                 if pred:
                     result, probs = pred
                     markov_result, _ = top6_markov(df)
@@ -169,7 +169,7 @@ if st.button("🔮 Prediksi"):
                 with st.spinner("🔢 Menghitung kombinasi 4D terbaik..."):
                     top_komb = kombinasi_4d(df, lokasi=selected_lokasi, model_type=model_type,
                                             top_n=10, min_conf=min_conf, power=power,
-                                            mode=voting_mode, window_size=window_size, mode_prediksi=mode_prediksi)
+                                            mode=voting_mode, window_size=window_per_digit, mode_prediksi=mode_prediksi)
                     if top_komb:
                         with st.expander("💡 Simulasi Kombinasi 4D Terbaik"):
                             sim_col = st.columns(2)
@@ -178,14 +178,14 @@ if st.button("🔮 Prediksi"):
                                     st.markdown(f"`{komb}` - ⚡️ Confidence: `{score:.4f}`")
 
         with st.expander("📊 Evaluasi Akurasi LSTM per Digit"):
-            with st.spinner("🔄 Mengevaluasi akurasi model LSTM..."):
+            with st.spinner("🔄 Mengevaluasi akurasi model..."):
                 acc_top1_list, acc_top6_list, top1_labels_list = evaluate_lstm_accuracy_all_digits(
-                    df, selected_lokasi, model_type=model_type, window_size=window_size
+                    df, selected_lokasi, model_type=model_type, window_size=window_per_digit
                 )
-                if acc_top1_list is not None:
+                if acc_top1_list:
                     for i in range(4):
                         label = digit_labels[i]
-                        top1_digit = top1_labels_list[i] if top1_labels_list and i < len(top1_labels_list) else "-"
-                        st.info(f"🎯 {label} (Digit {i+1})\nTop-1 ({top1_digit}) Accuracy: {acc_top1_list[i]:.2%}, Top-6 Accuracy: {acc_top6_list[i]:.2%}")
+                        top1_digit = top1_labels_list[i] if top1_labels_list else "-"
+                        st.info(f"🎯 {label} Accuracy:\nTop-1: {acc_top1_list[i]:.2%}, Top-6: {acc_top6_list[i]:.2%}")
                 else:
-                    st.warning("⚠️ Tidak bisa mengevaluasi akurasi. Model belum tersedia atau data tidak cukup.")
+                    st.warning("⚠️ Tidak bisa evaluasi. Model belum tersedia atau data kurang.")
