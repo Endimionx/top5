@@ -68,6 +68,14 @@ with st.sidebar:
 if "angka_list" not in st.session_state:
     st.session_state.angka_list = []
 
+if st.button("🔎 Cari Window Size Terbaik"):
+    with st.spinner("🔍 Mencari window size terbaik per digit..."):
+        window_dict = find_best_window_size_per_digit(
+            df, selected_lokasi, model_type=model_type, window_range=(3, 15)
+        )
+        st.session_state.best_window_dict = window_dict
+        st.success(f"✅ Selesai. Hasil: {window_dict}")
+
 if st.button("🔄 Ambil Data dari API"):
     try:
         with st.spinner("🔄 Mengambil data dari API..."):
