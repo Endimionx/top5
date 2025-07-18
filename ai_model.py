@@ -180,3 +180,35 @@ def kombinasi_4d(df, lokasi, model_type="lstm", top_n=10, min_conf=0.0001, power
         if score >= min_conf:
             scores.append(("".join(map(str, combo)), score))
     return sorted(scores, key=lambda x: -x[1])[:top_n]
+
+def top6_ensemble(df, lokasi, model_type="lstm", lstm_weight=0.6, markov_weight=0.4, window_dict=None, temperature=0.5, mode_prediksi="hybrid"):
+    # LSTM prediction
+    lstm_result = top6_model(
+        df,
+        lokasi=lokasi,
+        model_type=model_type,
+        return_probs=False,
+        window_dict=window_dict,
+        temperature=temperature,
+        mode_prediksi=mode_prediksi
+    )
+
+    # Markov prediction
+    markov_result, _ = top6_markov(df)
+    
+    if lstm_result is None or markov_result is None:
+        return None
+
+    ensemble = []
+    for i in range(4):
+        all_digits = lstm_result[i] + markov_result[i]
+        scores = {}
+        for digit in all_digits:
+            scores[digit] = 0
+            if digit in lstm_result[i]:
+                scores[digit] += lstm_weight * (1.0 / (1 + lstm_result[i].index(digit)))
+            if digit in markov_result[i]:
+                scores[digit] += markov_weight * (1.0 / (1 + markov_result[i].index(digit)))
+        top6 = sorted(scores.items(), key=lambda x: -x[1])[:6]
+        ensemble.append([x[0] for x in top6])
+    return ensemble
