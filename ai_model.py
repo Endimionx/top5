@@ -333,7 +333,7 @@ def find_best_window_size_with_model_fast(df, label, lokasi, model_type="lstm", 
     best_acc = 0
     best_ws = min_ws
 
-    for ws in range(min_ws, max_ws + 1):  # tanpa step=2 agar tidak hanya genap
+    for ws in range(min_ws, max_ws + 1):  # coba semua ws, ganjil & genap
         try:
             X, y_dict = preprocess_data(df.iloc[-200:], window_size=ws)
             y = y_dict[label]
@@ -350,7 +350,6 @@ def find_best_window_size_with_model_fast(df, label, lokasi, model_type="lstm", 
                 callbacks=[EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)]
             )
             val_acc = np.max(history.history['val_accuracy'])
-            st.info(f"🔍 {label.upper()} | WS={ws} | Val Acc={val_acc:.2%}")
 
             if val_acc > best_acc:
                 best_acc = val_acc
@@ -360,4 +359,6 @@ def find_best_window_size_with_model_fast(df, label, lokasi, model_type="lstm", 
             print(f"[ERROR {label} WS={ws}] {e}")
             continue
 
+    # Tampilkan info hanya untuk hasil terbaik
+    st.info(f"✅ {label.upper()} | Window Size Terbaik: {best_ws} | Akurasi: {best_acc:.2%}")
     return best_ws
