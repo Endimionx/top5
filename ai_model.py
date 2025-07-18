@@ -307,11 +307,16 @@ def find_best_window_size_with_model(df, label, lokasi, model_type="lstm", min_w
             continue
     return best_ws
 
-def find_best_window_size_with_model_fast(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=16):
-    from tensorflow.keras.models import Sequential
-    from tensorflow.keras.layers import Embedding, LSTM, Dense, Input, Bidirectional, Dropout, LayerNormalization, GlobalAveragePooling1D
-    from tensorflow.keras import Model
+def find_best_window_size_with_model_fast(df, label, lokasi, model_type="lstm", min_ws=3, max_ws=20):
     import tensorflow as tf
+    from tensorflow.keras.models import Model
+    from tensorflow.keras.layers import (
+        Input, Embedding, LSTM, Dense, Bidirectional,
+        GlobalAveragePooling1D, Dropout
+    )
+    from tensorflow.keras.callbacks import EarlyStopping
+    import numpy as np
+    import streamlit as st
 
     def quick_model(input_len):
         inp = Input(shape=(input_len,))
@@ -319,6 +324,7 @@ def find_best_window_size_with_model_fast(df, label, lokasi, model_type="lstm", 
         x = Bidirectional(LSTM(64, return_sequences=True))(x)
         x = GlobalAveragePooling1D()(x)
         x = Dense(64, activation='relu')(x)
+        x = Dropout(0.3)(x)
         out = Dense(10, activation='softmax')(x)
         model = Model(inputs=inp, outputs=out)
         model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
@@ -327,21 +333,29 @@ def find_best_window_size_with_model_fast(df, label, lokasi, model_type="lstm", 
     best_acc = 0
     best_ws = min_ws
 
-    for ws in range(min_ws, max_ws + 1, 2):
+    for ws in range(min_ws, max_ws + 1):  # tanpa step=2 agar tidak hanya genap
         try:
-            X, y_dict = preprocess_data(df.iloc[-100:], window_size=ws)
+            X, y_dict = preprocess_data(df.iloc[-200:], window_size=ws)
             y = y_dict[label]
             if X.shape[0] == 0 or y.shape[0] == 0:
                 continue
+
             model = quick_model(X.shape[1])
-            model.fit(X, y, epochs=3, batch_size=32, verbose=0, validation_split=0.2)
-            acc = model.evaluate(X, y, verbose=0)[1]
-            print(f"[WS={ws}] Acc={acc:.4f}")
-            if acc > best_acc:
-                best_acc = acc
+            history = model.fit(
+                X, y,
+                epochs=10,
+                batch_size=32,
+                verbose=0,
+                validation_split=0.2,
+                callbacks=[EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)]
+            )
+            val_acc = np.max(history.history['val_accuracy'])
+            st.info(f"🔍 {label.upper()} | WS={ws} | Val Acc={val_acc:.2%}")
+
+            if val_acc > best_acc:
+                best_acc = val_acc
                 best_ws = ws
-            # Streamlit progress info
-            st.info(f"🔍 {label.upper()} | Window Size: {ws} | Akurasi: {acc:.2%}")
+
         except Exception as e:
             print(f"[ERROR {label} WS={ws}] {e}")
             continue
