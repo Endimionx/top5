@@ -58,7 +58,7 @@ with col1:
     if st.button("🔄 Ambil Data dari API"):
         try:
             with st.spinner("🔄 Mengambil data..."):
-                url = f"https://wysiwygscan.com/api?pasaran={lokasi_list[0].lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
+                url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
                 headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
                 data = requests.get(url, headers=headers).json()
                 angka_api = [d["result"] for d in data["data"] if len(d["result"]) == 4 and d["result"].isdigit()]
