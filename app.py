@@ -216,7 +216,7 @@ if st.button("🔮 Prediksi"):
 
 if metode in ["LSTM AI", "Ensemble AI + Markov"]:
     # Tombol Cari Window Size Terbaik
-if st.button("🔍 Cari Window Size Terbaik"):
+    if st.button("🔍 Cari Window Size Terbaik"):
     with st.spinner("🔎 Mencari window size terbaik per digit..."):
         window_per_digit = {}
         for label in DIGIT_LABELS:
@@ -231,11 +231,11 @@ if st.button("🔍 Cari Window Size Terbaik"):
             )
             window_per_digit[label] = best_ws
 
-        # Tampilkan hasil window size terbaik
+        # Tampilkan hasil window size terbaik dalam tabel
         st.markdown("### ✅ Window Size Terbaik per Digit")
         ws_df = pd.DataFrame.from_dict(window_per_digit, orient="index", columns=["Window Size"])
         st.dataframe(ws_df)
 
-        # Simpan ke session state untuk digunakan langsung
+        # Simpan ke session_state agar digunakan untuk prediksi/training berikutnya
         for label in DIGIT_LABELS:
             st.session_state[f"win_{label}"] = window_per_digit[label]
