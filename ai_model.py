@@ -400,14 +400,12 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
     best_acc = 0
     best_score = 0
     table_data = []
-    ws_top6_records = []
-
+    all_scores = []
     digit_counter = {i: 0 for i in range(10)}
 
     st.markdown(f"### 🔍 Pencarian Window Size - {label.upper()}")
 
     ws_range = list(range(min_ws, max_ws + 1))
-    all_scores = []
 
     for ws in ws_range:
         try:
@@ -440,7 +438,6 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
             score = val_acc * avg_conf
 
             all_scores.append((ws, val_acc, avg_conf, list(top6), score))
-
             table_data.append((ws, round(val_acc * 100, 2), round(avg_conf * 100, 2), list(top6)))
 
             if score > best_score:
@@ -502,7 +499,7 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
         df_table = df_table.sort_values("Window Size")
         st.dataframe(df_table)
 
-    # Ambil top-5 berdasarkan skor val_acc * avg_conf
+    # Ambil Top-5 berdasarkan score val_acc * avg_conf
     top5 = sorted(all_scores, key=lambda x: -x[4])[:5]
     top5_top6 = []
     for _, _, _, top6, _ in top5:
@@ -510,7 +507,7 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
             digit_counter[d] += 1
         top5_top6.extend(top6)
 
-    # Buat average top6 dari top5 ws
+    # Hitung rata-rata kemunculan dari semua top6 Top-5 WS
     avg_top6_digits = [x[0] for x in sorted(
         {d: top5_top6.count(d) for d in set(top5_top6)}.items(),
         key=lambda x: -x[1]
@@ -528,6 +525,4 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
 
     st.success(f"✅ {label.upper()} - WS terbaik: {best_ws} (Val Acc: {best_acc:.2%})")
     return best_ws, avg_top6_digits
-
-
                 
