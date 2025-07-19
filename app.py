@@ -58,33 +58,34 @@ with st.sidebar:
         )
 
 # ======== Manajemen Model ========
-with st.expander("⚙️ Manajemen Model", expanded=True):
-    lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
-    digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
-    for label in digit_labels:
-        model_path = f"saved_models/{lokasi_id}_{label}_{model_type}.h5"
-        col1, col2, col3 = st.columns([2, 1, 1])
-        with col1:
-            if os.path.exists(model_path):
-                st.info(f"📂 Model {label.upper()} tersedia.")
-            else:
-                st.warning(f"⚠️ Model {label.upper()} belum tersedia.")
-        with col2:
-            if os.path.exists(model_path):
-                if st.button(f"🗑 Hapus {label.upper()}", key=f"hapus_model_{label}"):
-                    os.remove(model_path)
-                    st.warning(f"✅ Model {label.upper()} dihapus.")
-        with col3:
-            log_path = f"training_logs/history_{lokasi_id}_{label}_{model_type}.csv"
-            if os.path.exists(log_path):
-                if st.button(f"🧹 Hapus Log {label.upper()}", key=f"hapus_log_{label}"):
-                    os.remove(log_path)
-                    st.info(f"🧾 Log training {label.upper()} dihapus.")
-    if st.button("📚 Latih & Simpan Semua Model"):
-        with st.spinner("🔄 Melatih semua model..."):
-            train_and_save_model(df, selected_lokasi, window_dict=window_per_digit, model_type=model_type)
-        st.success("✅ Model berhasil dilatih.")
-
+# ======== Manajemen Model (khusus metode AI) ========
+if metode in ["LSTM AI", "Ensemble AI + Markov"]:
+    with st.expander("⚙️ Manajemen Model", expanded=True):
+        lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
+        digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
+        for label in digit_labels:
+            model_path = f"saved_models/{lokasi_id}_{label}_{model_type}.h5"
+            col1, col2, col3 = st.columns([2, 1, 1])
+            with col1:
+                if os.path.exists(model_path):
+                    st.info(f"📂 Model {label.upper()} tersedia.")
+                else:
+                    st.warning(f"⚠️ Model {label.upper()} belum tersedia.")
+            with col2:
+                if os.path.exists(model_path):
+                    if st.button(f"🗑 Hapus {label.upper()}", key=f"hapus_model_{label}"):
+                        os.remove(model_path)
+                        st.warning(f"✅ Model {label.upper()} dihapus.")
+            with col3:
+                log_path = f"training_logs/history_{lokasi_id}_{label}_{model_type}.csv"
+                if os.path.exists(log_path):
+                    if st.button(f"🧹 Hapus Log {label.upper()}", key=f"hapus_log_{label}"):
+                        os.remove(log_path)
+                        st.info(f"🧾 Log training {label.upper()} dihapus.")
+        if st.button("📚 Latih & Simpan Semua Model"):
+            with st.spinner("🔄 Melatih semua model..."):
+                train_and_save_model(df, selected_lokasi, window_dict=window_per_digit, model_type=model_type)
+            st.success("✅ Model berhasil dilatih.")
 # ======== Ambil Data API ========
 if "angka_list" not in st.session_state:
     st.session_state.angka_list = []
