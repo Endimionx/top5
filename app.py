@@ -217,25 +217,28 @@ if st.button("🔮 Prediksi"):
 if metode in ["LSTM AI", "Ensemble AI + Markov"]:
     # Tombol Cari Window Size Terbaik
     if st.button("🔍 Cari Window Size Terbaik"):
-    with st.spinner("🔎 Mencari window size terbaik per digit..."):
+        with st.spinner("🔎 Mencari window size terbaik per digit..."):
         window_per_digit = {}
         for label in DIGIT_LABELS:
-            best_ws = find_best_window_size_with_model_true(
-                df,
-                label=label,
-                lokasi=selected_lokasi,
-                model_type=model_type,
-                min_ws=4,
-                max_ws=20,
-                temperature=temperature
-            )
-            window_per_digit[label] = best_ws
+            try:
+                best_ws = find_best_window_size_with_model_true(
+                    df,
+                    label=label,
+                    lokasi=selected_lokasi,
+                    model_type=model_type,
+                    min_ws=4,
+                    max_ws=20,
+                    temperature=temperature
+                )
+                window_per_digit[label] = best_ws
+            except Exception as e:
+                st.error(f"Gagal {label.upper()} WS: {e}")
+                window_per_digit[label] = None
 
-        # Tampilkan hasil window size terbaik dalam tabel
         st.markdown("### ✅ Window Size Terbaik per Digit")
         ws_df = pd.DataFrame.from_dict(window_per_digit, orient="index", columns=["Window Size"])
         st.dataframe(ws_df)
 
-        # Simpan ke session_state agar digunakan untuk prediksi/training berikutnya
         for label in DIGIT_LABELS:
-            st.session_state[f"win_{label}"] = window_per_digit[label]
+            if window_per_digit[label] is not None:
+                st.session_state[f"win_{label}"] = window_per_digit[label]
