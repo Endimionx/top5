@@ -387,52 +387,90 @@ def evaluate_top6_accuracy(model, X, y_true):
     match = [y_true_labels[i] in y_pred_top6[i] for i in range(len(y_true_labels))]
     return np.mean(match)
 
-def find_best_window_size_with_model_true(
-    df, label, lokasi, model_type="lstm", min_ws=3, max_ws=20, temperature=0.5
-):
+def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=12):
+    import tensorflow as tf
+    from tensorflow.keras.models import Model
+    from tensorflow.keras.layers import (
+        Input, Embedding, LSTM, Dense, Bidirectional,
+        GlobalAveragePooling1D, Dropout
+    )
+    from tensorflow.keras.callbacks import EarlyStopping
+    from collections import Counter
     import numpy as np
     import streamlit as st
-    from tensorflow.keras.callbacks import EarlyStopping
-    from tensorflow.keras.models import load_model
+    import pandas as pd
+
+    def quick_model(input_len):
+        inp = Input(shape=(input_len,))
+        x = Embedding(input_dim=10, output_dim=32)(inp)
+        x = Bidirectional(LSTM(64, return_sequences=True))(x)
+        x = GlobalAveragePooling1D()(x)
+        x = Dense(64, activation='relu')(x)
+        x = Dropout(0.3)(x)
+        out = Dense(10, activation='softmax')(x)
+        model = Model(inputs=inp, outputs=out)
+        model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
+        return model
 
     best_acc = 0
     best_ws = min_ws
-    acc_per_ws = {}
+    top6_dict = {}
 
-    # Pilih builder model yang sesuai
-    builder = build_lstm_model if model_type == "lstm" else build_transformer_model
+    st.subheader(f"📊 Analisis Window Size: {label.upper()}")
 
     for ws in range(min_ws, max_ws + 1):
         try:
-            X, y_dict = preprocess_data(df, window_size=ws)
+            X, y_dict = preprocess_data(df.iloc[-300:], window_size=ws)
             y = y_dict[label]
-
             if X.shape[0] == 0 or y.shape[0] == 0:
                 continue
 
-            model = builder(X.shape[1], temperature=temperature)
-
+            model = quick_model(X.shape[1])
             history = model.fit(
-                X,
-                y,
+                X, y,
                 epochs=10,
                 batch_size=32,
                 verbose=0,
                 validation_split=0.2,
-                callbacks=[EarlyStopping(monitor="val_loss", patience=2, restore_best_weights=True)],
+                callbacks=[EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)]
             )
+            val_acc = np.max(history.history['val_accuracy'])
 
-            val_acc = np.max(history.history["val_accuracy"])
-            acc_per_ws[ws] = val_acc
+            # Prediksi Top-6
+            pred = model.predict(X, verbose=0)
+            avg = np.mean(pred, axis=0)
+            top6 = avg.argsort()[-6:][::-1]
+            top6_dict[ws] = top6.tolist()
 
-            # Tampilkan hanya yang terbaik sejauh ini
+            # Info hanya jika terbaik
             if val_acc > best_acc:
                 best_acc = val_acc
                 best_ws = ws
-                st.info(f"✅ {label.upper()} | WS={ws} | Val Acc={val_acc:.2%} (TERBAIK SEMENTARA)")
+                st.info(f"✅ BEST {label.upper()} | WS={ws} | Val Acc={val_acc:.2%} | Top6: {top6}")
+            else:
+                st.write(f"🔍 {label.upper()} | WS={ws} | Val Acc={val_acc:.2%} | Top6: {top6}")
 
         except Exception as e:
             print(f"[ERROR {label} WS={ws}] {e}")
             continue
+
+    # Tabel Top-6 per WS
+    if top6_dict:
+        st.markdown(f"### 🧾 Tabel Top-6 {label.upper()} per Window Size")
+        df_top6 = pd.DataFrame.from_dict(top6_dict, orient='index')
+        df_top6.columns = [f"Rank-{i+1}" for i in range(6)]
+        df_top6.index.name = "Window Size"
+        st.dataframe(df_top6)
+
+        # Rata-rata kemunculan digit
+        flat_digits = [d for top6 in top6_dict.values() for d in top6]
+        counter = Counter(flat_digits)
+        total = sum(counter.values())
+        avg_freq = {d: round((counter[d] / total) * 100, 2) for d in range(10)}
+
+        st.markdown(f"### 📈 Rata-Rata Kemunculan Digit (Top-6)")
+        df_avg = pd.DataFrame.from_dict(avg_freq, orient='index', columns=['% Kemunculan'])
+        df_avg.index.name = 'Digit'
+        st.dataframe(df_avg.sort_values('% Kemunculan', ascending=False))
 
     return best_ws
