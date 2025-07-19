@@ -387,41 +387,79 @@ def evaluate_top6_accuracy(model, X, y_true):
     match = [y_true_labels[i] in y_pred_top6[i] for i in range(len(y_true_labels))]
     return np.mean(match)
 
-def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=16):
+def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=12):
+    import tensorflow as tf
+    from tensorflow.keras.models import Model
+    from tensorflow.keras.layers import Input, Embedding, LSTM, Dense, Bidirectional, GlobalAveragePooling1D, Dropout
     from tensorflow.keras.callbacks import EarlyStopping
+    from tensorflow.keras.utils import to_categorical
     import numpy as np
     import streamlit as st
 
+    def quick_model(input_len):
+        inp = Input(shape=(input_len,))
+        x = Embedding(input_dim=10, output_dim=32)(inp)
+        x = Bidirectional(LSTM(64, return_sequences=True))(x)
+        x = GlobalAveragePooling1D()(x)
+        x = Dense(64, activation='relu')(x)
+        x = Dropout(0.3)(x)
+        out = Dense(10, activation='softmax')(x)
+        model = Model(inputs=inp, outputs=out)
+        model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
+        return model
+
     best_acc = 0
     best_ws = min_ws
+    best_top6 = []
+    result_per_ws = []
 
     for ws in range(min_ws, max_ws + 1):
         try:
-            X, y_dict = preprocess_data(df.iloc[-300:], window_size=ws)
+            X, y_dict = preprocess_data(df.iloc[-250:], window_size=ws)
             y = y_dict[label]
             if X.shape[0] == 0 or y.shape[0] == 0:
                 continue
 
-            model = build_lstm_model(X.shape[1]) if model_type == "lstm" else build_transformer_model(X.shape[1])
-            model.fit(
+            model = quick_model(X.shape[1])
+            history = model.fit(
                 X, y,
-                epochs=30,
+                epochs=10,
                 batch_size=32,
                 verbose=0,
                 validation_split=0.2,
-                callbacks=[EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)]
+                callbacks=[EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)]
             )
 
-            acc_top6 = evaluate_top6_accuracy(model, X, y)
-            st.info(f"📊 {label.upper()} | WS={ws} | Top-6 Acc={acc_top6:.2%}")
+            val_acc = np.max(history.history['val_accuracy'])
+            y_pred = model.predict(X, verbose=0)
+            avg_pred = np.mean(y_pred, axis=0)
+            avg_pred /= np.sum(avg_pred)
+            top6 = avg_pred.argsort()[-6:][::-1].tolist()
 
-            if acc_top6 > best_acc:
-                best_acc = acc_top6
+            result_per_ws.append({
+                "ws": ws,
+                "val_acc": val_acc,
+                "top6": top6
+            })
+
+            if val_acc > best_acc:
+                best_acc = val_acc
                 best_ws = ws
+                best_top6 = top6
 
         except Exception as e:
             print(f"[ERROR {label} WS={ws}] {e}")
             continue
 
-    st.success(f"✅ {label.upper()} | Best WS={best_ws} | Top-6 Acc={best_acc:.2%}")
+    # Tampilkan hasil terbaik
+    st.success(f"✅ {label.upper()} | Window Size Terbaik: {best_ws} | Akurasi: {best_acc:.2%} | Top-6: {best_top6}")
+
+    # Tampilkan tabel perbandingan seluruh window size
+    if result_per_ws:
+        st.markdown(f"#### 📊 Ringkasan {label.upper()}")
+        import pandas as pd
+        df_result = pd.DataFrame(result_per_ws)
+        df_result["Top-6"] = df_result["top6"].apply(lambda x: ", ".join(map(str, x)))
+        st.dataframe(df_result[["ws", "val_acc", "Top-6"]])
+
     return best_ws
