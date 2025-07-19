@@ -393,29 +393,25 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
     import pandas as pd
     from tensorflow.keras.callbacks import EarlyStopping
     import streamlit as st
-
-    from ai_model import build_lstm_model, build_transformer_model, preprocess_data
+    from collections import Counter
 
     best_ws = None
     best_acc = 0
     table_data = []
+    all_top6_digits = []
 
     st.markdown(f"### 🔍 Pencarian Window Size - {label.upper()}")
-    progress_placeholder = st.empty()  # hanya satu info yang berubah setiap iterasi
+    progress_placeholder = st.empty()
 
     for ws in range(min_ws, max_ws + 1):
         try:
             progress_placeholder.info(f"⏳ {label.upper()} | Evaluasi WS={ws}...")
-            print(f"[PROGRESS {label.upper()}] Coba WS={ws}...")
-
             X, y_dict = preprocess_data(df, window_size=ws)
             y = y_dict[label]
 
             if X.shape[0] == 0 or y.shape[0] == 0:
-                print(f"[SKIP {label.upper()} WS={ws}] Data kosong.")
                 continue
 
-            # Gunakan model sesuai pilihan
             model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
 
             history = model.fit(
@@ -436,6 +432,7 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
                 probs /= np.sum(probs)
 
             top6 = np.argsort(probs)[::-1][:6]
+            all_top6_digits.extend(top6)
 
             table_data.append((ws, round(val_acc * 100, 2), list(top6)))
 
@@ -447,12 +444,21 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
             print(f"[GAGAL {label.upper()} WS={ws}]: {e}")
             continue
 
-    progress_placeholder.empty()  # Hapus info proses
+    progress_placeholder.empty()
 
-    # Tampilkan tabel hasil
     if len(table_data) > 0:
         df_table = pd.DataFrame(table_data, columns=["Window Size", "Val Accuracy (%)", "Top-6 Digit"])
         st.dataframe(df_table)
 
+        # Tambahan: rata-rata top-6 semua WS
+        digit_counter = Counter(all_top6_digits)
+        total_ws = len(table_data)
+        avg_top6_table = pd.DataFrame([
+            {"Digit": digit, "Freq": freq, "Rata-rata per WS": round(freq / total_ws, 2)}
+            for digit, freq in digit_counter.items()
+        ]).sort_values(by="Rata-rata per WS", ascending=False)
+        st.markdown("### 📊 Rata-rata Kemunculan Top-6 Digit dari Semua WS")
+        st.dataframe(avg_top6_table)
+
     st.success(f"✅ {label.upper()} - Window Size terbaik: {best_ws} (Val Acc: {best_acc:.2%})")
-    return best_ws, list(np.argsort(probs)[::-1][:6]) if probs is not None else []
+    return best_ws, list(np.argsort(probs)[::-1][:6]) if 'probs' in locals() else []
