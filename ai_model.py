@@ -401,14 +401,12 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
     best_acc = 0
     best_score = 0
     table_data = []
-    ws_top6_records = []
-
     digit_counter = {i: 0 for i in range(10)}
+    all_scores = []
 
     st.markdown(f"### 🔍 Pencarian Window Size - {label.upper()}")
 
     ws_range = list(range(min_ws, max_ws + 1))
-    all_scores = []
 
     for ws in ws_range:
         try:
@@ -420,8 +418,8 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
             if use_cv:
                 acc_scores = []
                 conf_scores = []
-
                 kf = KFold(n_splits=cv_folds)
+
                 for train_index, val_index in kf.split(X):
                     X_train, X_val = X[train_index], X[val_index]
                     y_train, y_val = y[train_index], y[val_index]
@@ -449,6 +447,7 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
 
                 val_acc = np.mean(acc_scores)
                 avg_conf = np.mean(conf_scores)
+                preds = last_pred
 
             else:
                 model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
@@ -468,8 +467,8 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
                     preds /= np.sum(preds)
                 avg_conf = np.mean(np.sort(preds)[::-1][:6])
 
-            score = val_acc * avg_conf
             top6 = np.argsort(preds)[::-1][:6]
+            score = val_acc * avg_conf
 
             all_scores.append((ws, val_acc, avg_conf, list(top6), score))
             table_data.append((ws, round(val_acc * 100, 2), round(avg_conf * 100, 2), list(top6)))
@@ -503,6 +502,7 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
         df_table = df_table.sort_values("Window Size")
         st.dataframe(df_table)
 
+    # Heatmap digit kemunculan dari top-5 ws
     st.markdown("#### 🔥 Heatmap Jumlah Kemunculan Top-6 Digit (Top-5 WS)")
     heat_df = pd.DataFrame([digit_counter]).T
     heat_df.columns = ["Count"]
@@ -511,8 +511,8 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
     sns.heatmap(heat_df.T, annot=True, cmap="YlGnBu", cbar=False, ax=ax)
     st.pyplot(fig)
 
+    # Final result
     st.markdown(f"**🔁 Top-6 Rata-rata dari 5 WS terbaik:** `{', '.join(map(str, avg_top6_digits))}`")
-
     st.success(f"✅ {label.upper()} - WS terbaik: {best_ws} (Val Acc: {best_acc:.2%})")
     return best_ws, avg_top6_digits
-
+                
