@@ -213,7 +213,7 @@ if st.button("🔮 Prediksi"):
 # Tambahan akhir di bagian bawah app.py
 
 if metode in ["LSTM AI", "Ensemble AI + Markov"]:
-    if st.button("🔍 Cari Window Size Terbaik"):
+    if st.button("🔍 Scan Data Analisys By Window Size"):
         with st.spinner("🔄 Mencari window size terbaik per digit..."):
             import matplotlib.pyplot as plt
             from PIL import Image
