@@ -196,7 +196,7 @@ with tab2:
                 try:
                     best_ws, top6 = find_best_window_size_with_model_true(
                         df, label, lokasi=selected_lokasi, model_type=model_type,
-                        min_ws=min_ws, max_ws=max_ws, temperature=temperature
+                        min_ws=min_ws, max_ws=max_ws, temperature=temperature, use_tv=True, cv_folds=5
                     )
                     st.session_state.window_per_digit[label] = best_ws
                     ws_info.append({
