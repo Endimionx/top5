@@ -28,6 +28,28 @@ DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 # ======== Ambil Data API dan Input Manual ========
 st.markdown("## 📥 Data Angka Masuk")
 
+
+# ======== Sidebar Pengaturan ========
+with st.sidebar:
+    st.header("⚙️ Pengaturan")
+    selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
+    selected_hari = st.selectbox("📅 Hari", ["harian", "kemarin", "2hari", "3hari"])
+    putaran = st.number_input("🔁 Putaran", 10, 1000, 100)
+    metode = st.selectbox("🧠 Metode", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"])
+    jumlah_uji = st.number_input("📊 Data Uji", 1, 200, 10)
+    temperature = st.slider("🌡️ Temperature", 0.1, 2.0, 0.5, step=0.1)
+    voting_mode = st.selectbox("⚖️ Kombinasi", ["product", "average"])
+    power = st.slider("📈 Confidence Power", 0.5, 3.0, 1.5, 0.1)
+    min_conf = st.slider("🔎 Min Confidence", 0.0001, 0.01, 0.0005, 0.0001, format="%.4f")
+    use_transformer = st.checkbox("🤖 Gunakan Transformer")
+    model_type = "transformer" if use_transformer else "lstm"
+    mode_prediksi = st.selectbox("🎯 Mode Prediksi", ["confidence", "ranked", "hybrid"])
+
+    st.markdown("### 🪟 Window Size per Digit")
+    window_per_digit = {}
+    for label in DIGIT_LABELS:
+        window_per_digit[label] = st.slider(f"{label.upper()}", 3, 30, 7, key=f"win_{label}")
+
 if "angka_list" not in st.session_state:
     st.session_state.angka_list = []
 
@@ -52,28 +74,8 @@ with st.expander("✏️ Edit Data Angka Manual", expanded=True):
     riwayat_input = "\n".join(st.session_state.angka_list)
     riwayat_input = st.text_area("📝 1 angka per baris:", value=riwayat_input, height=300)
     st.session_state.angka_list = [x.strip() for x in riwayat_input.splitlines() if x.strip().isdigit() and len(x.strip()) == 4]
-df = pd.DataFrame({"angka": st.session_state.angka_list})
+    df = pd.DataFrame({"angka": st.session_state.angka_list})
 
-# ======== Sidebar Pengaturan ========
-with st.sidebar:
-    st.header("⚙️ Pengaturan")
-    selected_lokasi = st.selectbox("🌍 Pilih Pasaran", lokasi_list)
-    selected_hari = st.selectbox("📅 Hari", ["harian", "kemarin", "2hari", "3hari"])
-    putaran = st.number_input("🔁 Putaran", 10, 1000, 100)
-    metode = st.selectbox("🧠 Metode", ["Markov", "Markov Order-2", "Markov Gabungan", "LSTM AI", "Ensemble AI + Markov"])
-    jumlah_uji = st.number_input("📊 Data Uji", 1, 200, 10)
-    temperature = st.slider("🌡️ Temperature", 0.1, 2.0, 0.5, step=0.1)
-    voting_mode = st.selectbox("⚖️ Kombinasi", ["product", "average"])
-    power = st.slider("📈 Confidence Power", 0.5, 3.0, 1.5, 0.1)
-    min_conf = st.slider("🔎 Min Confidence", 0.0001, 0.01, 0.0005, 0.0001, format="%.4f")
-    use_transformer = st.checkbox("🤖 Gunakan Transformer")
-    model_type = "transformer" if use_transformer else "lstm"
-    mode_prediksi = st.selectbox("🎯 Mode Prediksi", ["confidence", "ranked", "hybrid"])
-
-    st.markdown("### 🪟 Window Size per Digit")
-    window_per_digit = {}
-    for label in DIGIT_LABELS:
-        window_per_digit[label] = st.slider(f"{label.upper()}", 3, 30, 7, key=f"win_{label}")
 
 # ======== Tabs Utama ========
 tab1, tab2 = st.tabs(["🔮 Prediksi & Evaluasi", "🪟 Cari Window Size"])
