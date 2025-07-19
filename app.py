@@ -212,60 +212,77 @@ if st.button("🔮 Prediksi"):
 
 # Tambahan akhir di bagian bawah app.py
 
-with st.spinner("🔄 Mencari window size terbaik per digit..."):
-    window_per_digit = {}
-    for label in ["ribuan", "ratusan", "puluhan", "satuan"]:
-        best_ws = find_best_window_size_with_model_true(
-            df,
-            label=label,
-            lokasi=selected_lokasi,
-            model_type=model_type,
-            min_ws=7,
-            max_ws=20,
-            temperature=temperature
-        )
-        window_per_digit[label] = best_ws
+if metode in ["LSTM AI", "Ensemble AI + Markov"]:
+    if st.button("🔍 Cari Window Size Terbaik"):
+        with st.spinner("🔄 Mencari window size terbaik per digit..."):
+            import matplotlib.pyplot as plt
+            from PIL import Image
+            import io
 
-# Tampilkan hasil prediksi langsung setelah pencarian window size
-if st.button("🔮 Prediksi (Setelah Cari Window Size)"):
-    if len(df) < max(window_per_digit.values()) + 1:
-        st.warning("❌ Jumlah data tidak mencukupi untuk prediksi.")
-    else:
-        with st.spinner("⏳ Melakukan prediksi..."):
-            pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True,
-                              temperature=temperature, mode_prediksi=mode_prediksi, window_dict=window_per_digit)
-            if pred:
-                result, probs = pred
-                digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
-                with st.expander("🌟 Hasil Prediksi Top 6 Digit (Setelah Cari WS)"):
-                    col1, col2 = st.columns(2)
-                    for i, label in enumerate(digit_labels):
-                        col = col1 if i < 2 else col2
-                        with col:
-                            st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
+            best_ws_dict = {}
+            ws_result_dict = {}
+            digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
 
-                with st.expander("📊 Confidence Bar per Digit (Setelah Cari WS)"):
-                    for i, label in enumerate(digit_labels):
-                        st.markdown(f"**🔢 {label}**")
-                        digit_data = pd.DataFrame({
-                            "Digit": [str(d) for d in result[i]],
-                            "Confidence": probs[i]
-                        }).sort_values(by="Confidence", ascending=True)
-                        st.bar_chart(digit_data.set_index("Digit"))
+            fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+            axs = axs.flatten()
 
-# Evaluasi Akurasi
-with st.expander("📊 Evaluasi Akurasi LSTM per Digit (Setelah Cari Window Size)"):
-    with st.spinner("🔄 Mengevaluasi akurasi model..."):
-        acc_top1_list, acc_top6_list, top1_labels_list = evaluate_lstm_accuracy_all_digits(
-            df, selected_lokasi, model_type=model_type, window_size=window_per_digit
-        )
-        if acc_top1_list:
-            eval_df = pd.DataFrame({
-                "Digit": ["Ribuan", "Ratusan", "Puluhan", "Satuan"],
-                "Top-1 Accuracy": [f"{x:.2%}" for x in acc_top1_list],
-                "Top-6 Accuracy": [f"{x:.2%}" for x in acc_top6_list],
-                "Top-1 Label": top1_labels_list
-            })
-            st.table(eval_df)
-        else:
-            st.warning("⚠️ Tidak bisa evaluasi. Model belum tersedia atau data kurang.")
+            for idx, label in enumerate(digit_labels):
+                best_acc = 0
+                best_ws = None
+                acc_list = []
+                top6_table = []
+
+                for ws in range(4, 16):
+                    try:
+                        X, y_dict = preprocess_data(df, window_size=ws)
+                        y = y_dict[label]
+                        if X.shape[0] == 0:
+                            continue
+                        model = build_lstm_model(X.shape[1])
+                        history = model.fit(X, y, epochs=10, batch_size=32, verbose=0, validation_split=0.2)
+                        acc = max(history.history['val_accuracy'])
+                        acc_list.append((ws, acc))
+
+                        # Ambil top6 prediksi untuk ws ini
+                        pred_result, _ = top6_model(
+                            df, lokasi=selected_lokasi, model_type="lstm",
+                            return_probs=True, window_dict={label: ws},
+                            temperature=temperature, mode_prediksi=mode_prediksi
+                        )
+                        if pred_result:
+                            top6 = pred_result[digit_labels.index(label)]
+                            top6_table.append((ws, ", ".join(map(str, top6))))
+
+                        if acc > best_acc:
+                            best_acc = acc
+                            best_ws = ws
+                    except Exception as e:
+                        continue
+
+                best_ws_dict[label] = best_ws
+                ws_result_dict[label] = acc_list
+
+                # Plot per digit
+                ws_vals = [x[0] for x in acc_list]
+                acc_vals = [x[1] for x in acc_list]
+                axs[idx].plot(ws_vals, acc_vals, marker="o")
+                axs[idx].set_title(f"{label.upper()} (Best WS={best_ws})")
+                axs[idx].set_xlabel("Window Size")
+                axs[idx].set_ylabel("Val Accuracy")
+
+                # Tampilkan tabel Top6
+                if top6_table:
+                    st.markdown(f"### 🎯 {label.upper()} - Top6 per WS")
+                    st.table(pd.DataFrame(top6_table, columns=["WS", "Top6 Prediksi"]))
+
+            # Simpan figure ke image
+            buf = io.BytesIO()
+            plt.tight_layout()
+            plt.savefig(buf, format="png")
+            buf.seek(0)
+            img = Image.open(buf)
+            st.image(img, caption="📊 Grafik Akurasi per WS")
+
+            # Update window_per_digit agar bisa digunakan
+            window_per_digit.update(best_ws_dict)
+            st.success(f"✅ Window size terbaik: {window_per_digit}")
