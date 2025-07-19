@@ -222,6 +222,8 @@ if "ws_result_table" not in st.session_state:
 if "window_per_digit" not in st.session_state:
     st.session_state.window_per_digit = {}
 
+min_ws = st.number_input("🔁 Min Window Size", min_value=4, max_value=14, value=4)
+max_ws = st.number_input("🔁 Max Window Size", min_value=4, max_value=14, value=14)
 if st.button("🔍 Cari Window Size Terbaik"):
     with st.spinner("🔎 Mencari window size terbaik per digit..."):
         window_per_digit = {}
@@ -240,8 +242,8 @@ if st.button("🔍 Cari Window Size Terbaik"):
                     label=label,
                     lokasi=selected_lokasi,
                     model_type=model_type,
-                    min_ws=4,
-                    max_ws=20,
+                    min_ws=min_ws,
+                    max_ws=max_ws,
                     temperature=temperature
                 )
                 window_per_digit[label] = best_ws
