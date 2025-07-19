@@ -210,6 +210,8 @@ if st.button("🔮 Prediksi"):
 #        best_window_dict[label] = best_ws
 #        st.success(f"✅ Window size terbaik ditemukan: {best_window_dict}")
 
+# Tambahan akhir di bagian bawah app.py
+
 with st.spinner("🔄 Mencari window size terbaik per digit..."):
     window_per_digit = {}
     for label in ["ribuan", "ratusan", "puluhan", "satuan"]:
@@ -223,3 +225,47 @@ with st.spinner("🔄 Mencari window size terbaik per digit..."):
             temperature=temperature
         )
         window_per_digit[label] = best_ws
+
+# Tampilkan hasil prediksi langsung setelah pencarian window size
+if st.button("🔮 Prediksi (Setelah Cari Window Size)"):
+    if len(df) < max(window_per_digit.values()) + 1:
+        st.warning("❌ Jumlah data tidak mencukupi untuk prediksi.")
+    else:
+        with st.spinner("⏳ Melakukan prediksi..."):
+            pred = top6_model(df, lokasi=selected_lokasi, model_type=model_type, return_probs=True,
+                              temperature=temperature, mode_prediksi=mode_prediksi, window_dict=window_per_digit)
+            if pred:
+                result, probs = pred
+                digit_labels = ["Ribuan", "Ratusan", "Puluhan", "Satuan"]
+                with st.expander("🌟 Hasil Prediksi Top 6 Digit (Setelah Cari WS)"):
+                    col1, col2 = st.columns(2)
+                    for i, label in enumerate(digit_labels):
+                        col = col1 if i < 2 else col2
+                        with col:
+                            st.markdown(f"**{label}:** {', '.join(map(str, result[i]))}")
+
+                with st.expander("📊 Confidence Bar per Digit (Setelah Cari WS)"):
+                    for i, label in enumerate(digit_labels):
+                        st.markdown(f"**🔢 {label}**")
+                        digit_data = pd.DataFrame({
+                            "Digit": [str(d) for d in result[i]],
+                            "Confidence": probs[i]
+                        }).sort_values(by="Confidence", ascending=True)
+                        st.bar_chart(digit_data.set_index("Digit"))
+
+# Evaluasi Akurasi
+with st.expander("📊 Evaluasi Akurasi LSTM per Digit (Setelah Cari Window Size)"):
+    with st.spinner("🔄 Mengevaluasi akurasi model..."):
+        acc_top1_list, acc_top6_list, top1_labels_list = evaluate_lstm_accuracy_all_digits(
+            df, selected_lokasi, model_type=model_type, window_size=window_per_digit
+        )
+        if acc_top1_list:
+            eval_df = pd.DataFrame({
+                "Digit": ["Ribuan", "Ratusan", "Puluhan", "Satuan"],
+                "Top-1 Accuracy": [f"{x:.2%}" for x in acc_top1_list],
+                "Top-6 Accuracy": [f"{x:.2%}" for x in acc_top6_list],
+                "Top-1 Label": top1_labels_list
+            })
+            st.table(eval_df)
+        else:
+            st.warning("⚠️ Tidak bisa evaluasi. Model belum tersedia atau data kurang.")
