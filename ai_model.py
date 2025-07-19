@@ -388,6 +388,13 @@ def evaluate_top6_accuracy(model, X, y_true):
     return np.mean(match)
 
 def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=20, temperature=1.0):
+    import pandas as pd
+    import numpy as np
+    import time
+    from tensorflow.keras.callbacks import EarlyStopping
+    from .ai_model import build_lstm_model, build_transformer_model, preprocess_data
+    import streamlit as st
+
     best_ws = None
     best_acc = 0
     table_data = []
@@ -396,16 +403,18 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
 
     for ws in range(min_ws, max_ws + 1):
         try:
+            st.markdown(f"- ⏳ Mencoba WS={ws}...")
+            time.sleep(0.1)  # Optional agar UI sempat update
+
             X, y_dict = preprocess_data(df, window_size=ws)
             y = y_dict[label]
 
             if X.shape[0] == 0 or y.shape[0] == 0:
+                st.warning(f"❌ Data kosong untuk WS={ws}")
                 continue
 
-            # Bangun model sesuai mode
             model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
 
-            # Training cepat untuk evaluasi akurasi
             history = model.fit(
                 X, y,
                 epochs=10,
@@ -419,13 +428,14 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
 
             val_acc = max(history.history.get("val_accuracy", [0]))
 
-            # Prediksi 1 sampel terakhir untuk ambil top-6 digit
             preds = model.predict(X[-1:], verbose=0)
             probs = preds[0]
             if temperature != 1.0:
                 probs = np.exp(np.log(probs + 1e-8) / temperature)
                 probs /= np.sum(probs)
             top6 = np.argsort(probs)[::-1][:6]
+
+            st.info(f"📊 WS={ws} | Val Acc={val_acc:.2%} | Top6: {top6.tolist()}")
 
             table_data.append((ws, round(val_acc * 100, 2), list(top6)))
 
@@ -434,13 +444,12 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
                 best_ws = ws
 
         except Exception as e:
-            print(f"[GAGAL {label.upper()} WS={ws}]: {e}")
+            st.error(f"🚫 Gagal {label.upper()} WS={ws}: {e}")
             continue
 
-    # Tampilkan tabel hasil pencarian
     if len(table_data) > 0:
         df_table = pd.DataFrame(table_data, columns=["Window Size", "Val Accuracy (%)", "Top-6 Digit"])
         st.dataframe(df_table)
 
     st.success(f"✅ {label.upper()} - Window Size terbaik: {best_ws} (Val Acc: {best_acc:.2%})")
-    return best_ws
+    return best_ws, [x[2] for x in table_data if x[0] == best_ws][0] if best_ws else []
