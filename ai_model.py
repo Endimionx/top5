@@ -378,3 +378,50 @@ def find_best_window_size_with_model_fast(df, label, lokasi, model_type="lstm", 
     # Tampilkan info hanya untuk hasil terbaik
     st.info(f"✅ {label.upper()} | Window Size Terbaik: {best_ws} | Akurasi: {best_acc:.2%}")
     return best_ws
+    
+def evaluate_top6_accuracy(model, X, y_true):
+    import numpy as np
+    y_true_labels = np.argmax(y_true, axis=1)
+    y_pred_probs = model.predict(X, verbose=0)
+    y_pred_top6 = np.argsort(y_pred_probs, axis=1)[:, -6:]
+    match = [y_true_labels[i] in y_pred_top6[i] for i in range(len(y_true_labels))]
+    return np.mean(match)
+
+def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=16):
+    from tensorflow.keras.callbacks import EarlyStopping
+    import numpy as np
+    import streamlit as st
+
+    best_acc = 0
+    best_ws = min_ws
+
+    for ws in range(min_ws, max_ws + 1):
+        try:
+            X, y_dict = preprocess_data(df.iloc[-300:], window_size=ws)
+            y = y_dict[label]
+            if X.shape[0] == 0 or y.shape[0] == 0:
+                continue
+
+            model = build_lstm_model(X.shape[1]) if model_type == "lstm" else build_transformer_model(X.shape[1])
+            model.fit(
+                X, y,
+                epochs=30,
+                batch_size=32,
+                verbose=0,
+                validation_split=0.2,
+                callbacks=[EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)]
+            )
+
+            acc_top6 = evaluate_top6_accuracy(model, X, y)
+            st.info(f"📊 {label.upper()} | WS={ws} | Top-6 Acc={acc_top6:.2%}")
+
+            if acc_top6 > best_acc:
+                best_acc = acc_top6
+                best_ws = ws
+
+        except Exception as e:
+            print(f"[ERROR {label} WS={ws}] {e}")
+            continue
+
+    st.success(f"✅ {label.upper()} | Best WS={best_ws} | Top-6 Acc={best_acc:.2%}")
+    return best_ws
