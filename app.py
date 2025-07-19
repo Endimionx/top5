@@ -23,6 +23,7 @@ from ai_model import (
 )
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
+import time
 
 st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
 
@@ -214,6 +215,8 @@ if st.button("🔮 Prediksi"):
 
 
 # Tombol untuk mencari window size terbaik per digit
+import time  # ⬅️ Tambahkan ini di bagian import
+
 if "ws_result_table" not in st.session_state:
     st.session_state.ws_result_table = None
 if "window_per_digit" not in st.session_state:
@@ -226,10 +229,12 @@ if st.button("🔍 Cari Window Size Terbaik"):
 
         total_digits = len(DIGIT_LABELS)
         progress_bar = st.progress(0)
-        
+
         for idx, label in enumerate(DIGIT_LABELS):
             try:
                 st.markdown(f"#### 🔧 Proses: {label.upper()}")
+                time.sleep(0.2)  # ⬅️ Delay untuk memberi waktu Streamlit render
+
                 best_ws, top6_digits = find_best_window_size_with_model_true(
                     df,
                     label=label,
@@ -240,9 +245,8 @@ if st.button("🔍 Cari Window Size Terbaik"):
                     temperature=temperature
                 )
                 window_per_digit[label] = best_ws
-                st.session_state[f"win_{label}"] = best_ws  # Update slider UI jika ada
+                st.session_state[f"win_{label}"] = best_ws
 
-                # Simpan ke tabel hasil
                 ws_info_data.append({
                     "Digit": label.upper(),
                     "Best WS": best_ws,
@@ -257,15 +261,15 @@ if st.button("🔍 Cari Window Size Terbaik"):
                     "Top6": "-"
                 })
 
-            progress_bar.progress((idx + 1) / total_digits)
+            progress_value = (idx + 1) / total_digits
+            progress_bar.progress(progress_value)
+            time.sleep(0.2)  # ⬅️ Delay agar progress bisa terlihat
 
         progress_bar.empty()
-
-        # Simpan hasil ke session_state
         st.session_state.window_per_digit = window_per_digit
         st.session_state.ws_result_table = pd.DataFrame(ws_info_data)
 
-# Tampilkan hasil tabel jika sudah ada
+# Tampilkan hasil jika sudah tersedia
 if st.session_state.ws_result_table is not None:
     st.markdown("### ✅ Hasil Pencarian Window Size Terbaik")
     st.dataframe(st.session_state.ws_result_table, use_container_width=True)
