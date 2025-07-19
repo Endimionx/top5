@@ -10,6 +10,7 @@ from tensorflow.keras.callbacks import CSVLogger, EarlyStopping, ReduceLROnPlate
 from tensorflow.keras.utils import to_categorical
 import os
 import pandas as pd
+import time
 from itertools import product
 from markov_model import top6_markov
 
