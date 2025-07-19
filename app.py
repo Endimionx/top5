@@ -188,6 +188,14 @@ with tab2:
     if "window_per_digit" not in st.session_state:
         st.session_state.window_per_digit = {}
 
+    # ===== Pengaturan Cross Validation =====
+    with st.expander("⚙️ Opsi Cross Validation"):
+        use_cv = st.checkbox("Gunakan Cross Validation", value=False, key="use_cv_toggle")
+        if use_cv:
+            cv_folds = st.number_input("Jumlah Fold (K-Folds)", min_value=2, max_value=10, value=2, step=1, key="cv_folds_input")
+        else:
+            cv_folds = None
+
     if st.button("🔍 Cari Window Size Terbaik"):
         with st.spinner("Mencari window size..."):
             ws_info = []
@@ -196,7 +204,7 @@ with tab2:
                 try:
                     best_ws, top6 = find_best_window_size_with_model_true(
                         df, label, lokasi=selected_lokasi, model_type=model_type,
-                        min_ws=min_ws, max_ws=max_ws, temperature=temperature, use_cv=True, cv_folds=2
+                        min_ws=min_ws, max_ws=max_ws, temperature=temperature, use_cv=use_cv, cv_folds=cv_folds
                     )
                     st.session_state.window_per_digit[label] = best_ws
                     ws_info.append({
