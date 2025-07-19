@@ -388,13 +388,6 @@ def evaluate_top6_accuracy(model, X, y_true):
     return np.mean(match)
 
 def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=20, temperature=1.0):
-    import pandas as pd
-    import numpy as np
-    import time
-    from tensorflow.keras.callbacks import EarlyStopping
-    from .ai_model import build_lstm_model, build_transformer_model, preprocess_data
-    import streamlit as st
-
     best_ws = None
     best_acc = 0
     table_data = []
