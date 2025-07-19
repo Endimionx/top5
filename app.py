@@ -16,7 +16,8 @@ from ai_model import (
     evaluate_lstm_accuracy_all_digits,
     preprocess_data,
     find_best_window_size_with_model,
-    find_best_window_size_with_model_fast
+    find_best_window_size_with_model_fast,
+    find_best_window_size_with_model_true
 )
 from lokasi_list import lokasi_list
 from streamlit_lottie import st_lottie
