@@ -214,13 +214,22 @@ if st.button("🔮 Prediksi"):
 
 
 # Tombol untuk mencari window size terbaik per digit
+if "ws_result_table" not in st.session_state:
+    st.session_state.ws_result_table = None
+if "window_per_digit" not in st.session_state:
+    st.session_state.window_per_digit = {}
+
 if st.button("🔍 Cari Window Size Terbaik"):
     with st.spinner("🔎 Mencari window size terbaik per digit..."):
         window_per_digit = {}
         ws_info_data = []
 
-        for label in DIGIT_LABELS:
+        total_digits = len(DIGIT_LABELS)
+        progress_bar = st.progress(0)
+        
+        for idx, label in enumerate(DIGIT_LABELS):
             try:
+                st.markdown(f"#### 🔧 Proses: {label.upper()}")
                 best_ws, top6_digits = find_best_window_size_with_model_true(
                     df,
                     label=label,
@@ -231,7 +240,7 @@ if st.button("🔍 Cari Window Size Terbaik"):
                     temperature=temperature
                 )
                 window_per_digit[label] = best_ws
-                st.session_state[f"win_{label}"] = best_ws  # Update ke slider
+                st.session_state[f"win_{label}"] = best_ws  # Update slider UI jika ada
 
                 # Simpan ke tabel hasil
                 ws_info_data.append({
@@ -248,23 +257,31 @@ if st.button("🔍 Cari Window Size Terbaik"):
                     "Top6": "-"
                 })
 
-        # Tampilkan hasil dalam bentuk tabel
-        st.markdown("### ✅ Hasil Pencarian Window Size Terbaik")
-        df_ws_info = pd.DataFrame(ws_info_data)
-        st.dataframe(df_ws_info, use_container_width=True)
+            progress_bar.progress((idx + 1) / total_digits)
 
-        # Simpan hasil sebagai gambar
-        try:
-            import matplotlib.pyplot as plt
-            fig, ax = plt.subplots(figsize=(8, 2))
-            ax.axis('off')
-            tbl = ax.table(cellText=df_ws_info.values,
-                           colLabels=df_ws_info.columns,
-                           cellLoc='center',
-                           loc='center')
-            tbl.auto_set_font_size(False)
-            tbl.set_fontsize(10)
-            tbl.scale(1, 1.5)
-            st.pyplot(fig)
-        except Exception as e:
-            st.warning(f"Gagal menyimpan sebagai gambar: {e}")
+        progress_bar.empty()
+
+        # Simpan hasil ke session_state
+        st.session_state.window_per_digit = window_per_digit
+        st.session_state.ws_result_table = pd.DataFrame(ws_info_data)
+
+# Tampilkan hasil tabel jika sudah ada
+if st.session_state.ws_result_table is not None:
+    st.markdown("### ✅ Hasil Pencarian Window Size Terbaik")
+    st.dataframe(st.session_state.ws_result_table, use_container_width=True)
+
+    # Simpan sebagai gambar
+    try:
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(figsize=(8, 2))
+        ax.axis('off')
+        tbl = ax.table(cellText=st.session_state.ws_result_table.values,
+                       colLabels=st.session_state.ws_result_table.columns,
+                       cellLoc='center',
+                       loc='center')
+        tbl.auto_set_font_size(False)
+        tbl.set_fontsize(10)
+        tbl.scale(1, 1.5)
+        st.pyplot(fig)
+    except Exception as e:
+        st.warning(f"Gagal menyimpan sebagai gambar: {e}")
