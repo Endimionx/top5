@@ -214,12 +214,7 @@ if st.button("🔍 Cari Window Size Terbaik Deep"):
         window_per_digit = {}
         for label in ["ribuan", "ratusan", "puluhan", "satuan"]:
             best_ws = find_best_window_size_with_model_true(
-                df,
-                label,
-                lokasi=selected_lokasi,
-                model_type=model_type,
-                min_ws=4,
-                max_ws=12,
-                temperature=temperature,
-            )
+                df, label, lokasi=selected_lokasi, model_type=model_type,
+                min_ws=4, max_ws=12  # ✅ tanpa temperature
+                )
             window_per_digit[label] = best_ws
