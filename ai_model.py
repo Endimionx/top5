@@ -401,8 +401,8 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
     best_acc = 0
     best_score = 0
     table_data = []
-    digit_counter = {i: 0 for i in range(10)}
     all_scores = []
+    digit_counter = {i: 0 for i in range(10)}
 
     st.markdown(f"### 🔍 Pencarian Window Size - {label.upper()}")
 
@@ -415,11 +415,12 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
             if X.shape[0] == 0 or y.shape[0] == 0:
                 continue
 
-            if use_cv:
-                acc_scores = []
-                conf_scores = []
-                kf = KFold(n_splits=cv_folds)
+            acc_scores = []
+            conf_scores = []
+            top6_all = []
 
+            if use_cv:
+                kf = KFold(n_splits=cv_folds)
                 for train_index, val_index in kf.split(X):
                     X_train, X_val = X[train_index], X[val_index]
                     y_train, y_val = y[train_index], y[val_index]
@@ -444,10 +445,8 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
                         last_pred = np.exp(np.log(last_pred + 1e-8) / temperature)
                         last_pred /= np.sum(last_pred)
                     conf_scores.append(np.mean(np.sort(last_pred)[::-1][:6]))
-
-                val_acc = np.mean(acc_scores)
-                avg_conf = np.mean(conf_scores)
-                preds = last_pred
+                    top6 = np.argsort(last_pred)[::-1][:6]
+                    top6_all.extend(top6)
 
             else:
                 model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
@@ -459,19 +458,27 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
                     validation_split=0.2,
                     callbacks=[EarlyStopping(monitor="val_loss", patience=3, restore_best_weights=True)]
                 )
-
                 val_acc = max(history.history.get("val_accuracy", [0]))
                 preds = model.predict(X[-1:], verbose=0)[0]
                 if temperature != 1.0:
                     preds = np.exp(np.log(preds + 1e-8) / temperature)
                     preds /= np.sum(preds)
                 avg_conf = np.mean(np.sort(preds)[::-1][:6])
+                top6 = np.argsort(preds)[::-1][:6]
+                top6_all = top6.tolist()
+                acc_scores = [val_acc]
+                conf_scores = [avg_conf]
 
-            top6 = np.argsort(preds)[::-1][:6]
+            val_acc = np.mean(acc_scores)
+            avg_conf = np.mean(conf_scores)
             score = val_acc * avg_conf
 
-            all_scores.append((ws, val_acc, avg_conf, list(top6), score))
-            table_data.append((ws, round(val_acc * 100, 2), round(avg_conf * 100, 2), list(top6)))
+            # Rata-rata Top6 dari semua fold
+            top6_freq = sorted({d: top6_all.count(d) for d in set(top6_all)}.items(), key=lambda x: -x[1])[:6]
+            top6_digits = [d for d, _ in top6_freq]
+
+            table_data.append((ws, round(val_acc * 100, 2), round(avg_conf * 100, 2), top6_digits))
+            all_scores.append((ws, val_acc, avg_conf, top6_digits, score))
 
             if score > best_score:
                 best_score = score
@@ -482,7 +489,7 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
             print(f"[GAGAL {label.upper()} WS={ws}]: {e}")
             continue
 
-    # Ambil top-5 berdasarkan skor val_acc * avg_conf
+    # Ambil top-5 berdasarkan skor
     top5 = sorted(all_scores, key=lambda x: -x[4])[:5]
     top5_top6 = []
     for _, _, _, top6, _ in top5:
@@ -490,7 +497,6 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
             digit_counter[d] += 1
         top5_top6.extend(top6)
 
-    # Buat average top6 dari top5 ws
     avg_top6_digits = [x[0] for x in sorted(
         {d: top5_top6.count(d) for d in set(top5_top6)}.items(),
         key=lambda x: -x[1]
@@ -502,7 +508,6 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
         df_table = df_table.sort_values("Window Size")
         st.dataframe(df_table)
 
-    # Heatmap digit kemunculan dari top-5 ws
     st.markdown("#### 🔥 Heatmap Jumlah Kemunculan Top-6 Digit (Top-5 WS)")
     heat_df = pd.DataFrame([digit_counter]).T
     heat_df.columns = ["Count"]
@@ -511,8 +516,7 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
     sns.heatmap(heat_df.T, annot=True, cmap="YlGnBu", cbar=False, ax=ax)
     st.pyplot(fig)
 
-    # Final result
     st.markdown(f"**🔁 Top-6 Rata-rata dari 5 WS terbaik:** `{', '.join(map(str, avg_top6_digits))}`")
     st.success(f"✅ {label.upper()} - WS terbaik: {best_ws} (Val Acc: {best_acc:.2%})")
     return best_ws, avg_top6_digits
-                
+        
