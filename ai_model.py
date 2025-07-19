@@ -400,12 +400,14 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
     best_acc = 0
     best_score = 0
     table_data = []
-    top6_summary = []
+    ws_top6_records = []
+
     digit_counter = {i: 0 for i in range(10)}
 
     st.markdown(f"### 🔍 Pencarian Window Size - {label.upper()}")
 
     ws_range = list(range(min_ws, max_ws + 1))
+    all_scores = []
 
     for ws in ws_range:
         try:
@@ -435,14 +437,12 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
 
             top6 = np.argsort(probs)[::-1][:6]
             avg_conf = np.mean(probs[top6])
+            score = val_acc * avg_conf
 
-            for d in top6:
-                digit_counter[d] += 1
+            all_scores.append((ws, val_acc, avg_conf, list(top6), score))
 
             table_data.append((ws, round(val_acc * 100, 2), round(avg_conf * 100, 2), list(top6)))
-            top6_summary.append((ws, top6))
 
-            score = val_acc * avg_conf
             if score > best_score:
                 best_score = score
                 best_acc = val_acc
@@ -452,9 +452,8 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
             print(f"[GAGAL {label.upper()} WS={ws}]: {e}")
             continue
 
-    # Refinement di sekitar best_ws ±1
-    refine_range = [best_ws - 1, best_ws + 1]
-    for ws in refine_range:
+    # Refinement best_ws ±1
+    for ws in [best_ws - 1, best_ws + 1]:
         if ws < min_ws or ws > max_ws:
             continue
         try:
@@ -483,12 +482,11 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
 
             top6 = np.argsort(probs)[::-1][:6]
             avg_conf = np.mean(probs[top6])
-
-            for d in top6:
-                digit_counter[d] += 1
-
-            table_data.append((ws, round(val_acc * 100, 2), round(avg_conf * 100, 2), list(top6)))
             score = val_acc * avg_conf
+
+            all_scores.append((ws, val_acc, avg_conf, list(top6), score))
+            table_data.append((ws, round(val_acc * 100, 2), round(avg_conf * 100, 2), list(top6)))
+
             if score > best_score:
                 best_score = score
                 best_acc = val_acc
@@ -504,8 +502,21 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
         df_table = df_table.sort_values("Window Size")
         st.dataframe(df_table)
 
-    # Tampilkan heatmap kemunculan digit
-    st.markdown("#### 🔥 Heatmap Jumlah Kemunculan Top-6 Digit")
+    # Ambil top-5 berdasarkan skor val_acc * avg_conf
+    top5 = sorted(all_scores, key=lambda x: -x[4])[:5]
+    top5_top6 = []
+    for _, _, _, top6, _ in top5:
+        for d in top6:
+            digit_counter[d] += 1
+        top5_top6.extend(top6)
+
+    # Buat average top6 dari top5 ws
+    avg_top6_digits = [x[0] for x in sorted(
+        {d: top5_top6.count(d) for d in set(top5_top6)}.items(),
+        key=lambda x: -x[1]
+    )[:6]]
+
+    st.markdown("#### 🔥 Heatmap Jumlah Kemunculan Top-6 Digit (Top-5 WS)")
     heat_df = pd.DataFrame([digit_counter]).T
     heat_df.columns = ["Count"]
     heat_df.index.name = "Digit"
@@ -513,16 +524,10 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
     sns.heatmap(heat_df.T, annot=True, cmap="YlGnBu", cbar=False, ax=ax)
     st.pyplot(fig)
 
-    # Hitung average top6 seluruh ws
-    combined_counts = {}
-    for _, top6 in top6_summary:
-        for digit in top6:
-            combined_counts[digit] = combined_counts.get(digit, 0) + 1
-    sorted_avg_top6 = sorted(combined_counts.items(), key=lambda x: -x[1])[:6]
-    avg_top6_digits = [x[0] for x in sorted_avg_top6]
+    st.markdown(f"**🔁 Top-6 Rata-rata dari 5 WS terbaik:** `{', '.join(map(str, avg_top6_digits))}`")
 
-    st.markdown(f"**🔁 Average Top-6 dari semua WS:** `{', '.join(map(str, avg_top6_digits))}`")
-
-    # Akhir
     st.success(f"✅ {label.upper()} - WS terbaik: {best_ws} (Val Acc: {best_acc:.2%})")
     return best_ws, avg_top6_digits
+
+
+                
