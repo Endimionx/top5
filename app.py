@@ -168,7 +168,6 @@ with tab2:
                         df, label, lokasi=selected_lokasi, model_type=model_type,
                         min_ws=min_ws, max_ws=max_ws, temperature=temperature
                     )
-                    st.session_state[f"win_{label}"] = best_ws
                     st.session_state.window_per_digit[label] = best_ws
                     ws_info.append({
                         "Digit": label.upper(),
