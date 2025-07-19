@@ -25,6 +25,12 @@ st.title("🔮 Prediksi 4D - AI & Markov")
 
 DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 
+# ====== Inisialisasi session_state window_per_digit ======
+for label in DIGIT_LABELS:
+    key = f"win_{label}"
+    if key not in st.session_state:
+        st.session_state[key] = 7  # default value
+
 # ======== Ambil Data API dan Input Manual ========
 st.markdown("## 📥 Data Angka Masuk")
 
@@ -47,7 +53,9 @@ with st.sidebar:
     st.markdown("### 🪟 Window Size per Digit")
     window_per_digit = {}
     for label in DIGIT_LABELS:
-        window_per_digit[label] = st.slider(f"{label.upper()}", 3, 30, 7, key=f"win_{label}")
+        window_per_digit[label] = st.slider(
+            f"{label.upper()}", 3, 30, st.session_state[f"win_{label}"], key=f"win_{label}"
+        )
 
 if "angka_list" not in st.session_state:
     st.session_state.angka_list = []
@@ -133,7 +141,6 @@ with tab1:
                     for komb, score in top_komb:
                         st.markdown(f"`{komb}` - Confidence: `{score:.4f}`")
 
-    # Evaluasi Akurasi
     st.subheader("📊 Evaluasi Akurasi")
     acc1, acc6, top1 = evaluate_lstm_accuracy_all_digits(
         df, selected_lokasi, model_type=model_type, window_size=window_per_digit
