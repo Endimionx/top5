@@ -212,16 +212,16 @@ if st.button("🔮 Prediksi"):
 #        best_window_dict[label] = best_ws
 #        st.success(f"✅ Window size terbaik ditemukan: {best_window_dict}")
 
-# Tambahan akhir di bagian bawah app.py
 
-if metode in ["LSTM AI", "Ensemble AI + Markov"]:
-    # Tombol Cari Window Size Terbaik
-    if st.button("🔍 Cari Window Size Terbaik"):
-        with st.spinner("🔎 Mencari window size terbaik per digit..."):
+# Tombol untuk mencari window size terbaik per digit
+if st.button("🔍 Cari Window Size Terbaik"):
+    with st.spinner("🔎 Mencari window size terbaik per digit..."):
         window_per_digit = {}
+        ws_info_data = []
+
         for label in DIGIT_LABELS:
             try:
-                best_ws = find_best_window_size_with_model_true(
+                best_ws, top6_digits = find_best_window_size_with_model_true(
                     df,
                     label=label,
                     lokasi=selected_lokasi,
@@ -231,14 +231,40 @@ if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                     temperature=temperature
                 )
                 window_per_digit[label] = best_ws
+                st.session_state[f"win_{label}"] = best_ws  # Update ke slider
+
+                # Simpan ke tabel hasil
+                ws_info_data.append({
+                    "Digit": label.upper(),
+                    "Best WS": best_ws,
+                    "Top6": ", ".join(map(str, top6_digits)) if top6_digits else "-"
+                })
             except Exception as e:
-                st.error(f"Gagal {label.upper()} WS: {e}")
+                st.error(f"❌ Gagal {label.upper()} WS: {e}")
                 window_per_digit[label] = None
+                ws_info_data.append({
+                    "Digit": label.upper(),
+                    "Best WS": "-",
+                    "Top6": "-"
+                })
 
-        st.markdown("### ✅ Window Size Terbaik per Digit")
-        ws_df = pd.DataFrame.from_dict(window_per_digit, orient="index", columns=["Window Size"])
-        st.dataframe(ws_df)
+        # Tampilkan hasil dalam bentuk tabel
+        st.markdown("### ✅ Hasil Pencarian Window Size Terbaik")
+        df_ws_info = pd.DataFrame(ws_info_data)
+        st.dataframe(df_ws_info, use_container_width=True)
 
-        for label in DIGIT_LABELS:
-            if window_per_digit[label] is not None:
-                st.session_state[f"win_{label}"] = window_per_digit[label]
+        # Simpan hasil sebagai gambar
+        try:
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(figsize=(8, 2))
+            ax.axis('off')
+            tbl = ax.table(cellText=df_ws_info.values,
+                           colLabels=df_ws_info.columns,
+                           cellLoc='center',
+                           loc='center')
+            tbl.auto_set_font_size(False)
+            tbl.set_fontsize(10)
+            tbl.scale(1, 1.5)
+            st.pyplot(fig)
+        except Exception as e:
+            st.warning(f"Gagal menyimpan sebagai gambar: {e}")
