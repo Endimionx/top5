@@ -28,7 +28,6 @@ DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 # ======== Ambil Data API dan Input Manual ========
 st.markdown("## 📥 Data Angka Masuk")
 
-
 # ======== Sidebar Pengaturan ========
 with st.sidebar:
     st.header("⚙️ Pengaturan")
@@ -75,7 +74,6 @@ with st.expander("✏️ Edit Data Angka Manual", expanded=True):
     riwayat_input = st.text_area("📝 1 angka per baris:", value=riwayat_input, height=300)
     st.session_state.angka_list = [x.strip() for x in riwayat_input.splitlines() if x.strip().isdigit() and len(x.strip()) == 4]
     df = pd.DataFrame({"angka": st.session_state.angka_list})
-
 
 # ======== Tabs Utama ========
 tab1, tab2 = st.tabs(["🔮 Prediksi & Evaluasi", "🪟 Cari Window Size"])
