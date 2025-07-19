@@ -213,7 +213,7 @@ if st.button("🔮 Prediksi"):
 # Tambahan akhir di bagian bawah app.py
 
 if metode in ["LSTM AI", "Ensemble AI + Markov"]:
-    if st.button("🔍 Scan Data Analisys By Window Size"):
+    if st.button("🔍 Cari Window Size Terbaik"):
         with st.spinner("🔄 Mencari window size terbaik per digit..."):
             import matplotlib.pyplot as plt
             from PIL import Image
@@ -236,14 +236,20 @@ if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                     try:
                         X, y_dict = preprocess_data(df, window_size=ws)
                         y = y_dict[label]
-                        if X.shape[0] == 0:
+                        if X.shape[0] < 10:
+                            st.warning(f"❌ Data terlalu sedikit untuk {label.upper()} WS={ws}")
                             continue
+
                         model = build_lstm_model(X.shape[1])
-                        history = model.fit(X, y, epochs=10, batch_size=32, verbose=0, validation_split=0.2)
+                        history = model.fit(
+                            X, y,
+                            epochs=10, batch_size=32,
+                            verbose=0,
+                            validation_split=0.2
+                        )
                         acc = max(history.history['val_accuracy'])
                         acc_list.append((ws, acc))
 
-                        # Ambil top6 prediksi untuk ws ini
                         pred_result, _ = top6_model(
                             df, lokasi=selected_lokasi, model_type="lstm",
                             return_probs=True, window_dict={label: ws},
@@ -257,25 +263,27 @@ if metode in ["LSTM AI", "Ensemble AI + Markov"]:
                             best_acc = acc
                             best_ws = ws
                     except Exception as e:
+                        st.warning(f"⚠️ Gagal {label.upper()} WS={ws}: {e}")
                         continue
 
                 best_ws_dict[label] = best_ws
                 ws_result_dict[label] = acc_list
 
                 # Plot per digit
-                ws_vals = [x[0] for x in acc_list]
-                acc_vals = [x[1] for x in acc_list]
-                axs[idx].plot(ws_vals, acc_vals, marker="o")
-                axs[idx].set_title(f"{label.upper()} (Best WS={best_ws})")
-                axs[idx].set_xlabel("Window Size")
-                axs[idx].set_ylabel("Val Accuracy")
+                if acc_list:
+                    ws_vals = [x[0] for x in acc_list]
+                    acc_vals = [x[1] for x in acc_list]
+                    axs[idx].plot(ws_vals, acc_vals, marker="o")
+                    axs[idx].set_title(f"{label.upper()} (Best WS={best_ws})")
+                    axs[idx].set_xlabel("Window Size")
+                    axs[idx].set_ylabel("Val Accuracy")
 
                 # Tampilkan tabel Top6
                 if top6_table:
                     st.markdown(f"### 🎯 {label.upper()} - Top6 per WS")
                     st.table(pd.DataFrame(top6_table, columns=["WS", "Top6 Prediksi"]))
 
-            # Simpan figure ke image
+            # Simpan gambar grafik
             buf = io.BytesIO()
             plt.tight_layout()
             plt.savefig(buf, format="png")
@@ -283,6 +291,5 @@ if metode in ["LSTM AI", "Ensemble AI + Markov"]:
             img = Image.open(buf)
             st.image(img, caption="📊 Grafik Akurasi per WS")
 
-            # Update window_per_digit agar bisa digunakan
             window_per_digit.update(best_ws_dict)
             st.success(f"✅ Window size terbaik: {window_per_digit}")
