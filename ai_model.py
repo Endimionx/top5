@@ -387,69 +387,67 @@ def evaluate_top6_accuracy(model, X, y_true):
     match = [y_true_labels[i] in y_pred_top6[i] for i in range(len(y_true_labels))]
     return np.mean(match)
 
-def find_best_window_size_with_model_true(
-    df, label, lokasi, model_type="lstm", min_ws=3, max_ws=12, temperature=0.5
-):
+def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=20, temperature=1.0):
     import numpy as np
-    import streamlit as st
-    from tensorflow.keras.models import load_model
+    import pandas as pd
     from tensorflow.keras.callbacks import EarlyStopping
-    from ai_model import (
-        preprocess_data,
-        build_lstm_model,
-        build_transformer_model,
-        PositionalEncoding
-    )
+    from .models import build_lstm_model, build_transformer_model  # Pastikan path sesuai
+    from .utils import preprocess_data  # Jika preprocess_data ada di file terpisah
+    import streamlit as st
 
+    best_ws = None
     best_acc = 0
-    best_ws = min_ws
-    table_result = []
+    table_data = []
 
-    st.markdown(f"### 🔍 Mencari Window Size Terbaik untuk **{label.upper()}**")
-    progress = st.progress(0)
-    total = max_ws - min_ws + 1
+    st.markdown(f"### 🔍 Pencarian Window Size - {label.upper()}")
 
-    for i, ws in enumerate(range(min_ws, max_ws + 1)):
+    for ws in range(min_ws, max_ws + 1):
         try:
             X, y_dict = preprocess_data(df, window_size=ws)
             y = y_dict[label]
+
             if X.shape[0] == 0 or y.shape[0] == 0:
-                progress.progress(min((i + 1) / total, 1.0))
                 continue
 
-            model = (
-                build_transformer_model(X.shape[1], temperature=temperature)
-                if model_type == "transformer"
-                else build_lstm_model(X.shape[1], temperature=temperature)
-            )
+            # Bangun model sesuai mode
+            model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
 
+            # Training cepat untuk evaluasi akurasi
             history = model.fit(
                 X, y,
-                epochs=20,
+                epochs=10,
                 batch_size=32,
                 verbose=0,
                 validation_split=0.2,
-                callbacks=[EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)]
+                callbacks=[
+                    EarlyStopping(monitor="val_loss", patience=3, restore_best_weights=True)
+                ]
             )
 
-            val_acc = np.max(history.history.get('val_accuracy', [0]))
-            table_result.append((ws, val_acc))
+            val_acc = max(history.history.get("val_accuracy", [0]))
+
+            # Prediksi 1 sampel terakhir untuk ambil top-6 digit
+            preds = model.predict(X[-1:], verbose=0)
+            probs = preds[0]
+            if temperature != 1.0:
+                probs = np.exp(np.log(probs + 1e-8) / temperature)
+                probs /= np.sum(probs)
+            top6 = np.argsort(probs)[::-1][:6]
+
+            table_data.append((ws, round(val_acc * 100, 2), list(top6)))
 
             if val_acc > best_acc:
                 best_acc = val_acc
                 best_ws = ws
 
         except Exception as e:
-            print(f"[ERROR {label} WS={ws}] {e}")
+            print(f"[GAGAL {label.upper()} WS={ws}]: {e}")
+            continue
 
-        progress.progress(min((i + 1) / total, 1.0))
+    # Tampilkan tabel hasil pencarian
+    if len(table_data) > 0:
+        df_table = pd.DataFrame(table_data, columns=["Window Size", "Val Accuracy (%)", "Top-6 Digit"])
+        st.dataframe(df_table)
 
-    st.success(f"✅ Window Size Terbaik untuk {label.upper()} = {best_ws} (Akurasi: {best_acc:.2%})")
-
-    if table_result:
-        st.markdown(f"#### 📊 Tabel Akurasi Validasi - {label.upper()}")
-        st.table(
-            pd.DataFrame(table_result, columns=["Window Size", "Val Accuracy"]).sort_values("Val Accuracy", ascending=False)
-        )
-
+    st.success(f"✅ {label.upper()} - Window Size terbaik: {best_ws} (Val Acc: {best_acc:.2%})")
     return best_ws
