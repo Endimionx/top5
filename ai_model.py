@@ -391,24 +391,26 @@ def evaluate_top6_accuracy(model, X, y_true):
 def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=20, temperature=1.0):
     import numpy as np
     import pandas as pd
-    from tensorflow.keras.callbacks import EarlyStopping
     import streamlit as st
-    from collections import Counter
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    from tensorflow.keras.callbacks import EarlyStopping
 
     best_ws = None
     best_acc = 0
+    best_score = 0
     table_data = []
-    all_top6_digits = []
+    top6_summary = []
+    digit_counter = {i: 0 for i in range(10)}
 
     st.markdown(f"### 🔍 Pencarian Window Size - {label.upper()}")
-    progress_placeholder = st.empty()
 
-    for ws in range(min_ws, max_ws + 1):
+    ws_range = list(range(min_ws, max_ws + 1))
+
+    for ws in ws_range:
         try:
-            progress_placeholder.info(f"⏳ {label.upper()} | Evaluasi WS={ws}...")
             X, y_dict = preprocess_data(df, window_size=ws)
             y = y_dict[label]
-
             if X.shape[0] == 0 or y.shape[0] == 0:
                 continue
 
@@ -416,7 +418,7 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
 
             history = model.fit(
                 X, y,
-                epochs=5,
+                epochs=10,
                 batch_size=32,
                 verbose=0,
                 validation_split=0.2,
@@ -432,11 +434,17 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
                 probs /= np.sum(probs)
 
             top6 = np.argsort(probs)[::-1][:6]
-            all_top6_digits.extend(top6)
+            avg_conf = np.mean(probs[top6])
 
-            table_data.append((ws, round(val_acc * 100, 2), list(top6)))
+            for d in top6:
+                digit_counter[d] += 1
 
-            if val_acc > best_acc:
+            table_data.append((ws, round(val_acc * 100, 2), round(avg_conf * 100, 2), list(top6)))
+            top6_summary.append((ws, top6))
+
+            score = val_acc * avg_conf
+            if score > best_score:
+                best_score = score
                 best_acc = val_acc
                 best_ws = ws
 
@@ -444,21 +452,77 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
             print(f"[GAGAL {label.upper()} WS={ws}]: {e}")
             continue
 
-    progress_placeholder.empty()
+    # Refinement di sekitar best_ws ±1
+    refine_range = [best_ws - 1, best_ws + 1]
+    for ws in refine_range:
+        if ws < min_ws or ws > max_ws:
+            continue
+        try:
+            X, y_dict = preprocess_data(df, window_size=ws)
+            y = y_dict[label]
+            if X.shape[0] == 0 or y.shape[0] == 0:
+                continue
 
-    if len(table_data) > 0:
-        df_table = pd.DataFrame(table_data, columns=["Window Size", "Val Accuracy (%)", "Top-6 Digit"])
+            model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
+            history = model.fit(
+                X, y,
+                epochs=10,
+                batch_size=32,
+                verbose=0,
+                validation_split=0.2,
+                callbacks=[EarlyStopping(monitor="val_loss", patience=2, restore_best_weights=True)]
+            )
+
+            val_acc = max(history.history.get("val_accuracy", [0]))
+            preds = model.predict(X[-1:], verbose=0)
+            probs = preds[0]
+
+            if temperature != 1.0:
+                probs = np.exp(np.log(probs + 1e-8) / temperature)
+                probs /= np.sum(probs)
+
+            top6 = np.argsort(probs)[::-1][:6]
+            avg_conf = np.mean(probs[top6])
+
+            for d in top6:
+                digit_counter[d] += 1
+
+            table_data.append((ws, round(val_acc * 100, 2), round(avg_conf * 100, 2), list(top6)))
+            score = val_acc * avg_conf
+            if score > best_score:
+                best_score = score
+                best_acc = val_acc
+                best_ws = ws
+
+        except Exception as e:
+            print(f"[REFINE GAGAL {label.upper()} WS={ws}]: {e}")
+            continue
+
+    # Tampilkan tabel hasil WS
+    if table_data:
+        df_table = pd.DataFrame(table_data, columns=["Window Size", "Val Accuracy (%)", "Avg Confidence (%)", "Top-6 Digit"])
+        df_table = df_table.sort_values("Window Size")
         st.dataframe(df_table)
 
-        # Tambahan: rata-rata top-6 semua WS
-        digit_counter = Counter(all_top6_digits)
-        total_ws = len(table_data)
-        avg_top6_table = pd.DataFrame([
-            {"Digit": digit, "Freq": freq, "Rata-rata per WS": round(freq / total_ws, 2)}
-            for digit, freq in digit_counter.items()
-        ]).sort_values(by="Rata-rata per WS", ascending=False)
-        st.markdown("### 📊 Rata-rata Kemunculan Top-6 Digit dari Semua WS")
-        st.dataframe(avg_top6_table)
+    # Tampilkan heatmap kemunculan digit
+    st.markdown("#### 🔥 Heatmap Jumlah Kemunculan Top-6 Digit")
+    heat_df = pd.DataFrame([digit_counter]).T
+    heat_df.columns = ["Count"]
+    heat_df.index.name = "Digit"
+    fig, ax = plt.subplots(figsize=(8, 1.5))
+    sns.heatmap(heat_df.T, annot=True, cmap="YlGnBu", cbar=False, ax=ax)
+    st.pyplot(fig)
 
-    st.success(f"✅ {label.upper()} - Window Size terbaik: {best_ws} (Val Acc: {best_acc:.2%})")
-    return best_ws, list(np.argsort(probs)[::-1][:6]) if 'probs' in locals() else []
+    # Hitung average top6 seluruh ws
+    combined_counts = {}
+    for _, top6 in top6_summary:
+        for digit in top6:
+            combined_counts[digit] = combined_counts.get(digit, 0) + 1
+    sorted_avg_top6 = sorted(combined_counts.items(), key=lambda x: -x[1])[:6]
+    avg_top6_digits = [x[0] for x in sorted_avg_top6]
+
+    st.markdown(f"**🔁 Average Top-6 dari semua WS:** `{', '.join(map(str, avg_top6_digits))}`")
+
+    # Akhir
+    st.success(f"✅ {label.upper()} - WS terbaik: {best_ws} (Val Acc: {best_acc:.2%})")
+    return best_ws, avg_top6_digits
