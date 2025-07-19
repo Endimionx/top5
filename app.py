@@ -215,83 +215,27 @@ if st.button("🔮 Prediksi"):
 # Tambahan akhir di bagian bawah app.py
 
 if metode in ["LSTM AI", "Ensemble AI + Markov"]:
-    if st.button("🔍 Cari Window Size Terbaik"):
-        with st.spinner("🔄 Mencari window size terbaik per digit..."):
-            import matplotlib.pyplot as plt
-            from PIL import Image
-            import io
+    # Tombol Cari Window Size Terbaik
+if st.button("🔍 Cari Window Size Terbaik"):
+    with st.spinner("🔎 Mencari window size terbaik per digit..."):
+        window_per_digit = {}
+        for label in DIGIT_LABELS:
+            best_ws = find_best_window_size_with_model_true(
+                df,
+                label=label,
+                lokasi=selected_lokasi,
+                model_type=model_type,
+                min_ws=4,
+                max_ws=20,
+                temperature=temperature
+            )
+            window_per_digit[label] = best_ws
 
-            best_ws_dict = {}
-            ws_result_dict = {}
-            digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
+        # Tampilkan hasil window size terbaik
+        st.markdown("### ✅ Window Size Terbaik per Digit")
+        ws_df = pd.DataFrame.from_dict(window_per_digit, orient="index", columns=["Window Size"])
+        st.dataframe(ws_df)
 
-            fig, axs = plt.subplots(2, 2, figsize=(12, 8))
-            axs = axs.flatten()
-
-            for idx, label in enumerate(digit_labels):
-                best_acc = 0
-                best_ws = None
-                acc_list = []
-                top6_table = []
-
-                for ws in range(4, 16):
-                    try:
-                        X, y_dict = preprocess_data(df, window_size=ws)
-                        y = y_dict[label]
-                        if X.shape[0] < 10:
-                            st.warning(f"❌ Data terlalu sedikit untuk {label.upper()} WS={ws}")
-                            continue
-
-                        model = build_lstm_model(X.shape[1])
-                        history = model.fit(
-                            X, y,
-                            epochs=10, batch_size=32,
-                            verbose=0,
-                            validation_split=0.2
-                        )
-                        acc = max(history.history['val_accuracy'])
-                        acc_list.append((ws, acc))
-
-                        pred_result, _ = top6_model(
-                            df, lokasi=selected_lokasi, model_type="lstm",
-                            return_probs=True, window_dict={label: ws},
-                            temperature=temperature, mode_prediksi=mode_prediksi
-                        )
-                        if pred_result:
-                            top6 = pred_result[digit_labels.index(label)]
-                            top6_table.append((ws, ", ".join(map(str, top6))))
-
-                        if acc > best_acc:
-                            best_acc = acc
-                            best_ws = ws
-                    except Exception as e:
-                        st.warning(f"⚠️ Gagal {label.upper()} WS={ws}: {e}")
-                        continue
-
-                best_ws_dict[label] = best_ws
-                ws_result_dict[label] = acc_list
-
-                # Plot per digit
-                if acc_list:
-                    ws_vals = [x[0] for x in acc_list]
-                    acc_vals = [x[1] for x in acc_list]
-                    axs[idx].plot(ws_vals, acc_vals, marker="o")
-                    axs[idx].set_title(f"{label.upper()} (Best WS={best_ws})")
-                    axs[idx].set_xlabel("Window Size")
-                    axs[idx].set_ylabel("Val Accuracy")
-
-                # Tampilkan tabel Top6
-                if top6_table:
-                    st.markdown(f"### 🎯 {label.upper()} - Top6 per WS")
-                    st.table(pd.DataFrame(top6_table, columns=["WS", "Top6 Prediksi"]))
-
-            # Simpan gambar grafik
-            buf = io.BytesIO()
-            plt.tight_layout()
-            plt.savefig(buf, format="png")
-            buf.seek(0)
-            img = Image.open(buf)
-            st.image(img, caption="📊 Grafik Akurasi per WS")
-
-            window_per_digit.update(best_ws_dict)
-            st.success(f"✅ Window size terbaik: {window_per_digit}")
+        # Simpan ke session state untuk digunakan langsung
+        for label in DIGIT_LABELS:
+            st.session_state[f"win_{label}"] = window_per_digit[label]
