@@ -210,7 +210,7 @@ with tab2:
                         st.success(f"✅ WS Ribuan: {ws}")
                         st.info(f"🔢 Top-6 Ribuan: {', '.join(map(str, top6))}")
                     except Exception as e:
-                     b  st.error(f"❌ Gagal Ribuan: {e}")
+                        st.error(f"❌ Gagal Ribuan: {e}")
 
         with col2:
             if st.button("🔍 Ratusan"):
