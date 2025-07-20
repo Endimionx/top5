@@ -94,7 +94,7 @@ tab1, tab2 = st.tabs(["🔮 Prediksi & Evaluasi", "🪟 Scan Angka"])
 # ======== TAB 1 ========
 with tab1:
     if metode in ["LSTM AI", "Ensemble AI + Markov"]:
-        with st.expander("⚙️ Manajemen Model", expanded=True):
+        with st.expander("⚙️ Manajemen Model", expanded=False):
             lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
             digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
 
