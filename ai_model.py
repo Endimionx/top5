@@ -388,124 +388,138 @@ def evaluate_top6_accuracy(model, X, y_true):
     match = [y_true_labels[i] in y_pred_top6[i] for i in range(len(y_true_labels))]
     return np.mean(match)
 
-def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=20, temperature=1.0, use_cv=False, cv_folds=5):
+def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=20,
+                                          temperature=1.0, use_cv=False, cv_folds=5, seed=42):
     import numpy as np
     import pandas as pd
     import streamlit as st
     import seaborn as sns
     import matplotlib.pyplot as plt
+    import tensorflow as tf
     from tensorflow.keras.callbacks import EarlyStopping
+    from tensorflow.keras.metrics import TopKCategoricalAccuracy
     from sklearn.model_selection import KFold
 
+    tf.random.set_seed(seed)
+    np.random.seed(seed)
+
     best_ws = None
-    best_acc = 0
     best_score = 0
+    best_acc = 0
+    best_top6acc = 0
+    best_conf = 0
+
     table_data = []
     all_scores = []
     digit_counter = {i: 0 for i in range(10)}
 
     st.markdown(f"### 🔍 Pencarian Window Size - {label.upper()}")
+    status = st.empty()
 
     ws_range = list(range(min_ws, max_ws + 1))
 
-    for ws in ws_range:
+    for idx, ws in enumerate(ws_range):
         try:
+            status.info(f"🧠 Mencoba WS={ws} ({idx+1}/{len(ws_range)}) untuk **{label.upper()}**...")
             X, y_dict = preprocess_data(df, window_size=ws)
             y = y_dict[label]
-            if X.shape[0] == 0 or y.shape[0] == 0:
+            if len(X) == 0 or len(y) == 0:
                 continue
 
-            acc_scores = []
-            conf_scores = []
+            acc_scores, top6acc_scores, conf_scores = [], [], []
             top6_all = []
 
             if use_cv:
-                kf = KFold(n_splits=cv_folds)
-                for train_index, val_index in kf.split(X):
-                    X_train, X_val = X[train_index], X[val_index]
-                    y_train, y_val = y[train_index], y[val_index]
+                kf = KFold(n_splits=cv_folds, shuffle=True, random_state=seed)
+                for train_idx, val_idx in kf.split(X):
+                    X_train, X_val = X[train_idx], X[val_idx]
+                    y_train, y_val = y[train_idx], y[val_idx]
 
                     model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
+                    model.compile(optimizer="adam",
+                                  loss="categorical_crossentropy",
+                                  metrics=["accuracy", TopKCategoricalAccuracy(k=6)])
                     model.fit(
                         X_train, y_train,
                         epochs=10,
                         batch_size=32,
                         verbose=0,
                         validation_data=(X_val, y_val),
-                        callbacks=[EarlyStopping(monitor="val_loss", patience=2, restore_best_weights=True)]
+                        callbacks=[EarlyStopping(patience=2, restore_best_weights=True)]
                     )
 
-                    val_preds = model.predict(X_val, verbose=0)
-                    val_labels = np.argmax(val_preds, axis=1)
-                    acc = np.mean(val_labels == y_val)
-                    acc_scores.append(acc)
+                    eval_result = model.evaluate(X_val, y_val, verbose=0)
+                    acc_scores.append(eval_result[1])
+                    top6acc_scores.append(eval_result[2])
 
-                    last_pred = model.predict(X[-1:], verbose=0)[0]
+                    preds = model.predict(X[-1:], verbose=0)[0]
                     if temperature != 1.0:
-                        last_pred = np.exp(np.log(last_pred + 1e-8) / temperature)
-                        last_pred /= np.sum(last_pred)
-                    preds = last_pred
-                    conf_scores.append(np.mean(np.sort(last_pred)[::-1][:6]))
-                    top6 = np.argsort(last_pred)[::-1][:6]
+                        preds = np.exp(np.log(preds + 1e-8) / temperature)
+                        preds /= np.sum(preds)
+                    conf_scores.append(np.mean(np.sort(preds)[::-1][:6]))
+                    top6 = np.argsort(preds)[::-1][:6]
                     top6_all.extend(top6)
 
             else:
                 model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
-                history = model.fit(
+                model.compile(optimizer="adam",
+                              loss="categorical_crossentropy",
+                              metrics=["accuracy", TopKCategoricalAccuracy(k=6)])
+                model.fit(
                     X, y,
                     epochs=10,
                     batch_size=32,
                     verbose=0,
                     validation_split=0.2,
-                    callbacks=[EarlyStopping(monitor="val_loss", patience=3, restore_best_weights=True)]
+                    callbacks=[EarlyStopping(patience=3, restore_best_weights=True)]
                 )
-                val_acc = max(history.history.get("val_accuracy", [0]))
+                eval_result = model.evaluate(X, y, verbose=0)
+                acc_scores = [eval_result[1]]
+                top6acc_scores = [eval_result[2]]
+
                 preds = model.predict(X[-1:], verbose=0)[0]
                 if temperature != 1.0:
                     preds = np.exp(np.log(preds + 1e-8) / temperature)
                     preds /= np.sum(preds)
-                avg_conf = np.mean(np.sort(preds)[::-1][:6])
+                conf_scores = [np.mean(np.sort(preds)[::-1][:6])]
                 top6 = np.argsort(preds)[::-1][:6]
                 top6_all = top6.tolist()
-                acc_scores = [val_acc]
-                conf_scores = [avg_conf]
 
             val_acc = np.mean(acc_scores)
+            top6_acc = np.mean(top6acc_scores)
             avg_conf = np.mean(conf_scores)
-            score = val_acc * avg_conf
+            score = (val_acc * 0.4) + (top6_acc * 0.4) + (avg_conf * 0.2)
 
-            # Rata-rata Top6 dari semua fold
             top6_freq = sorted({d: top6_all.count(d) for d in set(top6_all)}.items(), key=lambda x: -x[1])[:6]
             top6_digits = [d for d, _ in top6_freq]
 
-            table_data.append((ws, round(val_acc * 100, 2), round(avg_conf * 100, 2), top6_digits))
-            all_scores.append((ws, val_acc, avg_conf, top6_digits, score))
+            table_data.append((ws, round(val_acc*100, 2), round(top6_acc*100, 2), round(avg_conf*100, 2), top6_digits))
+            all_scores.append((ws, val_acc, top6_acc, avg_conf, top6_digits, score))
 
             if score > best_score:
                 best_score = score
-                best_acc = val_acc
                 best_ws = ws
+                best_acc = val_acc
+                best_top6acc = top6_acc
+                best_conf = avg_conf
 
         except Exception as e:
-            print(f"[GAGAL {label.upper()} WS={ws}]: {e}")
+            st.warning(f"[GAGAL WS={ws}] {e}")
             continue
 
-    # Ambil top-5 berdasarkan skor
-    top5 = sorted(all_scores, key=lambda x: -x[4])[:5]
+    status.info("✅ Selesai semua WS")
+
+    top5 = sorted(all_scores, key=lambda x: -x[5])[:5]
     top5_top6 = []
-    for _, _, _, top6, _ in top5:
+    for _, _, _, _, top6, _ in top5:
         for d in top6:
             digit_counter[d] += 1
         top5_top6.extend(top6)
 
-    avg_top6_digits = [x[0] for x in sorted(
-        {d: top5_top6.count(d) for d in set(top5_top6)}.items(),
-        key=lambda x: -x[1]
-    )[:6]]
+    avg_top6_digits = [x[0] for x in sorted({d: top5_top6.count(d) for d in set(top5_top6)}.items(), key=lambda x: -x[1])[:6]]
 
-    # Tampilkan tabel hasil WS
     if table_data:
-        df_table = pd.DataFrame(table_data, columns=["Window Size", "Val Accuracy (%)", "Avg Confidence (%)", "Top-6 Digit"])
+        df_table = pd.DataFrame(table_data, columns=["Window Size", "Acc (%)", "Top-6 Acc (%)", "Conf (%)", "Top-6"])
         df_table = df_table.sort_values("Window Size")
         st.dataframe(df_table)
 
@@ -518,7 +532,7 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
     st.pyplot(fig)
 
     st.markdown(f"**🔁 Top-6 Rata-rata dari 5 WS terbaik:** `{', '.join(map(str, avg_top6_digits))}`")
-    st.success(f"✅ {label.upper()} - WS terbaik: {best_ws} (Val Acc: {best_acc:.2%})")
+    st.success(f"✅ {label.upper()} - WS terbaik: {best_ws} (Acc: {best_acc:.2%}, Top6 Acc: {best_top6acc:.2%}, Conf: {best_conf:.2%})")
     return best_ws, avg_top6_digits
-        
-    
+
+            
