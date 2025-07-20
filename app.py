@@ -254,19 +254,19 @@ with st.expander("🔍 Cari Window Size Cerdas (Smart Search)", expanded=False):
     with col_s:
         if st.button("Cari WS Ribuan (Smart)"):
             with st.spinner("Mencari Window Size terbaik untuk RIBUAN..."):
-                ws_ribuan, top6 = find_best_window_smart(df, "ribuan", lokasi, model_type=model_type, temperature=temp, repeats=reps)
+                ws_ribuan, top6 = find_best_window_smart(df, "ribuan", selected_lokasi, model_type=model_type, temperature=temp, repeats=reps)
 
     with col_r:
         if st.button("Cari WS Ratusan (Smart)"):
             with st.spinner("Mencari Window Size terbaik untuk RATUSAN..."):
-                ws_ratusan, top6 = find_best_window_smart(df, "ratusan", lokasi, model_type=model_type, temperature=temp, repeats=reps)
+                ws_ratusan, top6 = find_best_window_smart(df, "ratusan", selected_lokasi, model_type=model_type, temperature=temp, repeats=reps)
 
     with col_p:
         if st.button("Cari WS Puluhan (Smart)"):
             with st.spinner("Mencari Window Size terbaik untuk PULUHAN..."):
-                ws_puluhan, top6 = find_best_window_smart(df, "puluhan", lokasi, model_type=model_type, temperature=temp, repeats=reps)
+                ws_puluhan, top6 = find_best_window_smart(df, "puluhan", selected_lokasi, model_type=model_type, temperature=temp, repeats=reps)
 
     with col_t:
         if st.button("Cari WS Satuan (Smart)"):
             with st.spinner("Mencari Window Size terbaik untuk SATUAN..."):
-                ws_satuan, top6 = find_best_window_smart(df, "satuan", lokasi, model_type=model_type, temperature=temp, repeats=reps)
+                ws_satuan, top6 = find_best_window_smart(df, "satuan", selected_lokasi, model_type=model_type, temperature=temp, repeats=reps)
