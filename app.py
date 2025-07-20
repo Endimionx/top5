@@ -66,7 +66,7 @@ if "angka_list" not in st.session_state:
 
 col1, col2 = st.columns([1, 4])
 with col1:
-    if st.button("🔄 Ambil Data dari API", use_container_width=True)):
+    if st.button("🔄 Ambil Data dari API", use_container_width=True):
         try:
             with st.spinner("🔄 Mengambil data..."):
                 url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
