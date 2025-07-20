@@ -531,6 +531,24 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
     sns.heatmap(heat_df.T, annot=True, cmap="YlGnBu", cbar=False, ax=ax)
     st.pyplot(fig)
 
+    # ========== Heatmap Top-6 Berdasarkan Confidence ==========
+    st.markdown("#### 🌡️ Heatmap Berdasarkan Top Confidence")
+    top_conf_counter = {i: 0 for i in range(10)}
+    for _, _, _, top6_digits, _ in all_scores:
+        for d in top6_digits:
+            top_conf_counter[d] += 1
+
+    top_conf_df = pd.DataFrame([top_conf_counter]).T
+    top_conf_df.columns = ["Top-6 Count"]
+    top_conf_df.index.name = "Digit"
+
+    fig2, ax2 = plt.subplots(figsize=(8, 1.5))
+    sns.heatmap(top_conf_df.T, annot=True, cmap="Oranges", cbar=False, ax=ax2)
+    st.pyplot(fig2)
+
+
+                                              
+
     st.markdown(f"**🔁 Top-6 Rata-rata dari 5 WS terbaik:** `{', '.join(map(str, avg_top6_digits))}`")
     st.success(f"✅ {label.upper()} - WS terbaik: {best_ws} (Acc: {best_acc:.2%}, Top6 Acc: {best_top6acc:.2%}, Conf: {best_conf:.2%})")
     return best_ws, avg_top6_digits
