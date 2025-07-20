@@ -276,14 +276,14 @@ with st.expander("🔍 Cari Window Size Cerdas (Cepat) per Digit", expanded=Fals
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Smart Fast - Ribuan"):
-            ws_ribuan, top6_ribuan = find_best_window_smart_fast(df, "ribuan", selected_lokasi, model_type="lstm")
+            ws_ribuan, top6_ribuan = find_best_window_smart_fast(df, "ribuan", selected_lokasi, model_type="lstm", min_ws=min_ws, max_ws=max_ws, temperature=temperature)
             st.session_state["window_dict"]["ribuan"] = ws_ribuan
             st.success(f"✅ WS Ribuan: {ws_ribuan}")
             st.info(f"🔢 Top-6 Ribuan: {', '.join(map(str, top6_ribuan))}")
 
     with col2:
         if st.button("Smart Fast - Ratusan"):
-            ws_ratusan, top6_ratusan = find_best_window_smart_fast(df, "ratusan", selected_lokasi, model_type="lstm")
+            ws_ratusan, top6_ratusan = find_best_window_smart_fast(df, "ratusan", selected_lokasi, model_type="lstm", min_ws=min_ws, max_ws=max_ws, temperature=temperature)
             st.session_state["window_dict"]["ratusan"] = ws_ratusan
             st.success(f"✅ WS Ratusan: {ws_ratusan}")
             st.info(f"🔢 Top-6 Ratusan: {', '.join(map(str, top6_ratusan))}")
@@ -291,14 +291,14 @@ with st.expander("🔍 Cari Window Size Cerdas (Cepat) per Digit", expanded=Fals
     col3, col4 = st.columns(2)
     with col3:
         if st.button("Smart Fast - Puluhan"):
-            ws_puluhan, top6_puluhan = find_best_window_smart_fast(df, "puluhan", selected_lokasi, model_type="lstm")
+            ws_puluhan, top6_puluhan = find_best_window_smart_fast(df, "puluhan", selected_lokasi, model_type="lstm", min_ws=min_ws, max_ws=max_ws, temperature=temperature)
             st.session_state["window_dict"]["puluhan"] = ws_puluhan
             st.success(f"✅ WS Puluhan: {ws_puluhan}")
             st.info(f"🔢 Top-6 Puluhan: {', '.join(map(str, top6_puluhan))}")
 
     with col4:
         if st.button("Smart Fast - Satuan"):
-            ws_satuan, top6_satuan = find_best_window_smart_fast(df, "satuan", selected_lokasi, model_type="lstm")
+            ws_satuan, top6_satuan = find_best_window_smart_fast(df, "satuan", selected_lokasi, model_type="lstm", min_ws=min_ws, max_ws=max_ws, temperature=temperature)
             st.session_state["window_dict"]["satuan"] = ws_satuan
             st.success(f"✅ WS Satuan: {ws_satuan}")
             st.info(f"🔢 Top-6 Satuan: {', '.join(map(str, top6_satuan))}")
