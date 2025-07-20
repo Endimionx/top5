@@ -120,7 +120,7 @@ with tab1:
                     train_and_save_model(df, selected_lokasi, window_dict=window_per_digit, model_type=model_type)
                 st.success("✅ Model berhasil dilatih.")
             
-    if st.button("🔮 Prediksi", use_container_width=True)):
+    if st.button("🔮 Prediksi", use_container_width=True):
         if len(df) < max(window_per_digit.values()) + 1:
             st.warning("❌ Data tidak cukup.")
         else:
