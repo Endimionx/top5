@@ -116,11 +116,11 @@ with tab1:
 
                 with col[2]:
                         if os.path.exists(log_path):
-                        if st.button(f"🧹", key=f"hapus_log_{label}"):
-                            os.remove(log_path)
-                            st.info(f"🧾 Log training {label.upper()} dihapus.")
-                            st.rerun()
-                        st.caption("Hapus Log")
+                            if st.button(f"🧹", key=f"hapus_log_{label}"):
+                                os.remove(log_path)
+                                st.info(f"🧾 Log training {label.upper()} dihapus.")
+                                st.rerun()
+                            st.caption("Hapus Log")
 
             if st.button("📚 Latih & Simpan Semua Model"):
                 with st.spinner("🔄 Melatih semua model..."):
