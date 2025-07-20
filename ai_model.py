@@ -625,3 +625,74 @@ def find_best_window_smart(df, label, lokasi, model_type="lstm", min_ws=4, max_w
     st.success(f"✅ {label.upper()} - WS terbaik: {best_ws} (Val Acc: {best_val_acc:.2%})")
 
     return best_ws, avg_top6_digits
+
+def find_best_window_smart_fast(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=20, temperature=1.0, repeats=1):
+    import numpy as np
+    import tensorflow as tf
+    import random
+    import streamlit as st
+    from tensorflow.keras.callbacks import EarlyStopping
+    from tensorflow.keras.layers import Input, Embedding, LSTM, Dense, Bidirectional, GlobalAveragePooling1D, Dropout
+    from tensorflow.keras.models import Model
+
+    # Seed agar hasil reproducible
+    seed = 42
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+    random.seed(seed)
+
+    st.markdown(f"### ⚡ Smart Fast - {label.upper()}")
+
+    def quick_model(input_len):
+        inp = Input(shape=(input_len,))
+        x = Embedding(input_dim=10, output_dim=32)(inp)
+        x = Bidirectional(LSTM(64, return_sequences=True))(x)
+        x = GlobalAveragePooling1D()(x)
+        x = Dense(64, activation='relu')(x)
+        x = Dropout(0.3)(x)
+        out = Dense(10, activation='softmax')(x)
+        model = Model(inputs=inp, outputs=out)
+        model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
+        return model
+
+    best_score = 0
+    best_ws = min_ws
+
+    for ws in range(min_ws, max_ws + 1):
+        try:
+            X, y_dict = preprocess_data(df, window_size=ws)
+            y = y_dict[label]
+            if X.shape[0] == 0 or y.shape[0] == 0:
+                continue
+
+            scores = []
+            for _ in range(repeats):
+                model = quick_model(X.shape[1])
+                history = model.fit(
+                    X, y,
+                    epochs=10,
+                    batch_size=32,
+                    verbose=0,
+                    validation_split=0.2,
+                    callbacks=[EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)]
+                )
+                val_acc = max(history.history.get("val_accuracy", [0]))
+                preds = model.predict(X[-1:], verbose=0)[0]
+                if temperature != 1.0:
+                    preds = np.exp(np.log(preds + 1e-8) / temperature)
+                    preds /= np.sum(preds)
+                avg_conf = np.mean(np.sort(preds)[-6:])
+                score = val_acc * avg_conf
+                scores.append(score)
+
+            mean_score = np.mean(scores)
+            if mean_score > best_score:
+                best_score = mean_score
+                best_ws = ws
+
+        except Exception as e:
+            print(f"[FAST SMART ERROR] {label} ws={ws} -> {e}")
+            continue
+
+    st.success(f"✅ {label.upper()} | WS terbaik: {best_ws}")
+    return best_ws
