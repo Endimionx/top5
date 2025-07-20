@@ -108,7 +108,7 @@ def tampilkan_user_manual():
             - Pastikan jumlah data cukup (> window size).
             """)
 
-        with st.expander("🪟 Pencarian Window Size"):
+        with st.expander("🪟 Scan Angka Otomatis"):
             st.markdown("""
             Masuk ke tab **Scan Angka** untuk mencari window size terbaik:
             - Scan per digit atau semua sekaligus.
