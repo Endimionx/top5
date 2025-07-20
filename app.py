@@ -185,12 +185,12 @@ with tab1:
                     for komb, score in top_komb:
                         st.markdown(f"`{komb}` - Confidence: `{score:.4f}`")
 
-    st.subheader("📊 Evaluasi Akurasi")
-    acc1, acc6, top1 = evaluate_lstm_accuracy_all_digits(
-        df, selected_lokasi, model_type=model_type, window_size=window_per_digit
-    )
-    for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
-        st.info(f"🎯 {label}: Top-1 = {acc1[i]:.2%}, Top-6 = {acc6[i]:.2%}")
+    #st.subheader("📊 Evaluasi Akurasi")
+    #acc1, acc6, top1 = evaluate_lstm_accuracy_all_digits(
+    #    df, selected_lokasi, model_type=model_type, window_size=window_per_digit
+    #)
+    #for i, label in enumerate(["Ribuan", "Ratusan", "Puluhan", "Satuan"]):
+    #    st.info(f"🎯 {label}: Top-1 = {acc1[i]:.2%}, Top-6 = {acc6[i]:.2%}")
 
 # ======== TAB 2 ========
 with tab2:
