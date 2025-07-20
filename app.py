@@ -239,3 +239,33 @@ with tab2:
             st.pyplot(fig)
         except Exception as e:
             st.warning(f"Gagal simpan gambar: {e}")
+
+
+
+with st.expander("🔍 Cari Window Size Cerdas (Smart Search)", expanded=False):
+    st.markdown("Gunakan metode pencarian cerdas berdasarkan akurasi × confidence (tanpa cross-validation).")
+    temp = st.slider("Temperature Scaling", 0.2, 2.0, 1.0, step=0.1, help="Pengaruh distribusi probabilitas output")
+    reps = st.number_input("Jumlah Repetisi Training per WS", min_value=1, max_value=10, value=3)
+    model_type = st.selectbox("Model yang digunakan", ["lstm", "transformer"], key="smart_model_type")
+
+    col_s, col_r, col_p, col_t = st.columns(4)
+
+    with col_s:
+        if st.button("Cari WS Ribuan (Smart)"):
+            with st.spinner("Mencari Window Size terbaik untuk RIBUAN..."):
+                ws_ribuan, top6 = find_best_window_smart(df, "ribuan", lokasi, model_type=model_type, temperature=temp, repeats=reps)
+
+    with col_r:
+        if st.button("Cari WS Ratusan (Smart)"):
+            with st.spinner("Mencari Window Size terbaik untuk RATUSAN..."):
+                ws_ratusan, top6 = find_best_window_smart(df, "ratusan", lokasi, model_type=model_type, temperature=temp, repeats=reps)
+
+    with col_p:
+        if st.button("Cari WS Puluhan (Smart)"):
+            with st.spinner("Mencari Window Size terbaik untuk PULUHAN..."):
+                ws_puluhan, top6 = find_best_window_smart(df, "puluhan", lokasi, model_type=model_type, temperature=temp, repeats=reps)
+
+    with col_t:
+        if st.button("Cari WS Satuan (Smart)"):
+            with st.spinner("Mencari Window Size terbaik untuk SATUAN..."):
+                ws_satuan, top6 = find_best_window_smart(df, "satuan", lokasi, model_type=model_type, temperature=temp, repeats=reps)
