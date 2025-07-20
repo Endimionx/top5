@@ -199,54 +199,54 @@ with tab2:
             cv_folds = None
 
     if st.button("🔍 Scan Angka Normal"):
-    with st.spinner("Mencari window size..."):
-        ws_info = []
-        progress = st.progress(0)
-        for idx, label in enumerate(DIGIT_LABELS):
-            try:
-                best_ws, top6_digits = find_best_window_size_with_model_true(
-                    df,
-                    label,
-                    lokasi=selected_lokasi,
-                    model_type=model_type,
-                    min_ws=min_ws,
-                    max_ws=max_ws,
-                    temperature=temperature,
-                    use_cv=use_cv,
-                    cv_folds=cv_folds
-                )
-                st.session_state.window_per_digit[label] = best_ws
-                ws_info.append({
-                    "Digit": label.upper(),
-                    "Best WS": best_ws,
-                    "Top6": ", ".join(map(str, top6_digits)) if top6_digits else "-"
-                })
-            except Exception as e:
-                ws_info.append({
-                    "Digit": label.upper(),
-                    "Best WS": "-",
-                    "Top6": "-"
-                })
-                st.error(f"❌ Gagal {label.upper()} WS: {e}")
-            progress.progress((idx + 1) / len(DIGIT_LABELS))
-        st.session_state.ws_result_table = pd.DataFrame(ws_info)
+        with st.spinner("Mencari window size..."):
+            ws_info = []
+            progress = st.progress(0)
+            for idx, label in enumerate(DIGIT_LABELS):
+                try:
+                    best_ws, top6_digits = find_best_window_size_with_model_true(
+                        df,
+                        label,
+                        lokasi=selected_lokasi,
+                        model_type=model_type,
+                        min_ws=min_ws,
+                        max_ws=max_ws,
+                        temperature=temperature,
+                        use_cv=use_cv,
+                        cv_folds=cv_folds
+                    )
+                    st.session_state.window_per_digit[label] = best_ws
+                    ws_info.append({
+                        "Digit": label.upper(),
+                        "Best WS": best_ws,
+                        "Top6": ", ".join(map(str, top6_digits)) if top6_digits else "-"
+                     })
+                except Exception as e:
+                    ws_info.append({
+                        "Digit": label.upper(),
+                        "Best WS": "-",
+                        "Top6": "-"
+                    })
+                    st.error(f"❌ Gagal {label.upper()} WS: {e}")
+                progress.progress((idx + 1) / len(DIGIT_LABELS))
+            st.session_state.ws_result_table = pd.DataFrame(ws_info)
 
-if st.session_state.ws_result_table is not None:
-    st.subheader("✅ Hasil Window Size")
-    st.dataframe(st.session_state.ws_result_table)
+    if st.session_state.ws_result_table is not None:
+        st.subheader("✅ Hasil Window Size")
+        st.dataframe(st.session_state.ws_result_table)
 
-    try:
-        fig, ax = plt.subplots(figsize=(8, 2))
-        ax.axis('off')
-        tbl = ax.table(
-            cellText=st.session_state.ws_result_table.values,
-            colLabels=st.session_state.ws_result_table.columns,
-            cellLoc='center',
-            loc='center'
-        )
-        tbl.auto_set_font_size(False)
-        tbl.set_fontsize(10)
-        tbl.scale(1, 1.5)
-        st.pyplot(fig)
-    except Exception as e:
-        st.warning(f"Gagal simpan gambar: {e}")
+        try:
+            fig, ax = plt.subplots(figsize=(8, 2))
+            ax.axis('off')
+            tbl = ax.table(
+                cellText=st.session_state.ws_result_table.values,
+                colLabels=st.session_state.ws_result_table.columns,
+                cellLoc='center',
+                loc='center'
+            )
+            tbl.auto_set_font_size(False)
+            tbl.set_fontsize(10)
+            tbl.scale(1, 1.5)
+            st.pyplot(fig)
+        except Exception as e:
+            st.warning(f"Gagal simpan gambar: {e}")
