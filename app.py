@@ -98,29 +98,36 @@ with tab1:
             digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
             for label in digit_labels:
                 model_path = f"saved_models/{lokasi_id}_{label}_{model_type}.h5"
-                col1, col2, col3 = st.columns([2, 1, 1])
-                with col1:
+                log_path = f"training_logs/history_{lokasi_id}_{label}_{model_type}.csv"
+                col = st.columns([3, 1, 1])
+                with col[0]:
                     if os.path.exists(model_path):
                         st.info(f"📂 Model {label.upper()} tersedia.")
                     else:
                         st.warning(f"⚠️ Model {label.upper()} belum tersedia.")
-                with col2:
+
+                with col[1]:
                     if os.path.exists(model_path):
-                        if st.button(f"🗑 Hapus {label.upper()}", key=f"hapus_model_{label}"):
+                        if st.button(f"🗑️", key=f"hapus_model_{label}"):
                             os.remove(model_path)
                             st.warning(f"✅ Model {label.upper()} dihapus.")
-                with col3:
-                    log_path = f"training_logs/history_{lokasi_id}_{label}_{model_type}.csv"
-                    if os.path.exists(log_path):
-                        if st.button(f"🧹 Hapus Log {label.upper()}", key=f"hapus_log_{label}"):
+                            st.rerun()
+                        st.caption("Hapus Model")
+
+                with col[2]:
+                        if os.path.exists(log_path):
+                        if st.button(f"🧹", key=f"hapus_log_{label}"):
                             os.remove(log_path)
                             st.info(f"🧾 Log training {label.upper()} dihapus.")
+                            st.rerun()
+                        st.caption("Hapus Log")
+
             if st.button("📚 Latih & Simpan Semua Model"):
                 with st.spinner("🔄 Melatih semua model..."):
                     train_and_save_model(df, selected_lokasi, window_dict=window_per_digit, model_type=model_type)
                 st.success("✅ Model berhasil dilatih.")
-            
     if st.button("🔮 Prediksi", use_container_width=True):
+        
         if len(df) < max(window_per_digit.values()) + 1:
             st.warning("❌ Data tidak cukup.")
         else:
