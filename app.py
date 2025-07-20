@@ -211,7 +211,7 @@ with tab2:
     with st.expander("🔍 Scan Angka Normal (Per Digit)", expanded=False):
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🔍 Ribuan"):
+            if st.button("🔍 Ribuan", use_container_width=True):
                 with st.spinner("🔍 Mencari WS terbaik untuk Ribuan..."):
                     try:
                         ws, top6 = find_best_window_size_with_model_true(
@@ -226,7 +226,7 @@ with tab2:
                         st.error(f"❌ Gagal Ribuan: {e}")
 
         with col2:
-            if st.button("🔍 Ratusan"):
+            if st.button("🔍 Ratusan", use_container_width=True):
                 with st.spinner("🔍 Mencari WS terbaik untuk Ratusan..."):
                     try:
                         ws, top6 = find_best_window_size_with_model_true(
@@ -242,7 +242,7 @@ with tab2:
 
         col3, col4 = st.columns(2)
         with col3:
-            if st.button("🔍 Puluhan"):
+            if st.button("🔍 Puluhan", use_container_width=True):
                 with st.spinner("🔍 Mencari WS terbaik untuk Puluhan..."):
                     try:
                         ws, top6 = find_best_window_size_with_model_true(
@@ -257,7 +257,7 @@ with tab2:
                         st.error(f"❌ Gagal Puluhan: {e}")
 
         with col4:
-            if st.button("🔍 Satuan"):
+            if st.button("🔍 Satuan", use_container_width=True):
                 with st.spinner("🔍 Mencari WS terbaik untuk Satuan..."):
                     try:
                         ws, top6 = find_best_window_size_with_model_true(
