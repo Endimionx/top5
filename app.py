@@ -196,29 +196,89 @@ with tab2:
         else:
             cv_folds = None
 
-    if st.button("🔍 Scan Angka Normal"):
-        with st.spinner("Mencari window size..."):
+    with st.expander("🔍 Scan Angka Normal (Per Digit)", expanded=False):
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔍 Ribuan"):
+            with st.spinner("🔍 Mencari WS terbaik untuk Ribuan..."):
+                try:
+                    ws, top6 = find_best_window_size_with_model_true(
+                        df, "ribuan", selected_lokasi, model_type=model_type,
+                        min_ws=min_ws, max_ws=max_ws, temperature=temperature,
+                        use_cv=use_cv, cv_folds=cv_folds
+                    )
+                    st.session_state.window_per_digit["ribuan"] = ws
+                    st.success(f"✅ WS Ribuan: {ws}")
+                    st.info(f"🔢 Top-6 Ribuan: {', '.join(map(str, top6))}")
+                except Exception as e:
+                    st.error(f"❌ Gagal Ribuan: {e}")
+
+    with col2:
+        if st.button("🔍 Ratusan"):
+            with st.spinner("🔍 Mencari WS terbaik untuk Ratusan..."):
+                try:
+                    ws, top6 = find_best_window_size_with_model_true(
+                        df, "ratusan", selected_lokasi, model_type=model_type,
+                        min_ws=min_ws, max_ws=max_ws, temperature=temperature,
+                        use_cv=use_cv, cv_folds=cv_folds
+                    )
+                    st.session_state.window_per_digit["ratusan"] = ws
+                    st.success(f"✅ WS Ratusan: {ws}")
+                    st.info(f"🔢 Top-6 Ratusan: {', '.join(map(str, top6))}")
+                except Exception as e:
+                    st.error(f"❌ Gagal Ratusan: {e}")
+
+    col3, col4 = st.columns(2)
+    with col3:
+        if st.button("🔍 Puluhan"):
+            with st.spinner("🔍 Mencari WS terbaik untuk Puluhan..."):
+                try:
+                    ws, top6 = find_best_window_size_with_model_true(
+                        df, "puluhan", selected_lokasi, model_type=model_type,
+                        min_ws=min_ws, max_ws=max_ws, temperature=temperature,
+                        use_cv=use_cv, cv_folds=cv_folds
+                    )
+                    st.session_state.window_per_digit["puluhan"] = ws
+                    st.success(f"✅ WS Puluhan: {ws}")
+                    st.info(f"🔢 Top-6 Puluhan: {', '.join(map(str, top6))}")
+                except Exception as e:
+                    st.error(f"❌ Gagal Puluhan: {e}")
+
+    with col4:
+        if st.button("🔍 Satuan"):
+            with st.spinner("🔍 Mencari WS terbaik untuk Satuan..."):
+                try:
+                    ws, top6 = find_best_window_size_with_model_true(
+                        df, "satuan", selected_lokasi, model_type=model_type,
+                        min_ws=min_ws, max_ws=max_ws, temperature=temperature,
+                        use_cv=use_cv, cv_folds=cv_folds
+                    )
+                    st.session_state.window_per_digit["satuan"] = ws
+                    st.success(f"✅ WS Satuan: {ws}")
+                    st.info(f"🔢 Top-6 Satuan: {', '.join(map(str, top6))}")
+                except Exception as e:
+                    st.error(f"❌ Gagal Satuan: {e}")
+
+    st.markdown("---")
+    if st.button("🔎 Scan Semua Digit Sekaligus", use_container_width=True):
+        with st.spinner("🔄 Mencari window size semua digit..."):
             ws_info = []
             progress = st.progress(0)
             for idx, label in enumerate(DIGIT_LABELS):
                 try:
                     best_ws, top6_digits = find_best_window_size_with_model_true(
-                        df,
-                        label,
-                        lokasi=selected_lokasi,
+                        df, label, lokasi=selected_lokasi,
                         model_type=model_type,
-                        min_ws=min_ws,
-                        max_ws=max_ws,
+                        min_ws=min_ws, max_ws=max_ws,
                         temperature=temperature,
-                        use_cv=use_cv,
-                        cv_folds=cv_folds
+                        use_cv=use_cv, cv_folds=cv_folds
                     )
                     st.session_state.window_per_digit[label] = best_ws
                     ws_info.append({
                         "Digit": label.upper(),
                         "Best WS": best_ws,
                         "Top6": ", ".join(map(str, top6_digits)) if top6_digits else "-"
-                     })
+                    })
                 except Exception as e:
                     ws_info.append({
                         "Digit": label.upper(),
