@@ -626,37 +626,29 @@ def find_best_window_smart(df, label, lokasi, model_type="lstm", min_ws=4, max_w
 
     return best_ws, avg_top6_digits
 
-def find_best_window_smart_fast(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=20, temperature=1.0, repeats=1):
+def find_best_window_smart_fast(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=20, temperature=1.0, repeats=3):
     import numpy as np
+    import pandas as pd
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    import streamlit as st
     import tensorflow as tf
     import random
-    import streamlit as st
     from tensorflow.keras.callbacks import EarlyStopping
-    from tensorflow.keras.layers import Input, Embedding, LSTM, Dense, Bidirectional, GlobalAveragePooling1D, Dropout
-    from tensorflow.keras.models import Model
 
-    # Seed agar hasil reproducible
     seed = 42
     np.random.seed(seed)
     tf.random.set_seed(seed)
     random.seed(seed)
 
-    st.markdown(f"### ⚡ Smart Fast - {label.upper()}")
+    st.markdown(f"### ⚡ Pencarian WS Cepat - {label.upper()}")
 
-    def quick_model(input_len):
-        inp = Input(shape=(input_len,))
-        x = Embedding(input_dim=10, output_dim=32)(inp)
-        x = Bidirectional(LSTM(64, return_sequences=True))(x)
-        x = GlobalAveragePooling1D()(x)
-        x = Dense(64, activation='relu')(x)
-        x = Dropout(0.3)(x)
-        out = Dense(10, activation='softmax')(x)
-        model = Model(inputs=inp, outputs=out)
-        model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
-        return model
-
+    best_ws = None
     best_score = 0
-    best_ws = min_ws
+    best_val_acc = 0
+    table_data = []
+    digit_counter = {i: 0 for i in range(10)}
+    top6_pool = []
 
     for ws in range(min_ws, max_ws + 1):
         try:
@@ -665,34 +657,73 @@ def find_best_window_smart_fast(df, label, lokasi, model_type="lstm", min_ws=4, 
             if X.shape[0] == 0 or y.shape[0] == 0:
                 continue
 
-            scores = []
+            val_acc_list = []
+            conf_list = []
+            all_top6 = []
+
             for _ in range(repeats):
-                model = quick_model(X.shape[1])
+                model = build_lstm_model(X.shape[1])
                 history = model.fit(
                     X, y,
-                    epochs=10,
+                    epochs=5,
                     batch_size=32,
                     verbose=0,
                     validation_split=0.2,
-                    callbacks=[EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)]
+                    callbacks=[EarlyStopping(monitor="val_loss", patience=2, restore_best_weights=True)]
                 )
                 val_acc = max(history.history.get("val_accuracy", [0]))
                 preds = model.predict(X[-1:], verbose=0)[0]
                 if temperature != 1.0:
                     preds = np.exp(np.log(preds + 1e-8) / temperature)
                     preds /= np.sum(preds)
-                avg_conf = np.mean(np.sort(preds)[-6:])
-                score = val_acc * avg_conf
-                scores.append(score)
 
-            mean_score = np.mean(scores)
-            if mean_score > best_score:
-                best_score = mean_score
+                avg_conf = np.mean(np.sort(preds)[::-1][:6])
+                top6 = np.argsort(preds)[::-1][:6].tolist()
+
+                val_acc_list.append(val_acc)
+                conf_list.append(avg_conf)
+                all_top6.extend(top6)
+
+            avg_val_acc = np.mean(val_acc_list)
+            avg_conf = np.mean(conf_list)
+            score = avg_val_acc * avg_conf
+
+            for d in all_top6:
+                digit_counter[d] += 1
+            top6_pool.extend(all_top6)
+
+            table_data.append((ws, round(avg_val_acc * 100, 2), round(avg_conf * 100, 2), list(np.unique(all_top6)[:6])))
+
+            if score > best_score:
+                best_score = score
+                best_val_acc = avg_val_acc
                 best_ws = ws
 
         except Exception as e:
-            print(f"[FAST SMART ERROR] {label} ws={ws} -> {e}")
+            print(f"[GAGAL SMART FAST {label.upper()} WS={ws}]: {e}")
             continue
 
-    st.success(f"✅ {label.upper()} | WS terbaik: {best_ws}")
-    return best_ws
+    # Tampilkan tabel
+    if table_data:
+        df_table = pd.DataFrame(table_data, columns=["Window Size", "Val Accuracy (%)", "Avg Confidence (%)", "Top-6 Digit"])
+        df_table = df_table.sort_values("Window Size")
+        st.dataframe(df_table)
+
+    # Heatmap
+    st.markdown("#### 🔥 Heatmap Top-6 Digit (Semua WS)")
+    heat_df = pd.DataFrame([digit_counter]).T
+    heat_df.columns = ["Count"]
+    heat_df.index.name = "Digit"
+    fig, ax = plt.subplots(figsize=(8, 1.5))
+    sns.heatmap(heat_df.T, annot=True, cmap="YlGnBu", cbar=False, ax=ax)
+    st.pyplot(fig)
+
+    avg_top6_digits = [x[0] for x in sorted(
+        {d: top6_pool.count(d) for d in set(top6_pool)}.items(),
+        key=lambda x: -x[1]
+    )[:6]]
+
+    st.markdown(f"**🔁 Rata-rata Top-6 Digit:** `{', '.join(map(str, avg_top6_digits))}`")
+    st.success(f"✅ {label.upper()} - WS terbaik: {best_ws} (Val Acc: {best_val_acc:.2%})")
+
+    return best_ws, avg_top6_digits
