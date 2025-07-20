@@ -16,7 +16,8 @@ from ai_model import (
     find_best_window_size_with_model_true,
     build_lstm_model,
     build_transformer_model,
-    find_best_window_smart
+    find_best_window_smart,
+    find_best_window_smart_fast
 )
 from lokasi_list import lokasi_list
 
