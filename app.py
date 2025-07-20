@@ -18,6 +18,7 @@ from ai_model import (
     build_transformer_model
 )
 from lokasi_list import lokasi_list
+from user_manual import tampilkan_user_manual
 
 st.set_page_config(page_title="Prediksi AI", layout="wide")
 
@@ -58,6 +59,7 @@ with st.sidebar:
 
 # ======== Manajemen Model ========
 # ======== Manajemen Model (khusus metode AI) ========
+tampilkan_user_manual()
 
 # ======== Ambil Data API ========
 if "angka_list" not in st.session_state:
