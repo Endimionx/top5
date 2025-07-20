@@ -15,7 +15,8 @@ from ai_model import (
     preprocess_data,
     find_best_window_size_with_model_true,
     build_lstm_model,
-    build_transformer_model
+    build_transformer_model,
+    find_best_window_smart
 )
 from lokasi_list import lokasi_list
 
