@@ -66,7 +66,7 @@ if "angka_list" not in st.session_state:
 
 col1, col2 = st.columns([1, 4])
 with col1:
-    if st.button("🔄 Ambil Data dari API"):
+    if st.button("🔄 Ambil Data dari API", use_container_width=True)):
         try:
             with st.spinner("🔄 Mengambil data..."):
                 url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
@@ -120,7 +120,7 @@ with tab1:
                     train_and_save_model(df, selected_lokasi, window_dict=window_per_digit, model_type=model_type)
                 st.success("✅ Model berhasil dilatih.")
             
-    if st.button("🔮 Prediksi"):
+    if st.button("🔮 Prediksi", use_container_width=True)):
         if len(df) < max(window_per_digit.values()) + 1:
             st.warning("❌ Data tidak cukup.")
         else:
