@@ -11,6 +11,12 @@ from tensorflow.keras.utils import to_categorical
 import os
 import pandas as pd
 import time
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.metrics import TopKCategoricalAccuracy
+from sklearn.model_selection import KFold
 from itertools import product
 from markov_model import top6_markov
 
@@ -387,19 +393,10 @@ def evaluate_top6_accuracy(model, X, y_true):
     y_pred_top6 = np.argsort(y_pred_probs, axis=1)[:, -6:]
     match = [y_true_labels[i] in y_pred_top6[i] for i in range(len(y_true_labels))]
     return np.mean(match)
+
 def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=20,
                                           temperature=1.0, use_cv=False, cv_folds=5, seed=42,
                                           min_acc=0.60, min_conf=0.60):
-    import numpy as np
-    import pandas as pd
-    import streamlit as st
-    import seaborn as sns
-    import matplotlib.pyplot as plt
-    import tensorflow as tf
-    from tensorflow.keras.callbacks import EarlyStopping
-    from tensorflow.keras.metrics import TopKCategoricalAccuracy
-    from sklearn.model_selection import KFold
-
     tf.random.set_seed(seed)
     np.random.seed(seed)
 
@@ -422,11 +419,13 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
         try:
             status.info(f"🧠 Mencoba WS={ws} ({idx+1}/{len(ws_range)}) untuk **{label.upper()}**...")
             X, y_dict = preprocess_data(df, window_size=ws)
-            y = y_dict[label]
 
-            if X.shape[0] == 0 or y.shape[0] == 0:
-                st.warning(f"❌ WS={ws} tidak cukup data. X={X.shape}, y={y.shape}")
+            if label not in y_dict or y_dict[label].shape[0] == 0 or X.shape[0] == 0:
+                st.warning(f"⚠️ WS={ws} - Data tidak cukup atau label `{label}` tidak tersedia.")
                 continue
+
+            y = y_dict[label]
+            st.text(f"✅ WS={ws} | X: {X.shape}, y: {y.shape}")
 
             acc_scores, top6acc_scores, conf_scores = [], [], []
             top6_all = []
@@ -438,6 +437,9 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
                     y_train, y_val = y[train_idx], y[val_idx]
 
                     model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
+                    model.compile(optimizer="adam",
+                                  loss="categorical_crossentropy",
+                                  metrics=["accuracy", TopKCategoricalAccuracy(k=6)])
                     model.fit(
                         X_train, y_train,
                         epochs=10,
@@ -446,18 +448,24 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
                         validation_data=(X_val, y_val),
                         callbacks=[EarlyStopping(patience=2, restore_best_weights=True)]
                     )
+
                     eval_result = model.evaluate(X_val, y_val, verbose=0)
                     acc_scores.append(eval_result[1])
                     top6acc_scores.append(eval_result[2])
 
                     preds = model.predict(X[-1:], verbose=0)[0]
-                    preds = np.exp(np.log(preds + 1e-8) / temperature)
-                    preds /= np.sum(preds)
+                    if temperature != 1.0:
+                        preds = np.exp(np.log(preds + 1e-8) / temperature)
+                        preds /= np.sum(preds)
                     conf_scores.append(np.mean(np.sort(preds)[::-1][:6]))
                     top6 = np.argsort(preds)[::-1][:6]
                     top6_all.extend(top6)
+
             else:
                 model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
+                model.compile(optimizer="adam",
+                              loss="categorical_crossentropy",
+                              metrics=["accuracy", TopKCategoricalAccuracy(k=6)])
                 model.fit(
                     X, y,
                     epochs=10,
@@ -469,9 +477,11 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
                 eval_result = model.evaluate(X, y, verbose=0)
                 acc_scores = [eval_result[1]]
                 top6acc_scores = [eval_result[2]]
+
                 preds = model.predict(X[-1:], verbose=0)[0]
-                preds = np.exp(np.log(preds + 1e-8) / temperature)
-                preds /= np.sum(preds)
+                if temperature != 1.0:
+                    preds = np.exp(np.log(preds + 1e-8) / temperature)
+                    preds /= np.sum(preds)
                 conf_scores = [np.mean(np.sort(preds)[::-1][:6])]
                 top6 = np.argsort(preds)[::-1][:6]
                 top6_all = top6.tolist()
@@ -480,11 +490,7 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
             top6_acc = np.mean(top6acc_scores)
             avg_conf = np.mean(conf_scores)
 
-            if val_acc < min_acc:
-                st.info(f"⛔ WS={ws} akurasi rendah: {val_acc:.2%}")
-                continue
-            if avg_conf < min_conf:
-                st.info(f"⚠️ WS={ws} confidence rendah: {avg_conf:.2%}")
+            if val_acc < min_acc or avg_conf < min_conf:
                 continue
 
             score = (val_acc * 0.35) + (top6_acc * 0.35) + (avg_conf * 0.30)
@@ -503,7 +509,7 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
                 best_conf = avg_conf
 
         except Exception as e:
-            st.warning(f"[❌ ERROR WS={ws}] {e}")
+            st.warning(f"[GAGAL WS={ws}] {e}")
             continue
 
     status.info("✅ Selesai semua WS")
@@ -519,6 +525,7 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
 
     if table_data:
         df_table = pd.DataFrame(table_data, columns=["Window Size", "Acc (%)", "Top-6 Acc (%)", "Conf (%)", "Top-6"])
+        df_table = df_table.sort_values("Window Size")
         st.dataframe(df_table)
 
     st.markdown("#### 🔥 Heatmap Jumlah Kemunculan Top-6 Digit (Top-5 WS)")
