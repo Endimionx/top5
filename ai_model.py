@@ -521,3 +521,88 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
     st.success(f"✅ {label.upper()} - WS terbaik: {best_ws} (Val Acc: {best_acc:.2%})")
     return best_ws, avg_top6_digits
         
+def find_best_window_smart(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=20, temperature=1.0):
+    import numpy as np
+    import pandas as pd
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    from tensorflow.keras.callbacks import EarlyStopping
+    import streamlit as st
+
+    st.markdown(f"### 🔍 Pencarian Window Size Cerdas - {label.upper()}")
+
+    best_ws = None
+    best_score = 0
+    best_val_acc = 0
+    table_data = []
+    digit_counter = {i: 0 for i in range(10)}
+    top6_pool = []
+
+    for ws in range(min_ws, max_ws + 1):
+        try:
+            X, y_dict = preprocess_data(df, window_size=ws)
+            y = y_dict[label]
+            if X.shape[0] == 0 or y.shape[0] == 0:
+                continue
+
+            # Bangun model & latih
+            model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
+            history = model.fit(
+                X, y,
+                epochs=10,
+                batch_size=32,
+                verbose=0,
+                validation_split=0.2,
+                callbacks=[EarlyStopping(monitor="val_loss", patience=3, restore_best_weights=True)]
+            )
+
+            val_acc = max(history.history.get("val_accuracy", [0]))
+            preds = model.predict(X[-1:], verbose=0)[0]
+            if temperature != 1.0:
+                preds = np.exp(np.log(preds + 1e-8) / temperature)
+                preds /= np.sum(preds)
+
+            avg_conf = np.mean(np.sort(preds)[::-1][:6])
+            score = val_acc * avg_conf
+
+            top6 = np.argsort(preds)[::-1][:6].tolist()
+            top6_pool.extend(top6)
+            for d in top6:
+                digit_counter[d] += 1
+
+            table_data.append((ws, round(val_acc * 100, 2), round(avg_conf * 100, 2), top6))
+
+            if score > best_score:
+                best_score = score
+                best_val_acc = val_acc
+                best_ws = ws
+
+        except Exception as e:
+            print(f"[GAGAL SMART {label.upper()} WS={ws}]: {e}")
+            continue
+
+    # Tampilkan tabel hasil
+    if table_data:
+        df_table = pd.DataFrame(table_data, columns=["Window Size", "Val Accuracy (%)", "Avg Confidence (%)", "Top-6 Digit"])
+        df_table = df_table.sort_values("Window Size")
+        st.dataframe(df_table)
+
+    # Heatmap digit top-6
+    st.markdown("#### 🔥 Heatmap Jumlah Kemunculan Top-6 Digit")
+    heat_df = pd.DataFrame([digit_counter]).T
+    heat_df.columns = ["Count"]
+    heat_df.index.name = "Digit"
+    fig, ax = plt.subplots(figsize=(8, 1.5))
+    sns.heatmap(heat_df.T, annot=True, cmap="YlGnBu", cbar=False, ax=ax)
+    st.pyplot(fig)
+
+    # Rangkuman
+    avg_top6_digits = [x[0] for x in sorted(
+        {d: top6_pool.count(d) for d in set(top6_pool)}.items(),
+        key=lambda x: -x[1]
+    )[:6]]
+
+    st.markdown(f"**🔁 Top-6 Rata-rata dari semua WS:** `{', '.join(map(str, avg_top6_digits))}`")
+    st.success(f"✅ {label.upper()} - WS terbaik: {best_ws} (Val Acc: {best_val_acc:.2%})")
+
+    return best_ws, avg_top6_digits
