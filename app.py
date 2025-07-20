@@ -115,7 +115,7 @@ with st.expander("✏️ Edit Data Angka Manual", expanded=True):
     df = pd.DataFrame({"angka": st.session_state.angka_list})
 
 # ======== Tabs Utama ========
-tab1, tab2 = st.tabs(["🔮 Prediksi & Evaluasi", "🪟 Cari Window Size"])
+tab1, tab2 = st.tabs(["🔮 Prediksi & Evaluasi", "🪟 Scan Angka"])
 
 # ======== TAB 1 ========
 with tab1:
@@ -197,7 +197,7 @@ with tab2:
         else:
             cv_folds = None
 
-    if st.button("🔍 Cari Window Size Terbaik"):
+    if st.button("🔍 Scan Angka Normal"):
         with st.spinner("Mencari window size..."):
             ws_info = []
             progress = st.progress(0)
@@ -243,7 +243,7 @@ with tab2:
 
 
 
-with st.expander("🔍 Cari Window Size Cerdas (Smart Search)", expanded=False):
+with st.expander("🔍 Scan Angka Cerdas (Smart Search)", expanded=False):
     st.markdown("Gunakan metode pencarian cerdas berdasarkan akurasi × confidence (tanpa cross-validation).")
     temp = st.slider("Temperature Scaling", 0.2, 2.0, 1.0, step=0.1, help="Pengaruh distribusi probabilitas output")
     reps = st.number_input("Jumlah Repetisi Training per WS", min_value=1, max_value=10, value=3)
@@ -252,21 +252,21 @@ with st.expander("🔍 Cari Window Size Cerdas (Smart Search)", expanded=False):
     col_s, col_r, col_p, col_t = st.columns(4)
 
     with col_s:
-        if st.button("Cari WS Ribuan (Smart)"):
+        if st.button("Scan Ribuan (Smart)"):
             with st.spinner("Mencari Window Size terbaik untuk RIBUAN..."):
                 ws_ribuan, top6 = find_best_window_smart(df, "ribuan", selected_lokasi, model_type=model_type, max_ws=max_ws, min_ws=min_ws, temperature=temp, repeats=reps)
 
     with col_r:
-        if st.button("Cari WS Ratusan (Smart)"):
+        if st.button("Scan Ratusan (Smart)"):
             with st.spinner("Mencari Window Size terbaik untuk RATUSAN..."):
                 ws_ratusan, top6 = find_best_window_smart(df, "ratusan", selected_lokasi, model_type=model_type, max_ws=max_ws, min_ws=min_ws,temperature=temp, repeats=reps)
 
     with col_p:
-        if st.button("Cari WS Puluhan (Smart)"):
+        if st.button("Scan Puluhan (Smart)"):
             with st.spinner("Mencari Window Size terbaik untuk PULUHAN..."):
                 ws_puluhan, top6 = find_best_window_smart(df, "puluhan", selected_lokasi, model_type=model_type, max_ws=max_ws, min_ws=min_ws,temperature=temp, repeats=reps)
 
     with col_t:
-        if st.button("Cari WS Satuan (Smart)"):
+        if st.button("Scan Satuan (Smart)"):
             with st.spinner("Mencari Window Size terbaik untuk SATUAN..."):
                 ws_satuan, top6 = find_best_window_smart(df, "satuan", selected_lokasi, model_type=model_type, max_ws=max_ws, min_ws=min_ws, temperature=temp, repeats=reps)
