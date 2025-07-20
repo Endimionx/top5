@@ -193,6 +193,7 @@ with tab1:
     #    st.info(f"🎯 {label}: Top-1 = {acc1[i]:.2%}, Top-6 = {acc6[i]:.2%}")
 
 # ======== TAB 2 ========
+# ======== TAB 2: Scan Window Size ========
 with tab2:
     min_ws = st.number_input("🔁 Min WS", 3, 10, 4)
     max_ws = st.number_input("🔁 Max WS", 4, 20, 12)
@@ -217,7 +218,7 @@ with tab2:
 
     with st.expander("🔍 Scan Angka Normal (Per Digit)", expanded=False):
         for label in DIGIT_LABELS:
-            if st.button(f"🔍 {label.upper()}", key=f"btn_{label}"):
+            if st.button(f"🔍 {label.upper()}", key=f"btn_{label}", use_container_width=True):
                 with st.spinner(f"🔍 Mencari WS terbaik untuk {label.upper()}..."):
                     try:
                         ws, top6 = find_best_window_size_with_model_true(
@@ -289,6 +290,11 @@ with tab2:
             tbl.set_fontsize(10)
             tbl.scale(1, 1.5)
             st.pyplot(fig)
+
+            # Simpan gambar
+            fig.savefig("hasil_ws.png", bbox_inches='tight')
+            st.success("📸 Gambar tabel disimpan sebagai hasil_ws.png")
+
         except Exception as e:
-            st.warning(f"Gagal tampilkan tabel: {e}")
+            st.warning(f"Gagal tampilkan/simpan tabel: {e}")
                         
