@@ -389,7 +389,8 @@ def evaluate_top6_accuracy(model, X, y_true):
     return np.mean(match)
 
 def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=20,
-                                          temperature=1.0, use_cv=False, cv_folds=5, seed=42):
+                                          temperature=1.0, use_cv=False, cv_folds=5, seed=42,
+                                          min_acc=0.60, min_conf=0.60):
     import numpy as np
     import pandas as pd
     import streamlit as st
@@ -488,7 +489,11 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
             val_acc = np.mean(acc_scores)
             top6_acc = np.mean(top6acc_scores)
             avg_conf = np.mean(conf_scores)
-            score = (val_acc * 0.4) + (top6_acc * 0.4) + (avg_conf * 0.2)
+
+            if val_acc < min_acc or avg_conf < min_conf:
+                continue  # Skip WS jika akurasi atau confidence rendah
+
+            score = (val_acc * 0.35) + (top6_acc * 0.35) + (avg_conf * 0.30)
 
             top6_freq = sorted({d: top6_all.count(d) for d in set(top6_all)}.items(), key=lambda x: -x[1])[:6]
             top6_digits = [d for d, _ in top6_freq]
@@ -531,26 +536,23 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
     sns.heatmap(heat_df.T, annot=True, cmap="YlGnBu", cbar=False, ax=ax)
     st.pyplot(fig)
 
-    # ========== Heatmap Top-6 Berdasarkan Confidence ==========
     st.markdown("#### 🌡️ Heatmap Berdasarkan Top Confidence")
     top_conf_counter = {i: 0 for i in range(10)}
-    for _, _, _, top6_digits, _ in all_scores:
+    for _, _, _, _, top6_digits, _ in all_scores:
         for d in top6_digits:
             top_conf_counter[d] += 1
 
     top_conf_df = pd.DataFrame([top_conf_counter]).T
     top_conf_df.columns = ["Top-6 Count"]
     top_conf_df.index.name = "Digit"
-
     fig2, ax2 = plt.subplots(figsize=(8, 1.5))
     sns.heatmap(top_conf_df.T, annot=True, cmap="Oranges", cbar=False, ax=ax2)
     st.pyplot(fig2)
 
-
-                                              
-
     st.markdown(f"**🔁 Top-6 Rata-rata dari 5 WS terbaik:** `{', '.join(map(str, avg_top6_digits))}`")
     st.success(f"✅ {label.upper()} - WS terbaik: {best_ws} (Acc: {best_acc:.2%}, Top6 Acc: {best_top6acc:.2%}, Conf: {best_conf:.2%})")
+
     return best_ws, avg_top6_digits
+
 
             
