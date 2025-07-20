@@ -272,7 +272,7 @@ with st.expander("🔍 Scan Angka Cerdas (Smart Search)", expanded=False):
             with st.spinner("Mencari Window Size terbaik untuk SATUAN..."):
                 ws_satuan, top6 = find_best_window_smart(df, "satuan", selected_lokasi, model_type=model_type, max_ws=max_ws, min_ws=min_ws, temperature=temp, repeats=reps)
 
-with st.expander("🔍 Cari Window Size Cerdas (Cepat) per Digit", expanded=False):
+with st.expander("🔍 Scan Angka Cerdas (Cepat) per Digit", expanded=False):
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Smart Fast - Ribuan"):
