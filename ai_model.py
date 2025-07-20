@@ -521,13 +521,21 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
     st.success(f"✅ {label.upper()} - WS terbaik: {best_ws} (Val Acc: {best_acc:.2%})")
     return best_ws, avg_top6_digits
         
-def find_best_window_smart(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=20, temperature=1.0):
+def find_best_window_smart(df, label, lokasi, model_type="lstm", min_ws=4, max_ws=20, temperature=1.0, repeats=3):
     import numpy as np
     import pandas as pd
     import seaborn as sns
     import matplotlib.pyplot as plt
-    from tensorflow.keras.callbacks import EarlyStopping
     import streamlit as st
+    import tensorflow as tf
+    import random
+    from tensorflow.keras.callbacks import EarlyStopping
+
+    # Set random seed
+    seed = 42
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+    random.seed(seed)
 
     st.markdown(f"### 🔍 Pencarian Window Size Cerdas - {label.upper()}")
 
@@ -545,49 +553,60 @@ def find_best_window_smart(df, label, lokasi, model_type="lstm", min_ws=4, max_w
             if X.shape[0] == 0 or y.shape[0] == 0:
                 continue
 
-            # Bangun model & latih
-            model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
-            history = model.fit(
-                X, y,
-                epochs=10,
-                batch_size=32,
-                verbose=0,
-                validation_split=0.2,
-                callbacks=[EarlyStopping(monitor="val_loss", patience=3, restore_best_weights=True)]
-            )
+            val_acc_list = []
+            conf_list = []
+            all_top6 = []
 
-            val_acc = max(history.history.get("val_accuracy", [0]))
-            preds = model.predict(X[-1:], verbose=0)[0]
-            if temperature != 1.0:
-                preds = np.exp(np.log(preds + 1e-8) / temperature)
-                preds /= np.sum(preds)
+            for _ in range(repeats):
+                model = build_transformer_model(X.shape[1]) if model_type == "transformer" else build_lstm_model(X.shape[1])
+                history = model.fit(
+                    X, y,
+                    epochs=10,
+                    batch_size=32,
+                    verbose=0,
+                    validation_split=0.2,
+                    callbacks=[EarlyStopping(monitor="val_loss", patience=3, restore_best_weights=True)]
+                )
+                val_acc = max(history.history.get("val_accuracy", [0]))
+                preds = model.predict(X[-1:], verbose=0)[0]
+                if temperature != 1.0:
+                    preds = np.exp(np.log(preds + 1e-8) / temperature)
+                    preds /= np.sum(preds)
 
-            avg_conf = np.mean(np.sort(preds)[::-1][:6])
-            score = val_acc * avg_conf
+                avg_conf = np.mean(np.sort(preds)[::-1][:6])
+                top6 = np.argsort(preds)[::-1][:6].tolist()
 
-            top6 = np.argsort(preds)[::-1][:6].tolist()
-            top6_pool.extend(top6)
-            for d in top6:
+                val_acc_list.append(val_acc)
+                conf_list.append(avg_conf)
+                all_top6.extend(top6)
+
+            avg_val_acc = np.mean(val_acc_list)
+            avg_conf = np.mean(conf_list)
+            score = avg_val_acc * avg_conf
+
+            # Tambahkan ke heatmap pool
+            for d in all_top6:
                 digit_counter[d] += 1
+            top6_pool.extend(all_top6)
 
-            table_data.append((ws, round(val_acc * 100, 2), round(avg_conf * 100, 2), top6))
+            table_data.append((ws, round(avg_val_acc * 100, 2), round(avg_conf * 100, 2), list(np.unique(all_top6)[:6])))
 
             if score > best_score:
                 best_score = score
-                best_val_acc = val_acc
+                best_val_acc = avg_val_acc
                 best_ws = ws
 
         except Exception as e:
             print(f"[GAGAL SMART {label.upper()} WS={ws}]: {e}")
             continue
 
-    # Tampilkan tabel hasil
+    # Tabel hasil
     if table_data:
         df_table = pd.DataFrame(table_data, columns=["Window Size", "Val Accuracy (%)", "Avg Confidence (%)", "Top-6 Digit"])
         df_table = df_table.sort_values("Window Size")
         st.dataframe(df_table)
 
-    # Heatmap digit top-6
+    # Heatmap
     st.markdown("#### 🔥 Heatmap Jumlah Kemunculan Top-6 Digit")
     heat_df = pd.DataFrame([digit_counter]).T
     heat_df.columns = ["Count"]
