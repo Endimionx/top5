@@ -195,7 +195,9 @@ with tab1:
 with tab2:
     min_ws = st.number_input("🔁 Min WS", 3, 10, 4)
     max_ws = st.number_input("🔁 Max WS", 4, 20, 12)
-
+    min_acc = st.slider("🌡️ Min Acc", 0.1, 2.0, 0.5, step=0.1)
+    min_conf = st.slider("🌡️ Min Conf", 0.1, 2.0, 0.5, step=0.1)
+    
     if "ws_result_table" not in st.session_state:
         st.session_state.ws_result_table = None
     if "window_per_digit" not in st.session_state:
@@ -217,7 +219,7 @@ with tab2:
                         ws, top6 = find_best_window_size_with_model_true(
                             df, "ribuan", selected_lokasi, model_type=model_type,
                             min_ws=min_ws, max_ws=max_ws, temperature=temperature,
-                            use_cv=use_cv, cv_folds=cv_folds, seed=42, min_acc=0.1, min_conf=0.1
+                            use_cv=use_cv, cv_folds=cv_folds, seed=42, min_acc=min_acc, min_conf=min_conf
                         )
                         st.session_state.window_per_digit["ribuan"] = ws
                         st.success(f"✅ WS Ribuan: {ws}")
@@ -232,7 +234,7 @@ with tab2:
                         ws, top6 = find_best_window_size_with_model_true(
                             df, "ratusan", selected_lokasi, model_type=model_type,
                             min_ws=min_ws, max_ws=max_ws, temperature=temperature,
-                            use_cv=use_cv, cv_folds=cv_folds, seed=42, min_acc=0.1, min_conf=0.1
+                            use_cv=use_cv, cv_folds=cv_folds, seed=42, min_acc=min_acc, min_conf=min_conf
                         )
                         st.session_state.window_per_digit["ratusan"] = ws
                         st.success(f"✅ WS Ratusan: {ws}")
@@ -248,7 +250,7 @@ with tab2:
                         ws, top6 = find_best_window_size_with_model_true(
                             df, "puluhan", selected_lokasi, model_type=model_type,
                             min_ws=min_ws, max_ws=max_ws, temperature=temperature,
-                            use_cv=use_cv, cv_folds=cv_folds, seed=42, min_acc=0.1, min_conf=0.1
+                            use_cv=use_cv, cv_folds=cv_folds, seed=42, min_acc=min_acc, min_conf=min_conf
                         )
                         st.session_state.window_per_digit["puluhan"] = ws
                         st.success(f"✅ WS Puluhan: {ws}")
@@ -263,7 +265,7 @@ with tab2:
                         ws, top6 = find_best_window_size_with_model_true(
                             df, "satuan", selected_lokasi, model_type=model_type,
                             min_ws=min_ws, max_ws=max_ws, temperature=temperature,
-                            use_cv=use_cv, cv_folds=cv_folds, seed=42, min_acc=0.1, min_conf=0.1
+                            use_cv=use_cv, cv_folds=cv_folds, seed=42, min_acc=min_acc, min_conf=min_conf
                         )
                         st.session_state.window_per_digit["satuan"] = ws
                         st.success(f"✅ WS Satuan: {ws}")
@@ -285,8 +287,8 @@ with tab2:
                             temperature=temperature,
                             use_cv=use_cv, cv_folds=cv_folds,
                             seed=42,
-                            min_acc=0.1,
-                            min_conf=0.1
+                            min_acc=min_acc,
+                            min_conf=min_conf
                         )
                         st.session_state.window_per_digit[label] = best_ws
                         ws_info.append({
