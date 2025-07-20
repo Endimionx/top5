@@ -425,7 +425,7 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
                 continue
 
             y = y_dict[label]
-            st.text(f"✅ WS={ws} | X: {X.shape}, y: {y.shape}")
+            #st.text(f"✅ WS={ws} | X: {X.shape}, y: {y.shape}")
 
             acc_scores, top6acc_scores, conf_scores = [], [], []
             top6_all = []
