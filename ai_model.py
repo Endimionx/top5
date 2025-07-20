@@ -444,6 +444,7 @@ def find_best_window_size_with_model_true(df, label, lokasi, model_type="lstm", 
                     if temperature != 1.0:
                         last_pred = np.exp(np.log(last_pred + 1e-8) / temperature)
                         last_pred /= np.sum(last_pred)
+                    preds = last_pred
                     conf_scores.append(np.mean(np.sort(last_pred)[::-1][:6]))
                     top6 = np.argsort(last_pred)[::-1][:6]
                     top6_all.extend(top6)
