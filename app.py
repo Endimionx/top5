@@ -123,7 +123,7 @@ with tab1:
         if st.button("📚 Latih & Simpan Semua Model"):
             with st.spinner("🔄 Melatih semua model..."):
                 train_and_save_model(df, selected_lokasi, window_dict=window_per_digit, model_type=model_type)
-            st.success("✅ Semua model berhasil dilatih.") tidak cukup.")
+                st.success("✅ Semua model berhasil dilatih.") 
         else:
             with st.spinner("⏳ Memproses..."):
                 result, probs = None, None
