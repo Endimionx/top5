@@ -93,37 +93,42 @@ tab1, tab2 = st.tabs(["🔮 Prediksi & Evaluasi", "🪟 Scan Angka"])
 # ======== TAB 1 ========
 with tab1:
     if metode in ["LSTM AI", "Ensemble AI + Markov"]:
-    with st.expander("⚙️ Manajemen Model", expanded=True):
-        lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
-        digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
-        for label in digit_labels:
-            model_path = f"saved_models/{lokasi_id}_{label}_{model_type}.h5"
-            log_path = f"training_logs/history_{lokasi_id}_{label}_{model_type}.csv"
+        with st.expander("⚙️ Manajemen Model", expanded=True):
+            lokasi_id = selected_lokasi.lower().strip().replace(" ", "_")
+            digit_labels = ["ribuan", "ratusan", "puluhan", "satuan"]
+            for label in digit_labels:
+                model_path = f"saved_models/{lokasi_id}_{label}_{model_type}.h5"
+                log_path = f"training_logs/history_{lokasi_id}_{label}_{model_type}.csv"
+ 
+                st.markdown(f"### 📁 Model {label.upper()}")
+                cols = st.columns([5, 1, 1])
+                with cols[0]:
+                    if os.path.exists(model_path):
+                        st.info(f"Model tersedia.")
+                    else:
+                        st.warning("Belum tersedia.")
+                with cols[1]:
+                    if os.path.exists(model_path):
+                        if st.button("🗑️", key=f"hapus_model_{label}"):
+                            os.remove(model_path)
+                            st.warning(f"✅ Model {label.upper()} dihapus.")
+                            st.rerun()
+                with cols[2]:
+                    if os.path.exists(log_path):
+                        if st.button("🧹", key=f"hapus_log_{label}"):
+                            os.remove(log_path)
+                            st.info(f"🧾 Log {label.upper()} dihapus.")
+                            st.rerun()
 
-            st.markdown(f"### 📁 Model {label.upper()}")
-            cols = st.columns([5, 1, 1])
-            with cols[0]:
-                if os.path.exists(model_path):
-                    st.info(f"Model tersedia.")
-                else:
-                    st.warning("Belum tersedia.")
-            with cols[1]:
-                if os.path.exists(model_path):
-                    if st.button("🗑️", key=f"hapus_model_{label}"):
-                        os.remove(model_path)
-                        st.warning(f"✅ Model {label.upper()} dihapus.")
-                        st.rerun()
-            with cols[2]:
-                if os.path.exists(log_path):
-                    if st.button("🧹", key=f"hapus_log_{label}"):
-                        os.remove(log_path)
-                        st.info(f"🧾 Log {label.upper()} dihapus.")
-                        st.rerun()
-
-        if st.button("📚 Latih & Simpan Semua Model"):
-            with st.spinner("🔄 Melatih semua model..."):
-                train_and_save_model(df, selected_lokasi, window_dict=window_per_digit, model_type=model_type)
-                st.success("✅ Semua model berhasil dilatih.") 
+            if st.button("📚 Latih & Simpan Semua Model"):
+                with st.spinner("🔄 Melatih semua model..."):
+                    train_and_save_model(df, selected_lokasi, window_dict=window_per_digit, model_type=model_type)
+                st.success("✅ Semua model berhasil dilatih.")
+            
+    if st.button("🔮 Prediksi", use_container_width=True):
+        
+        if len(df) < max(window_per_digit.values()) + 1:
+            st.warning("❌ Data tidak cukup.")
         else:
             with st.spinner("⏳ Memproses..."):
                 result, probs = None, None
@@ -310,4 +315,3 @@ with tab2:
                 st.pyplot(fig)
             except Exception as e:
                 st.warning(f"Gagal simpan gambar: {e}")
-
