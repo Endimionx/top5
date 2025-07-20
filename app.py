@@ -103,21 +103,21 @@ with tab1:
 
                 st.markdown(f"### 📁 Model {label.upper()}")
 
-                # Status model
+                # Status Model
                 if os.path.exists(model_path):
                     st.info(f"📂 Model {label.upper()} tersedia.")
                 else:
                     st.warning(f"⚠️ Model {label.upper()} belum tersedia.")
 
-                # Tombol sejajar
-                col1, col2 = st.columns(2)
-                with col1:
+                # Tombol horizontal: Hapus Model & Hapus Log
+                tombol_col1, tombol_col2 = st.columns([1, 1])
+                with tombol_col1:
                     if os.path.exists(model_path):
                         if st.button("🗑 Hapus Model", key=f"hapus_model_{label}"):
                             os.remove(model_path)
                             st.warning(f"✅ Model {label.upper()} dihapus.")
                             st.rerun()
-                with col2:
+                with tombol_col2:
                     if os.path.exists(log_path):
                         if st.button("🧹 Hapus Log", key=f"hapus_log_{label}"):
                             os.remove(log_path)
@@ -129,7 +129,7 @@ with tab1:
                 with st.spinner("🔄 Melatih semua model..."):
                     train_and_save_model(df, selected_lokasi, window_dict=window_per_digit, model_type=model_type)
                 st.success("✅ Semua model berhasil dilatih.")
-                
+    
     if st.button("🔮 Prediksi", use_container_width=True):
         
         if len(df) < max(window_per_digit.values()) + 1:
