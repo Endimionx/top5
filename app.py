@@ -19,9 +19,9 @@ from ai_model import (
 )
 from lokasi_list import lokasi_list
 
-st.set_page_config(page_title="Prediksi Togel AI", layout="wide")
+st.set_page_config(page_title="Prediksi AI", layout="wide")
 
-st.title("🔮 Prediksi 4D - AI & Markov")
+st.title("Prediksi 4D - AI")
 
 DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 
@@ -32,7 +32,6 @@ for label in DIGIT_LABELS:
         st.session_state[key] = 7  # default value
 
 # ======== Ambil Data API dan Input Manual ========
-st.markdown("## 📥 Data Angka Masuk")
 
 # ======== Sidebar Pengaturan ========
 with st.sidebar:
