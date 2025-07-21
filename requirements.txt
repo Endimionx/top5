@@ -9,3 +9,5 @@ requests
 matplotlib
 streamlit_lottie
 seaborn
+catboost
+scikit-learn
