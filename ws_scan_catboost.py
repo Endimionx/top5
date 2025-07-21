@@ -14,7 +14,7 @@ from ai_model import (
 DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 
 
-def preprocess_data(df, window_size=7):
+def preprocess_datacat(df, window_size=7):
     if len(df) < window_size + 1:
         return np.array([]), {label: np.array([]) for label in DIGIT_LABELS}
     
