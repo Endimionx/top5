@@ -417,7 +417,7 @@ with tab3:
     st.header("🤖 Scan & Prediksi Otomatis (CatBoost ➜ LSTM Temp)")
 
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
-    max_ws_cb3 = st.number_input("🔁 Max WS", min_ws_cb3 + 1, 30, 10, key="tab3_max_ws")
+    max_ws_cb3 = st.number_input("🔁 Max WS", min_ws_cb3 + 1, 30, min_ws_cb3 + 6, key="tab3_max_ws")
     folds_cb3 = st.slider("📂 Jumlah Fold", 2, 10, 3, key="tab3_cv")
     temp_seed = st.number_input("🎲 Seed", 0, 9999, 42, key="tab3_seed")
 
