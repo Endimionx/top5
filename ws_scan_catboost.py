@@ -7,9 +7,7 @@ import seaborn as sns
 from sklearn.model_selection import KFold, cross_val_score
 from catboost import CatBoostClassifier
 from tensorflow.keras.utils import to_categorical
-from ai_model import (
-    preprocess_data
-)
+from ai_model import preprocess_data
 
 DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 
@@ -17,7 +15,7 @@ DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 def preprocess_datacat(df, window_size=7):
     if len(df) < window_size + 1:
         return np.array([]), {label: np.array([]) for label in DIGIT_LABELS}
-    
+
     angka = df["angka"].values
     total_data = len(angka)
     num_windows = (total_data - 1) // window_size
@@ -37,16 +35,13 @@ def preprocess_datacat(df, window_size=7):
         target_digits = [int(d) for d in f"{int(window[-1]):04d}"]
         for j, label in enumerate(DIGIT_LABELS):
             targets[label].append(to_categorical(target_digits[j], num_classes=10))
-    
+
     X = np.array(sequences)
     y_dict = {label: np.array(targets[label]) for label in DIGIT_LABELS}
     return X, y_dict
 
 
 def get_top6_catboost(X, y, seed=42):
-    """
-    Latih model CatBoost dan ambil top-6 digit dengan confidence tertinggi.
-    """
     model = CatBoostClassifier(verbose=0, random_seed=seed)
     model.fit(X, y)
     proba = model.predict_proba(X)
@@ -56,22 +51,16 @@ def get_top6_catboost(X, y, seed=42):
 
 
 def scan_ws_catboost(df, label, min_ws=5, max_ws=15, cv_folds=3, seed=42):
-    """
-    Mencari window size terbaik menggunakan CatBoostClassifier.
-    Menampilkan info, progress bar, dan menyimpan hasil ke session_state.
-    """
     np.random.seed(seed)
     results = []
 
     total = max_ws - min_ws + 1
     progress = st.progress(0.0, text=f"⏳ Mulai proses SCAN CatBoost {label.upper()}...")
-    
+
     for idx, ws in enumerate(range(min_ws, max_ws + 1), 1):
         progress.progress(idx / total, text=f"🔄 Evaluasi WS={ws} untuk {label.upper()}")
-        #st.info(f"🔍 Sedang proses WS={ws} ({idx}/{total})", icon="🔁")
 
         X_all, y_dict = preprocess_data(df, window_size=ws)
-
         if len(X_all) == 0 or label not in y_dict:
             continue
 
@@ -80,7 +69,6 @@ def scan_ws_catboost(df, label, min_ws=5, max_ws=15, cv_folds=3, seed=42):
             continue
 
         y = np.argmax(y_onehot, axis=1)
-
         if len(y) < cv_folds:
             continue
 
@@ -88,19 +76,32 @@ def scan_ws_catboost(df, label, min_ws=5, max_ws=15, cv_folds=3, seed=42):
         kf = KFold(n_splits=cv_folds, shuffle=True, random_state=seed)
         scores = cross_val_score(model, X_all, y, cv=kf, scoring="accuracy")
 
-        # Ambil top6
+        # Ambil Top6 prediksi
         try:
             top6_digits = get_top6_catboost(X_all, y, seed=seed)
             top6_str = ",".join(map(str, top6_digits))
         except:
             top6_str = "-"
+            top6_digits = []
+
+        # LSTM temp model untuk confidence
+        try:
+            model_lstm = train_temp_lstm_model(df, label, window_size=ws, seed=seed)
+            if model_lstm is not None:
+                _, probs = get_top6_lstm_temp(model_lstm, df, window_size=ws)
+                avg_conf = float(np.mean(probs)) if probs is not None else 0
+            else:
+                avg_conf = 0
+        except:
+            avg_conf = 0
 
         results.append({
             "WS": ws,
             "Accuracy Mean": np.mean(scores),
             "Accuracy Std": np.std(scores),
             "Jumlah Sample": len(y),
-            "Top6": top6_str
+            "Top6": top6_str,
+            "Top6 Conf": avg_conf
         })
 
     df_result = pd.DataFrame(results)
@@ -112,9 +113,6 @@ def scan_ws_catboost(df, label, min_ws=5, max_ws=15, cv_folds=3, seed=42):
 
 
 def get_best_ws_from_catboost(label):
-    """
-    Ambil WS terbaik berdasarkan Accuracy Mean tertinggi dari hasil scan CatBoost.
-    """
     df_result = st.session_state.get(f"catboost_ws_results_{label}")
     if df_result is not None and not df_result.empty:
         best_row = df_result.loc[df_result["Accuracy Mean"].idxmax()]
@@ -150,24 +148,14 @@ def show_catboost_heatmaps(df_result, label):
     sns.heatmap(conf_df.T, annot=True, cmap="Oranges", cbar=False, ax=ax2)
     st.pyplot(fig2)
 
-def get_top6_catboost(X, y, seed=42):
-    from catboost import CatBoostClassifier
-    from collections import Counter
 
-    model = CatBoostClassifier(verbose=0, random_seed=seed)
-    model.fit(X, y)
-    y_pred = model.predict(X)
-    top6 = [int(d) for d, _ in Counter(y_pred).most_common(6)]
-    return top6
 def train_temp_lstm_model(df, label, window_size=7, seed=42):
-    from tensorflow.keras.utils import to_categorical
     from tensorflow.keras.models import Sequential
-    from tensorflow.keras.layers import LSTM, Dense, Input, Reshape
+    from tensorflow.keras.layers import LSTM, Dense, Input
     from tensorflow.keras.callbacks import EarlyStopping
-    import numpy as np
 
     np.random.seed(seed)
-    
+
     X_all, y_dict = preprocess_data(df, window_size=window_size)
     if len(X_all) == 0 or label not in y_dict:
         return None
@@ -187,16 +175,16 @@ def train_temp_lstm_model(df, label, window_size=7, seed=42):
     es = EarlyStopping(patience=3, restore_best_weights=True)
 
     model.fit(X_all, y, epochs=20, batch_size=16, verbose=0, callbacks=[es])
-
     return model
+
 
 def get_top6_lstm_temp(model, df, window_size=7):
     if len(df) < window_size:
-        return []
+        return [], []
 
     input_seq = df["angka"].values[-window_size:]
     if any(len(str(x)) != 4 or not str(x).isdigit() for x in input_seq):
-        return []
+        return [], []
 
     seq = [int(d) for num in input_seq for d in f"{int(num):04d}"]
     X_input = np.array(seq).reshape((1, window_size, 4))
@@ -204,6 +192,3 @@ def get_top6_lstm_temp(model, df, window_size=7):
 
     top6_idx = probs.argsort()[-6:][::-1]
     return top6_idx.tolist(), probs[top6_idx]
-
-
-        
