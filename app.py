@@ -195,6 +195,8 @@ with tab1:
 # ======== TAB 2 ========
 # ======== TAB 2: Scan Window Size ========
 with tab2:
+    st.subheader("🪟 Pencarian Window Size Otomatis")
+
     min_ws = st.number_input("🔁 Min WS", 3, 10, 4)
     max_ws = st.number_input("🔁 Max WS", 4, 20, 12)
     min_acc = st.slider("🌡️ Min Acc", 0.1, 2.0, 0.5, step=0.1)
@@ -204,8 +206,11 @@ with tab2:
         st.session_state.ws_result_table = pd.DataFrame()
     if "window_per_digit" not in st.session_state:
         st.session_state.window_per_digit = {}
-    if "scan_state" not in st.session_state:
-        st.session_state.scan_state = {"current_idx": 0, "in_progress": False, "ws_info": []}
+    for label in DIGIT_LABELS:
+        st.session_state.setdefault(f"best_ws_{label}", None)
+        st.session_state.setdefault(f"top6_{label}", [])
+        st.session_state.setdefault(f"fig_acc_{label}", None)
+        st.session_state.setdefault(f"fig_conf_{label}", None)
 
     with st.expander("⚙️ Opsi Cross Validation"):
         use_cv = st.checkbox("Gunakan Cross Validation", value=False, key="use_cv_toggle")
@@ -214,7 +219,6 @@ with tab2:
         else:
             cv_folds = None
 
-    # Scan per digit
     with st.expander("🔍 Scan Angka Normal (Per Digit)", expanded=False):
         for label in DIGIT_LABELS:
             if st.button(f"🔍 {label.upper()}", key=f"btn_{label}", use_container_width=True):
@@ -234,7 +238,6 @@ with tab2:
                     except Exception as e:
                         st.error(f"❌ Gagal {label.upper()}: {e}")
 
-    # Scan semua digit otomatis
     st.markdown("### 🧾 Hasil Terakhir per Digit")
     for label in DIGIT_LABELS:
         ws = st.session_state.get(f"best_ws_{label}")
@@ -243,14 +246,11 @@ with tab2:
             st.info(f"📌 {label.upper()} | WS: {ws} | Top-6: {', '.join(map(str, top6))}")
 
     st.markdown("---")
-    if st.button("🔁 Mulai Scan Semua Digit", use_container_width=True):
-        st.session_state.scan_state = {"current_idx": 0, "in_progress": True, "ws_info": []}
-
-    if st.session_state.scan_state["in_progress"]:
-        idx = st.session_state.scan_state["current_idx"]
-        if idx < len(DIGIT_LABELS):
-            label = DIGIT_LABELS[idx]
-            with st.spinner(f"🔍 Memproses {label.upper()} ({idx+1}/{len(DIGIT_LABELS)})..."):
+    if st.button("🔎 Scan Semua Digit Sekaligus", use_container_width=True):
+        with st.spinner("🔄 Mencari window size semua digit..."):
+            ws_info = []
+            progress = st.progress(0.0)
+            for idx, label in enumerate(DIGIT_LABELS):
                 try:
                     ws, top6 = find_best_window_size_with_model_true(
                         df, label, selected_lokasi, model_type=model_type,
@@ -261,34 +261,30 @@ with tab2:
                     st.session_state.window_per_digit[label] = ws
                     st.session_state[f"best_ws_{label}"] = ws
                     st.session_state[f"top6_{label}"] = top6
-                    st.session_state.scan_state["ws_info"].append({
+                    ws_info.append({
                         "Digit": label.upper(),
                         "Best WS": ws,
                         "Top6": ", ".join(map(str, top6)) if top6 else "-"
                     })
                 except Exception as e:
-                    st.session_state.scan_state["ws_info"].append({
+                    ws_info.append({
                         "Digit": label.upper(),
                         "Best WS": "-",
                         "Top6": "-"
                     })
                     st.error(f"❌ Gagal {label.upper()} WS: {e}")
-                st.session_state.scan_state["current_idx"] += 1
-                st.rerun()
-        else:
-            # Selesai
-            st.session_state.ws_result_table = pd.DataFrame(st.session_state.scan_state["ws_info"])
-            st.session_state.scan_state["in_progress"] = False
-            st.success("✅ Scan semua digit selesai!")
+                progress.progress((idx + 1) / len(DIGIT_LABELS))
+            st.session_state.ws_result_table = pd.DataFrame(ws_info)
 
+    # === TAMPILKAN TABEL HASIL WINDOW SIZE ===
     if not st.session_state.ws_result_table.empty:
-        st.subheader("✅ Hasil Window Size")
+        st.subheader("✅ Hasil Window Size Semua Digit")
         st.dataframe(st.session_state.ws_result_table)
 
         try:
-            fig, ax = plt.subplots(figsize=(8, 2))
-            ax.axis('off')
-            tbl = ax.table(
+            fig_tbl, ax_tbl = plt.subplots(figsize=(8, 2))
+            ax_tbl.axis('off')
+            tbl = ax_tbl.table(
                 cellText=st.session_state.ws_result_table.values,
                 colLabels=st.session_state.ws_result_table.columns,
                 cellLoc='center',
@@ -297,10 +293,20 @@ with tab2:
             tbl.auto_set_font_size(False)
             tbl.set_fontsize(10)
             tbl.scale(1, 1.5)
-            st.pyplot(fig)
-
-            # Simpan sebagai gambar PNG
-            fig.savefig("hasil_scan_ws.png", bbox_inches='tight')
-            st.success("🖼️ Gambar hasil disimpan: hasil_scan_ws.png")
+            st.pyplot(fig_tbl)
         except Exception as e:
-            st.warning(f"Gagal simpan gambar: {e}")
+            st.warning(f"Gagal tampilkan tabel: {e}")
+
+    # === TAMPILKAN HEATMAP AKURASI & CONFIDENCE SEMUA POSISI ===
+    st.subheader("📊 Heatmap Akurasi & Confidence per Digit")
+    for label in DIGIT_LABELS:
+        fig_acc = st.session_state.get(f"fig_acc_{label}")
+        fig_conf = st.session_state.get(f"fig_conf_{label}")
+
+        if fig_acc:
+            st.markdown(f"**🎯 {label.upper()} - Accuracy**")
+            st.pyplot(fig_acc)
+
+        if fig_conf:
+            st.markdown(f"**🔥 {label.upper()} - Confidence**")
+            st.pyplot(fig_conf)
