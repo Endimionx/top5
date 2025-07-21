@@ -159,7 +159,51 @@ def get_top6_catboost(X, y, seed=42):
     y_pred = model.predict(X)
     top6 = [int(d) for d, _ in Counter(y_pred).most_common(6)]
     return top6
+def train_temp_lstm_model(df, label, window_size=7, seed=42):
+    from tensorflow.keras.utils import to_categorical
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import LSTM, Dense, Input, Reshape
+    from tensorflow.keras.callbacks import EarlyStopping
+    import numpy as np
 
+    np.random.seed(seed)
+    
+    X_all, y_dict = preprocess_data(df, window_size=window_size)
+    if len(X_all) == 0 or label not in y_dict:
+        return None
+
+    y = y_dict[label]
+    if len(X_all) != len(y):
+        return None
+
+    X_all = X_all.reshape((-1, window_size, 4))  # 4 digits per angka
+    model = Sequential([
+        Input(shape=(X_all.shape[1], X_all.shape[2])),
+        LSTM(64, activation="relu"),
+        Dense(10, activation="softmax")
+    ])
+
+    model.compile(loss="categorical_crossentropy", optimizer="adam", metrics=["accuracy"])
+    es = EarlyStopping(patience=3, restore_best_weights=True)
+
+    model.fit(X_all, y, epochs=20, batch_size=16, verbose=0, callbacks=[es])
+
+    return model
+
+def get_top6_lstm_temp(model, df, window_size=7):
+    if len(df) < window_size:
+        return []
+
+    input_seq = df["angka"].values[-window_size:]
+    if any(len(str(x)) != 4 or not str(x).isdigit() for x in input_seq):
+        return []
+
+    seq = [int(d) for num in input_seq for d in f"{int(num):04d}"]
+    X_input = np.array(seq).reshape((1, window_size, 4))
+    probs = model.predict(X_input, verbose=0)[0]
+
+    top6_idx = probs.argsort()[-6:][::-1]
+    return top6_idx.tolist(), probs[top6_idx]
 
 
         
