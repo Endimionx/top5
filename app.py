@@ -422,7 +422,7 @@ with tab3:
 
     if st.button("🚀 Jalankan Prediksi Otomatis", use_container_width=True):
         st.session_state.tab3_results = {}
-        st.subheader("🔄 Proses Prediksi per Digit")
+        #st.subheader("🔄 Proses Prediksi per Digit")
 
         all_top6 = []
         fig_confs = []
