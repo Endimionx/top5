@@ -341,41 +341,68 @@ with tab2:
             st.pyplot(fig2)
             
     with st.expander("📈 Scan WS dengan CatBoost", expanded=False):
-        selected_digit = st.selectbox("Pilih Digit", DIGIT_LABELS, key="catboost_digit")
-        min_ws_cb = st.number_input("Min WS (CatBoost)", 3, 30, 5, key="cb_min_ws")
-        max_ws_cb = st.number_input("Max WS (CatBoost)", min_ws_cb + 1, 50, 15, key="cb_max_ws")
-        folds_cb = st.slider("Jumlah Fold (CV)", 2, 10, 3, key="cb_folds")
-        
+        selected_digit = st.selectbox("📌 Pilih Digit", DIGIT_LABELS, key="catboost_digit")
+        min_ws_cb = st.number_input("🔁 Min WS (CatBoost)", 3, 30, 5, key="cb_min_ws")
+        max_ws_cb = st.number_input("🔁 Max WS (CatBoost)", min_ws_cb + 1, 50, 15, key="cb_max_ws")
+        folds_cb = st.slider("📂 Jumlah Fold (CV)", 2, 10, 3, key="cb_folds")
+
         if "catboost_result" not in st.session_state:
             st.session_state.catboost_result = {}
+        if "catboost_best_ws" not in st.session_state:
+            st.session_state.catboost_best_ws = {}
 
         if st.button("🔍 Scan CatBoost (Semua Digit)", use_container_width=True):
-            st.subheader("⏳ Proses Scan CatBoost...")
+            st.subheader("⏳ Proses Scan Window Size dengan CatBoost")
             progress_bar = st.progress(0.0, text="Memulai...")
 
-            results = []
-
             for idx, label in enumerate(DIGIT_LABELS):
-                progress_text = f"Memproses {label.upper()} ({idx+1}/{len(DIGIT_LABELS)})..."
+                progress_text = f"🔄 Memproses {label.upper()} ({idx+1}/{len(DIGIT_LABELS)})..."
                 progress_bar.progress(idx / len(DIGIT_LABELS), text=progress_text)
                 try:
-                    # Ganti ini dengan fungsi aktual Anda
-                    result = scan_ws_catboost(df, label, min_ws=min_ws_cb, max_ws=max_ws_cb, cv_folds=folds_cb, seed=42)
+                    result_df = scan_ws_catboost(df, label, min_ws=min_ws_cb, max_ws=max_ws_cb, cv_folds=folds_cb, seed=42)
+                    st.session_state.catboost_result[label] = result_df
 
-                    st.session_state.catboost_result[label] = result
-                    results.append(result)
-                    st.success(f"✅ {label.upper()}: {result}")
+                    if not result_df.empty:
+                        best_row = result_df.loc[result_df["Accuracy Mean"].idxmax()]
+                        st.session_state.catboost_best_ws[label] = int(best_row["WS"])
+                        st.success(f"✅ {label.upper()}: WS terbaik = {int(best_row['WS'])} | Akurasi: {best_row['Accuracy Mean']:.2%}")
+                    else:
+                        st.warning(f"⚠️ Tidak ada hasil untuk {label.upper()}")
+
                 except Exception as e:
-                    st.session_state.catboost_result[label] = f"❌ Error: {e}"
-                    st.error(f"❌ Gagal {label.upper()}: {e}")
+                    st.session_state.catboost_result[label] = None
+                    st.error(f"❌ Gagal proses {label.upper()}: {e}")
 
             progress_bar.progress(1.0, text="✅ Selesai")
             st.success("🎉 Semua digit selesai diproses dengan CatBoost.")
 
-        # Tampilkan hasil yang sudah ada dari session_state
-    
+        # Tampilkan hasil
         if st.session_state.catboost_result:
             st.subheader("📊 Hasil CatBoost per Digit")
+
             for label in DIGIT_LABELS:
-                result = st.session_state.catboost_result.get(label, "-")
-                st.markdown(f"**{label.upper()}**: {result}")
+                result = st.session_state.catboost_result.get(label)
+
+                if result is None or isinstance(result, str):
+                    st.error(f"❌ {label.upper()}: Gagal atau kosong")
+                    continue
+
+                st.markdown(f"### 📍 {label.upper()}")
+                st.dataframe(result.round(4), use_container_width=True)
+
+                # Tampilkan WS terbaik
+                best_ws = st.session_state.catboost_best_ws.get(label)
+                if best_ws:
+                    st.info(f"✅ Window Size terbaik: `{best_ws}`")
+
+                # Visualisasi bar chart
+                try:
+                    fig, ax = plt.subplots(figsize=(7, 3))
+                    ax.bar(result["WS"], result["Accuracy Mean"], color="skyblue")
+                    ax.set_title(f"Akurasi vs WS - {label.upper()}")
+                    ax.set_xlabel("Window Size")
+                    ax.set_ylabel("Accuracy Mean")
+                    ax.grid(axis='y', linestyle='--', alpha=0.5)
+                    st.pyplot(fig)
+                except Exception as e:
+                    st.warning(f"⚠️ Gagal visualisasi: {e}")
