@@ -150,6 +150,15 @@ def show_catboost_heatmaps(df_result, label):
     sns.heatmap(conf_df.T, annot=True, cmap="Oranges", cbar=False, ax=ax2)
     st.pyplot(fig2)
 
+def get_top6_catboost(X, y, seed=42):
+    from catboost import CatBoostClassifier
+    from collections import Counter
+
+    model = CatBoostClassifier(verbose=0, random_seed=seed)
+    model.fit(X, y)
+    y_pred = model.predict(X)
+    top6 = [int(d) for d, _ in Counter(y_pred).most_common(6)]
+    return top6
 
 
 
