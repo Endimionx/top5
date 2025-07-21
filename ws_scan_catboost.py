@@ -68,7 +68,7 @@ def scan_ws_catboost(df, label, min_ws=5, max_ws=15, cv_folds=3, seed=42):
     
     for idx, ws in enumerate(range(min_ws, max_ws + 1), 1):
         progress.progress(idx / total, text=f"🔄 Evaluasi WS={ws} untuk {label.upper()}")
-        st.info(f"🔍 Sedang proses WS={ws} ({idx}/{total})", icon="🔁")
+        #st.info(f"🔍 Sedang proses WS={ws} ({idx}/{total})", icon="🔁")
 
         X_all, y_dict = preprocess_data(df, window_size=ws)
 
