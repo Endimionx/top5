@@ -19,8 +19,10 @@ from ai_model import (
 )
 from lokasi_list import lokasi_list
 from user_manual import tampilkan_user_manual
-from ws_scan_catboost import scan_ws_catboost  # Pastikan file ini ada dan telah ter-import
-
+from ws_scan_catboost import (
+    scan_ws_catboost,  # Pastikan file ini ada dan telah ter-import
+    train_temp_lstm_model
+)
 st.set_page_config(page_title="Prediksi AI", layout="wide")
 
 st.title("Prediksi 4D - AI")
