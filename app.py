@@ -447,6 +447,7 @@ with tab3:
 
                 st.success(f"✅ WS terbaik: {best_ws} | Akurasi: {best_row['Accuracy Mean']:.2%}")
 
+                # Chart Accuracy
                 fig_acc = plt.figure(figsize=(6, 2))
                 plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
                 plt.title(f"Akurasi vs WS - {label.upper()}")
@@ -454,25 +455,38 @@ with tab3:
                 plt.ylabel("Akurasi")
                 st.pyplot(fig_acc)
 
+                # Latih model dan prediksi dengan WS terbaik
+                model = train_temp_lstm_model(df, label, window_size=best_ws, seed=temp_seed)
+                top6, probs = get_top6_lstm_temp(model, df, window_size=best_ws)
+                st.info(f"🎯 Top-6 Prediksi: {top6}")
+
+                df_conf = pd.DataFrame({"Digit": [str(d) for d in top6], "Confidence": probs})
+                fig_bar, ax = plt.subplots(figsize=(6, 1.8))
+                sns.barplot(x="Digit", y="Confidence", data=df_conf, palette="viridis", ax=ax)
+                ax.set_title(f"Confidence Bar - {label.upper()}")
+                st.pyplot(fig_bar)
+
                 st.session_state.tab3_full_results[label] = {
                     "ws": best_ws,
                     "acc": best_row["Accuracy Mean"],
                     "result_df": result_df,
+                    "top6": top6,
+                    "probs": probs,
                 }
 
-                # === Ambil Top-3 WS berdasarkan Accuracy
+                # === Top-3 berdasarkan Accuracy
                 top3_acc_rows = result_df.sort_values("Accuracy Mean", ascending=False).head(3)
                 top6_acc = []
                 for _, row in top3_acc_rows.iterrows():
                     try:
                         model = train_temp_lstm_model(df, label, window_size=int(row["WS"]), seed=temp_seed)
-                        top6, _ = get_top6_lstm_temp(model, df, window_size=int(row["WS"]))
-                        top6_acc.append(top6)
+                        top6a, _ = get_top6_lstm_temp(model, df, window_size=int(row["WS"]))
+                        top6_acc.append(top6a)
                     except:
                         top6_acc.append(["-"] * 6)
                 st.session_state.tab3_top6_from_acc[label] = top6_acc
 
-                # === Ambil Top-3 WS berdasarkan ConfScore
+                # === Top-3 berdasarkan Confidence
                 if "Top6" in result_df.columns:
                     result_df["ConfScore"] = result_df["Top6"].apply(
                         lambda s: sum([int(d) for d in str(s).replace(",", "") if d.isdigit()][:6])
@@ -482,8 +496,8 @@ with tab3:
                     for _, row in top3_conf_rows.iterrows():
                         try:
                             model = train_temp_lstm_model(df, label, window_size=int(row["WS"]), seed=temp_seed)
-                            top6, _ = get_top6_lstm_temp(model, df, window_size=int(row["WS"]))
-                            top6_conf.append(top6)
+                            top6c, _ = get_top6_lstm_temp(model, df, window_size=int(row["WS"]))
+                            top6_conf.append(top6c)
                         except:
                             top6_conf.append(["-"] * 6)
                     st.session_state.tab3_top6_from_conf[label] = top6_conf
@@ -491,9 +505,9 @@ with tab3:
             except Exception as e:
                 st.error(f"❌ Gagal proses: {e}")
 
-    # === Rekap Hasil Top6 ===
+    # === Tampilkan Tabel Rekap ===
     if st.session_state.tab3_top6_from_acc:
-        st.markdown("## 🧠 Rekap Top-6 dari Top-3 WS (by Accuracy)")
+        st.markdown("## 🧠 Rekap Top6 dari Top-3 WS (by Accuracy)")
         for label in DIGIT_LABELS:
             top6_list = st.session_state.tab3_top6_from_acc.get(label)
             if top6_list:
@@ -503,7 +517,7 @@ with tab3:
                 st.table(df_top6)
 
     if st.session_state.tab3_top6_from_conf:
-        st.markdown("## 🔬 Rekap Top-6 dari Top-3 WS (by Confidence)")
+        st.markdown("## 🔬 Rekap Top6 dari Top-3 WS (by Confidence)")
         for label in DIGIT_LABELS:
             top6_list = st.session_state.tab3_top6_from_conf.get(label)
             if top6_list:
@@ -518,19 +532,12 @@ with tab3:
         for label in DIGIT_LABELS:
             result = st.session_state.tab3_full_results.get(label)
             if result:
-                try:
-                    model = train_temp_lstm_model(df, label, window_size=result["ws"], seed=temp_seed)
-                    top6, _ = get_top6_lstm_temp(model, df, window_size=result["ws"])
-                    all_top6.append(top6)
-                except:
-                    all_top6.append([])
+                all_top6.append(result["top6"])
 
-        if len(all_top6) == 4 and all(len(lst) > 0 for lst in all_top6):
+        if len(all_top6) == 4:
             st.subheader("🔢 Kombinasi 4D dari Semua Digit")
             from itertools import product
             kombinasi = list(product(*all_top6))
             st.write(f"Total kombinasi: `{len(kombinasi)}`")
             for i, komb in enumerate(kombinasi[:20], 1):
                 st.markdown(f"{i}. `{''.join(map(str, komb))}`")
-
-                
