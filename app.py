@@ -19,6 +19,7 @@ from ai_model import (
 )
 from lokasi_list import lokasi_list
 from user_manual import tampilkan_user_manual
+from ws_scan_catboost import scan_ws_catboost  # Pastikan file ini ada dan telah ter-import
 
 st.set_page_config(page_title="Prediksi AI", layout="wide")
 
@@ -338,3 +339,26 @@ with tab2:
             fig2, ax2 = plt.subplots(figsize=(8, 1.5))
             sns.heatmap(conf_df.T, annot=True, cmap="Oranges", cbar=False, ax=ax2)
             st.pyplot(fig2)
+            
+    with st.expander("📈 Scan WS dengan CatBoost", expanded=False):
+        selected_digit = st.selectbox("Pilih Digit", DIGIT_LABELS, key="catboost_digit")
+        min_ws_cb = st.number_input("Min WS (CatBoost)", 3, 30, 5, key="cb_min_ws")
+        max_ws_cb = st.number_input("Max WS (CatBoost)", min_ws_cb + 1, 50, 15, key="cb_max_ws")
+        folds_cb = st.slider("Jumlah Fold (CV)", 2, 10, 3, key="cb_folds")
+        if st.button("🚀 Scan WS CatBoost", use_container_width=True, key="btn_scan_catboost"):
+            with st.spinner(f"⏳ Memproses scan CatBoost untuk {selected_digit.upper()}..."):
+                try:
+                    result_df = scan_ws_catboost(df, selected_digit, min_ws=min_ws_cb, max_ws=max_ws_cb, cv_folds=folds_cb)
+                    st.success("✅ Scan selesai.")
+                    st.subheader("📊 Hasil WS CatBoost")
+                    st.dataframe(result_df)
+
+                    st.line_chart(result_df.set_index("WS")[["Accuracy Mean"]])
+                except Exception as e:
+                    st.error(f"❌ Gagal scan: {e}")
+
+
+
+
+
+    
