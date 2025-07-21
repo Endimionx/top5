@@ -360,7 +360,7 @@ with tab2:
                 progress_bar.progress(idx / len(DIGIT_LABELS), text=progress_text)
                 try:
                     # Ganti ini dengan fungsi aktual Anda
-                    result = scan_ws_catboost(df, label, lokasi=selected_lokasi, window_range=(min_ws, max_ws))
+                    result = scan_ws_catboost(df, label, window_range=(min_ws, max_ws))
 
                     st.session_state.catboost_result[label] = result
                     results.append(result)
