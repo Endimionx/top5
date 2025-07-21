@@ -448,20 +448,9 @@ with tab3:
 
                 st.success(f"✅ WS terbaik: {best_ws} | Akurasi: {best_row['Accuracy Mean']:.2%}")
 
-                # Simpan Top-3 berdasarkan Accuracy dan Confidence
+                # Simpan Top-3 by Accuracy
                 top3_acc = result_df.sort_values("Accuracy Mean", ascending=False).head(3)[["WS", "Accuracy Mean", "Top6"]]
-                top3_conf = result_df.sort_values("Confidence Mean", ascending=False).head(3)[["WS", "Confidence Mean", "Top6"]]
-
-                st.session_state.tab3_top3_ws_acc[label] = top3_acc
-                st.session_state.tab3_top3_ws_conf[label] = top3_conf
-
-                # Visualisasi chart akurasi
-                fig_acc = plt.figure(figsize=(6, 2))
-                plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
-                plt.title(f"Akurasi vs WS - {label.upper()}")
-                plt.xlabel("WS")
-                plt.ylabel("Akurasi")
-                st.pyplot(fig_acc)
+                st.session_state.tab3_top3_ws_acc[label] = top3_acc.reset_index(drop=True)
 
             except Exception as e:
                 st.error(f"❌ Gagal proses CatBoost: {e}")
@@ -486,7 +475,7 @@ with tab3:
                 ax.set_title(f"Confidence Bar - {label.upper()}")
                 st.pyplot(fig_bar)
 
-                # Simpan ke session state
+                # Simpan hasil lengkap
                 st.session_state.tab3_full_results[label] = {
                     "ws": best_ws,
                     "acc": best_row["Accuracy Mean"],
@@ -495,11 +484,31 @@ with tab3:
                     "probs": probs,
                 }
 
+                # Simpan Top-3 by Confidence
+                try:
+                    conf_list = []
+                    for _, row in result_df.iterrows():
+                        digits = str(row["Top6"]).split(",")
+                        if len(digits) != 6:
+                            continue
+                        conf_score = 0
+                        for d in digits:
+                            d = int(d.strip())
+                            if d in top6:
+                                i = top6.index(d)
+                                conf_score += probs[i]
+                        conf_list.append(conf_score)
+                    result_df["ConfScore"] = conf_list
+                    top3_conf = result_df.sort_values("ConfScore", ascending=False).head(3)[["WS", "ConfScore", "Top6"]]
+                    st.session_state.tab3_top3_ws_conf[label] = top3_conf.reset_index(drop=True)
+                except:
+                    st.session_state.tab3_top3_ws_conf[label] = None
+
             except Exception as e:
                 st.error(f"❌ Error prediksi: {e}")
                 continue
 
-    # === Tampilkan Rekap Semua Jika Ada ===
+    # === Tampilkan Rekap ===
     if st.session_state.tab3_full_results:
         st.markdown("---")
         st.subheader("📦 Rekap Hasil Semua Digit")
@@ -513,15 +522,15 @@ with tab3:
 
             st.markdown(f"### 🔍 {label.upper()} (WS={result['ws']}, Acc={result['acc']:.2%})")
 
-            # Tampilkan Top-3 berdasarkan akurasi
-            st.markdown("**🏅 Top-3 WS berdasarkan Accuracy:**")
-            st.table(st.session_state.tab3_top3_ws_acc[label])
+            # Barplot Akurasi
+            fig_acc = plt.figure(figsize=(6, 2))
+            plt.bar(result["result_df"]["WS"], result["result_df"]["Accuracy Mean"], color="skyblue")
+            plt.title(f"Akurasi vs WS - {label.upper()}")
+            plt.xlabel("WS")
+            plt.ylabel("Akurasi")
+            st.pyplot(fig_acc)
 
-            # Tampilkan Top-3 berdasarkan confidence
-            st.markdown("**🔥 Top-3 WS berdasarkan Confidence:**")
-            st.table(st.session_state.tab3_top3_ws_conf[label])
-
-            # Confidence Bar
+            # Barplot Confidence
             df_conf = pd.DataFrame({
                 "Digit": [str(d) for d in result["top6"]],
                 "Confidence": result["probs"]
@@ -531,9 +540,20 @@ with tab3:
             ax.set_title(f"Confidence Bar - {label.upper()}")
             st.pyplot(fig_bar)
 
+            # Tabel Top-3 WS by Accuracy
+            top3_acc = st.session_state.tab3_top3_ws_acc.get(label)
+            if top3_acc is not None:
+                st.markdown("**🏅 Top-3 WS berdasarkan Accuracy:**")
+                st.table(top3_acc)
+
+            # Tabel Top-3 WS by Confidence
+            top3_conf = st.session_state.tab3_top3_ws_conf.get(label)
+            if top3_conf is not None:
+                st.markdown("**🔥 Top-3 WS berdasarkan Confidence:**")
+                st.table(top3_conf)
+
             all_top6.append(result["top6"])
 
-        # Rekap kombinasi 4D
         if len(all_top6) == 4:
             st.subheader("🔢 Kombinasi 4D dari Semua Digit")
             from itertools import product
@@ -541,3 +561,4 @@ with tab3:
             st.write(f"Total kombinasi: `{len(kombinasi)}`")
             for i, komb in enumerate(kombinasi[:20], 1):
                 st.markdown(f"{i}. `{''.join(map(str, komb))}`")
+                
