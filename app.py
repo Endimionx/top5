@@ -414,23 +414,22 @@ with tab2:
                     st.warning(f"⚠️ Gagal visualisasi: {e}")
 
 with tab3:
+    st.header("🤖 Scan & Prediksi Otomatis (CatBoost ➜ LSTM Temp)")
+
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
     max_ws_cb3 = st.number_input("🔁 Max WS", min_ws_cb3 + 1, 30, 10, key="tab3_max_ws")
     folds_cb3 = st.slider("📂 Jumlah Fold", 2, 10, 3, key="tab3_cv")
     temp_seed = st.number_input("🎲 Seed", 0, 9999, 42, key="tab3_seed")
 
-    if "tab3_results" not in st.session_state:
-        st.session_state.tab3_results = {}
+    if "tab3_full_results" not in st.session_state:
+        st.session_state.tab3_full_results = {}
 
     if st.button("🚀 Jalankan Prediksi Otomatis", use_container_width=True):
-        st.session_state.tab3_results.clear()
-        progress = st.progress(0.0, text="Memulai proses...")
+        st.session_state.tab3_full_results = {}
 
         for i, label in enumerate(DIGIT_LABELS):
-            st.session_state.tab3_results[label] = {}
-            progress.progress(i / 4, f"🔍 Memproses {label.upper()}")
+            st.markdown(f"## 🔍 {label.upper()}")
 
-            # === Step 1: Cari WS terbaik pakai CatBoost ===
             try:
                 result_df = scan_ws_catboost(
                     df, label,
@@ -440,47 +439,31 @@ with tab3:
                 best_row = result_df.loc[result_df["Accuracy Mean"].idxmax()]
                 best_ws = int(best_row["WS"])
 
-                st.session_state.tab3_results[label]["ws_df"] = result_df
-                st.session_state.tab3_results[label]["best_ws"] = best_ws
+                st.success(f"✅ WS terbaik: {best_ws} | Akurasi: {best_row['Accuracy Mean']:.2%}")
+                st.dataframe(result_df.round(4), use_container_width=True)
 
-                st.session_state.tab3_results[label]["catboost_success"] = True
+                fig_acc = plt.figure(figsize=(6, 2))
+                plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
+                plt.title(f"Akurasi vs WS - {label.upper()}")
+                plt.xlabel("WS")
+                plt.ylabel("Akurasi")
+                st.pyplot(fig_acc)
+
             except Exception as e:
-                st.session_state.tab3_results[label]["catboost_success"] = False
-                st.session_state.tab3_results[label]["error"] = f"CatBoost error: {e}"
-
-        # Setelah semua WS selesai → latih model dan prediksi
-        for i, label in enumerate(DIGIT_LABELS):
-            if not st.session_state.tab3_results[label].get("catboost_success"):
+                st.error(f"❌ Gagal proses CatBoost: {e}")
                 continue
 
-            best_ws = st.session_state.tab3_results[label]["best_ws"]
-            result_df = st.session_state.tab3_results[label]["ws_df"]
-
-            st.markdown(f"### 🔍 {label.upper()}")
-            st.success(f"✅ WS terbaik: {best_ws} | Akurasi: {result_df.loc[result_df['WS'] == best_ws, 'Accuracy Mean'].values[0]:.2%}")
-            st.dataframe(result_df.round(4), use_container_width=True)
-
-            fig_acc = plt.figure(figsize=(6, 2))
-            plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
-            plt.title(f"Akurasi vs WS - {label.upper()}")
-            plt.xlabel("WS")
-            plt.ylabel("Akurasi")
-            st.pyplot(fig_acc)
-
-            # === Step 2: Latih LSTM sementara ===
             try:
                 model = train_temp_lstm_model(df, label, window_size=best_ws, seed=temp_seed)
-                st.session_state.tab3_results[label]["model"] = model
+                if model is None:
+                    st.error("❌ Gagal melatih model.")
+                    continue
             except Exception as e:
-                st.session_state.tab3_results[label]["error"] = f"Gagal latih model: {e}"
+                st.error(f"❌ Error pelatihan model: {e}")
                 continue
 
-            # === Step 3: Prediksi Top6 ===
             try:
                 top6, probs = get_top6_lstm_temp(model, df, window_size=best_ws)
-                st.session_state.tab3_results[label]["top6"] = top6
-                st.session_state.tab3_results[label]["conf"] = probs
-
                 st.info(f"🎯 Top-6 Prediksi: {top6}")
 
                 df_conf = pd.DataFrame({"Digit": [str(d) for d in top6], "Confidence": probs})
@@ -489,17 +472,57 @@ with tab3:
                 ax.set_title(f"Confidence Bar - {label.upper()}")
                 st.pyplot(fig_bar)
 
-            except Exception as e:
-                st.session_state.tab3_results[label]["error"] = f"Gagal prediksi: {e}"
+                # Simpan ke session state
+                st.session_state.tab3_full_results[label] = {
+                    "ws": best_ws,
+                    "acc": best_row["Accuracy Mean"],
+                    "result_df": result_df,
+                    "top6": top6,
+                    "probs": probs,
+                }
 
-        # === Step 4: Kombinasi 4D ===
-        all_top6 = [st.session_state.tab3_results[d]["top6"] for d in DIGIT_LABELS if "top6" in st.session_state.tab3_results[d]]
+            except Exception as e:
+                st.error(f"❌ Error prediksi: {e}")
+                continue
+
+    # === Tampilkan Ulang Semua Jika Ada ===
+    if st.session_state.tab3_full_results:
+        st.markdown("---")
+        st.subheader("📦 Rekap Hasil Semua Digit")
+
+        all_top6 = []
+
+        for label in DIGIT_LABELS:
+            result = st.session_state.tab3_full_results.get(label)
+            if not result:
+                continue
+
+            st.markdown(f"### 🔍 {label.upper()} (WS={result['ws']}, Acc={result['acc']:.2%})")
+            st.dataframe(result["result_df"].round(4), use_container_width=True)
+
+            fig_acc = plt.figure(figsize=(6, 2))
+            plt.bar(result["result_df"]["WS"], result["result_df"]["Accuracy Mean"], color="skyblue")
+            plt.title(f"Akurasi vs WS - {label.upper()}")
+            plt.xlabel("WS")
+            plt.ylabel("Akurasi")
+            st.pyplot(fig_acc)
+
+            df_conf = pd.DataFrame({
+                "Digit": [str(d) for d in result["top6"]],
+                "Confidence": result["probs"]
+            })
+            fig_bar, ax = plt.subplots(figsize=(6, 1.8))
+            sns.barplot(x="Digit", y="Confidence", data=df_conf, palette="viridis", ax=ax)
+            ax.set_title(f"Confidence Bar - {label.upper()}")
+            st.pyplot(fig_bar)
+
+            all_top6.append(result["top6"])
+
+        # Rekap kombinasi 4D
         if len(all_top6) == 4:
             st.subheader("🔢 Kombinasi 4D dari Semua Digit")
             from itertools import product
-            kombinasi = list(product(*all_top6))  # semua kombinasi top6 per digit
+            kombinasi = list(product(*all_top6))
             st.write(f"Total kombinasi: `{len(kombinasi)}`")
             for i, komb in enumerate(kombinasi[:20], 1):
                 st.markdown(f"{i}. `{''.join(map(str, komb))}`")
-
-        progress.progress(1.0, text="✅ Selesai semua proses")
