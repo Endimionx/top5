@@ -25,6 +25,8 @@ from ws_scan_catboost import (
     train_temp_lstm_model,
     get_top6_lstm_temp,
     show_catboost_heatmaps
+)
+
 st.set_page_config(page_title="Prediksi AI", layout="wide")
 
 st.title("Prediksi 4D - AI")
