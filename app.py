@@ -246,7 +246,12 @@ with tab2:
                             st.info(f"🔢 Top-6 {label.upper()}: {', '.join(map(str, top6))}")
                         except Exception as e:
                             st.error(f"❌ Gagal {label.upper()}: {e}")
-
+        st.markdown("---")
+        if st.button("🔎 Scan Semua Digit Sekaligus", use_container_width=True):
+        st.session_state.scan_step = 0
+        st.session_state.scan_in_progress = True
+        st.rerun()
+        
     st.markdown("### 🧾 Hasil Terakhir per Digit")
     for label in DIGIT_LABELS:
         ws = st.session_state.get(f"best_ws_{label}")
@@ -254,12 +259,9 @@ with tab2:
         if ws:
             st.info(f"📌 {label.upper()} | WS: {ws} | Top-6: {', '.join(map(str, top6))}")
 
-    st.markdown("---")
+    
 
-    if st.button("🔎 Scan Semua Digit Sekaligus", use_container_width=True):
-        st.session_state.scan_step = 0
-        st.session_state.scan_in_progress = True
-        st.rerun()
+    
 
     if st.session_state.scan_in_progress:
         step = st.session_state.scan_step
