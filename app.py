@@ -414,8 +414,6 @@ with tab2:
                     st.warning(f"⚠️ Gagal visualisasi: {e}")
 
 with tab3:
-    st.header("🤖 Scan & Prediksi Otomatis (CatBoost ➜ LSTM Temp)")
-
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
     max_ws_cb3 = st.number_input("🔁 Max WS", min_ws_cb3 + 1, 30, min_ws_cb3 + 6, key="tab3_max_ws")
     folds_cb3 = st.slider("📂 Jumlah Fold", 2, 10, 3, key="tab3_cv")
@@ -472,18 +470,54 @@ with tab3:
                 ax.set_title(f"Confidence Bar - {label.upper()}")
                 st.pyplot(fig_bar)
 
-                # Simpan ke session state
                 st.session_state.tab3_full_results[label] = {
                     "ws": best_ws,
                     "acc": best_row["Accuracy Mean"],
                     "result_df": result_df,
                     "top6": top6,
                     "probs": probs,
+                    "top3": []
                 }
 
             except Exception as e:
                 st.error(f"❌ Error prediksi: {e}")
                 continue
+
+            # === Top-3 WS dan Prediksi ===
+            try:
+                st.markdown(f"### 🧠 Prediksi Tambahan dari Top-3 WS")
+                top3_rows = result_df.sort_values("Accuracy Mean", ascending=False).head(3)
+
+                for rank, row in enumerate(top3_rows.itertuples(index=False), 1):
+                    ws_top = int(row.WS)
+                    acc_top = row._2  # Accuracy Mean
+                    st.markdown(f"#### 🥇 Top-{rank} WS: `{ws_top}` (Accuracy: `{acc_top:.2%}`)")
+
+                    try:
+                        model_top = train_temp_lstm_model(df, label, window_size=ws_top, seed=temp_seed)
+                        if model_top is None:
+                            st.warning(f"⚠️ Gagal latih model untuk WS {ws_top}")
+                            continue
+
+                        top6_pred, conf = get_top6_lstm_temp(model_top, df, window_size=ws_top)
+                        st.success(f"🎯 Top-6 Prediksi (WS {ws_top}): {top6_pred}")
+
+                        df_conf_top = pd.DataFrame({"Digit": [str(d) for d in top6_pred], "Confidence": conf})
+                        fig_top, ax_top = plt.subplots(figsize=(6, 1.8))
+                        sns.barplot(x="Digit", y="Confidence", data=df_conf_top, hue="Digit", palette="viridis", ax=ax_top, legend=False)
+                        ax_top.set_title(f"Confidence Bar - Top-{rank} WS {ws_top}")
+                        st.pyplot(fig_top)
+
+                        st.session_state.tab3_full_results[label]["top3"].append({
+                            "ws": ws_top,
+                            "top6": top6_pred,
+                            "conf": conf,
+                            "acc": acc_top
+                        })
+                    except Exception as e:
+                        st.warning(f"❌ Gagal prediksi WS {ws_top}: {e}")
+            except Exception as e:
+                st.error(f"❌ Gagal proses Top-3: {e}")
 
     # === Tampilkan Ulang Semua Jika Ada ===
     if st.session_state.tab3_full_results:
