@@ -345,35 +345,37 @@ with tab2:
         min_ws_cb = st.number_input("Min WS (CatBoost)", 3, 30, 5, key="cb_min_ws")
         max_ws_cb = st.number_input("Max WS (CatBoost)", min_ws_cb + 1, 50, 15, key="cb_max_ws")
         folds_cb = st.slider("Jumlah Fold (CV)", 2, 10, 3, key="cb_folds")
+        
         if "catboost_result" not in st.session_state:
-    st.session_state.catboost_result = {}
+            st.session_state.catboost_result = {}
 
-    if st.button("🔍 Scan CatBoost (Semua Digit)", use_container_width=True):
-        st.subheader("⏳ Proses Scan CatBoost...")
-        progress_bar = st.progress(0.0, text="Memulai...")
+        if st.button("🔍 Scan CatBoost (Semua Digit)", use_container_width=True):
+            st.subheader("⏳ Proses Scan CatBoost...")
+            progress_bar = st.progress(0.0, text="Memulai...")
 
-        results = []
+            results = []
 
-        for idx, label in enumerate(DIGIT_LABELS):
-            progress_text = f"Memproses {label.upper()} ({idx+1}/{len(DIGIT_LABELS)})..."
-            progress_bar.progress(idx / len(DIGIT_LABELS), text=progress_text)
-            try:
-                # Ganti ini dengan fungsi aktual Anda
-                result = scan_catboost(df, label, lokasi=selected_lokasi, window_range=(min_ws, max_ws))
+            for idx, label in enumerate(DIGIT_LABELS):
+                progress_text = f"Memproses {label.upper()} ({idx+1}/{len(DIGIT_LABELS)})..."
+                progress_bar.progress(idx / len(DIGIT_LABELS), text=progress_text)
+                try:
+                    # Ganti ini dengan fungsi aktual Anda
+                    result = scan_catboost(df, label, lokasi=selected_lokasi, window_range=(min_ws, max_ws))
 
-                st.session_state.catboost_result[label] = result
-                results.append(result)
-                st.success(f"✅ {label.upper()}: {result}")
-            except Exception as e:
-                st.session_state.catboost_result[label] = f"❌ Error: {e}"
-                st.error(f"❌ Gagal {label.upper()}: {e}")
+                    st.session_state.catboost_result[label] = result
+                    results.append(result)
+                    st.success(f"✅ {label.upper()}: {result}")
+                except Exception as e:
+                    st.session_state.catboost_result[label] = f"❌ Error: {e}"
+                    st.error(f"❌ Gagal {label.upper()}: {e}")
 
-        progress_bar.progress(1.0, text="✅ Selesai")
-        st.success("🎉 Semua digit selesai diproses dengan CatBoost.")
+            progress_bar.progress(1.0, text="✅ Selesai")
+            st.success("🎉 Semua digit selesai diproses dengan CatBoost.")
 
-    # Tampilkan hasil yang sudah ada dari session_state
-    if st.session_state.catboost_result:
-        st.subheader("📊 Hasil CatBoost per Digit")
-        for label in DIGIT_LABELS:
-            result = st.session_state.catboost_result.get(label, "-")
-            st.markdown(f"**{label.upper()}**: {result}")
+        # Tampilkan hasil yang sudah ada dari session_state
+    
+        if st.session_state.catboost_result:
+            st.subheader("📊 Hasil CatBoost per Digit")
+            for label in DIGIT_LABELS:
+                result = st.session_state.catboost_result.get(label, "-")
+                st.markdown(f"**{label.upper()}**: {result}")
