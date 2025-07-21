@@ -413,7 +413,10 @@ with tab2:
                 except Exception as e:
                     st.warning(f"⚠️ Gagal visualisasi: {e}")
 
+
 with tab3:
+    st.header("🤖 Scan & Prediksi Otomatis (CatBoost ➜ LSTM Temp)")
+
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
     max_ws_cb3 = st.number_input("🔁 Max WS", min_ws_cb3 + 1, 30, min_ws_cb3 + 6, key="tab3_max_ws")
     folds_cb3 = st.slider("📂 Jumlah Fold", 2, 10, 3, key="tab3_cv")
@@ -421,9 +424,15 @@ with tab3:
 
     if "tab3_full_results" not in st.session_state:
         st.session_state.tab3_full_results = {}
+    if "tab3_top3_ws_acc" not in st.session_state:
+        st.session_state.tab3_top3_ws_acc = {}
+    if "tab3_top3_ws_conf" not in st.session_state:
+        st.session_state.tab3_top3_ws_conf = {}
 
     if st.button("🚀 Jalankan Prediksi Otomatis", use_container_width=True):
         st.session_state.tab3_full_results = {}
+        st.session_state.tab3_top3_ws_acc = {}
+        st.session_state.tab3_top3_ws_conf = {}
 
         for i, label in enumerate(DIGIT_LABELS):
             st.markdown(f"## 🔍 {label.upper()}")
@@ -438,8 +447,15 @@ with tab3:
                 best_ws = int(best_row["WS"])
 
                 st.success(f"✅ WS terbaik: {best_ws} | Akurasi: {best_row['Accuracy Mean']:.2%}")
-                st.dataframe(result_df.round(4), use_container_width=True)
 
+                # Simpan Top-3 berdasarkan Accuracy dan Confidence
+                top3_acc = result_df.sort_values("Accuracy Mean", ascending=False).head(3)[["WS", "Accuracy Mean", "Top6"]]
+                top3_conf = result_df.sort_values("Confidence Mean", ascending=False).head(3)[["WS", "Confidence Mean", "Top6"]]
+
+                st.session_state.tab3_top3_ws_acc[label] = top3_acc
+                st.session_state.tab3_top3_ws_conf[label] = top3_conf
+
+                # Visualisasi chart akurasi
                 fig_acc = plt.figure(figsize=(6, 2))
                 plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
                 plt.title(f"Akurasi vs WS - {label.upper()}")
@@ -477,51 +493,13 @@ with tab3:
                     "result_df": result_df,
                     "top6": top6,
                     "probs": probs,
-                    "top3": []
                 }
 
             except Exception as e:
                 st.error(f"❌ Error prediksi: {e}")
                 continue
 
-            # === Top-3 WS dan Prediksi ===
-            try:
-                st.markdown("### 🧠 Prediksi Tambahan dari Top-3 WS")
-                top3_rows = result_df.sort_values("Accuracy Mean", ascending=False).head(3)
-                table_top3 = []
-
-                for rank, row in enumerate(top3_rows.itertuples(index=False), 1):
-                    ws_top = int(row.WS)
-                    acc_top = row._2  # Accuracy Mean
-
-                    try:
-                        model_top = train_temp_lstm_model(df, label, window_size=ws_top, seed=temp_seed)
-                        if model_top is None:
-                            table_top3.append([f"Top-{rank}", ws_top, f"{acc_top:.2%}", "❌ Gagal latih"])
-                            continue
-
-                        top6_pred, _ = get_top6_lstm_temp(model_top, df, window_size=ws_top)
-                        top6_str = ", ".join(map(str, top6_pred))
-
-                        table_top3.append([f"Top-{rank}", ws_top, f"{acc_top:.2%}", top6_str])
-
-                        st.session_state.tab3_full_results[label]["top3"].append({
-                            "ws": ws_top,
-                            "top6": top6_pred,
-                            "acc": acc_top
-                        })
-
-                    except Exception as e:
-                        table_top3.append([f"Top-{rank}", ws_top, f"{acc_top:.2%}", f"❌ Error: {e}"])
-
-                if table_top3:
-                    df_top3_table = pd.DataFrame(table_top3, columns=["Rank", "WS", "Accuracy", "Top-6"])
-                    st.dataframe(df_top3_table, use_container_width=True)
-
-            except Exception as e:
-                st.error(f"❌ Gagal proses Top-3: {e}")
-
-    # === Tampilkan Rekap Hasil ===
+    # === Tampilkan Rekap Semua Jika Ada ===
     if st.session_state.tab3_full_results:
         st.markdown("---")
         st.subheader("📦 Rekap Hasil Semua Digit")
@@ -534,15 +512,16 @@ with tab3:
                 continue
 
             st.markdown(f"### 🔍 {label.upper()} (WS={result['ws']}, Acc={result['acc']:.2%})")
-            st.dataframe(result["result_df"].round(4), use_container_width=True)
 
-            fig_acc = plt.figure(figsize=(6, 2))
-            plt.bar(result["result_df"]["WS"], result["result_df"]["Accuracy Mean"], color="skyblue")
-            plt.title(f"Akurasi vs WS - {label.upper()}")
-            plt.xlabel("WS")
-            plt.ylabel("Akurasi")
-            st.pyplot(fig_acc)
+            # Tampilkan Top-3 berdasarkan akurasi
+            st.markdown("**🏅 Top-3 WS berdasarkan Accuracy:**")
+            st.table(st.session_state.tab3_top3_ws_acc[label])
 
+            # Tampilkan Top-3 berdasarkan confidence
+            st.markdown("**🔥 Top-3 WS berdasarkan Confidence:**")
+            st.table(st.session_state.tab3_top3_ws_conf[label])
+
+            # Confidence Bar
             df_conf = pd.DataFrame({
                 "Digit": [str(d) for d in result["top6"]],
                 "Confidence": result["probs"]
