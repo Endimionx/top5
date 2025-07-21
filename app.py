@@ -90,7 +90,7 @@ with st.expander("✏️ Edit Data Angka Manual", expanded=True):
     df = pd.DataFrame({"angka": st.session_state.angka_list})
 
 # ======== Tabs Utama ========
-tab1, tab2 = st.tabs(["🔮 Prediksi & Evaluasi", "🪟 Scan Angka"])
+tab1, tab2, tab3 = st.tabs(["🔮 Prediksi & Evaluasi", "🪟 Scan Angka", "CatBoost"])
 
 # ======== TAB 1 ========
 with tab1:
@@ -408,3 +408,79 @@ with tab2:
                     st.pyplot(fig)
                 except Exception as e:
                     st.warning(f"⚠️ Gagal visualisasi: {e}")
+with tab3:
+    st.header("🤖 Scan & Prediksi Otomatis (CatBoost ➜ LSTM Temp)")
+
+    min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
+    max_ws_cb3 = st.number_input("🔁 Max WS", min_ws_cb3 + 1, 30, 10, key="tab3_max_ws")
+    folds_cb3 = st.slider("📂 Jumlah Fold", 2, 10, 3, key="tab3_cv")
+    temp_seed = st.number_input("🎲 Seed", 0, 9999, 42, key="tab3_seed")
+
+    if st.button("🚀 Jalankan Prediksi Otomatis", use_container_width=True):
+        st.session_state.tab3_results = {}
+        st.subheader("🔄 Proses Prediksi per Digit")
+
+        all_top6 = []
+        fig_confs = []
+
+        for i, label in enumerate(DIGIT_LABELS):
+            st.markdown(f"### 🔍 {label.upper()}")
+
+            # === Step 1: Cari WS terbaik pakai CatBoost ===
+            try:
+                result_df = scan_ws_catboost(
+                    df, label,
+                    min_ws=min_ws_cb3, max_ws=max_ws_cb3,
+                    cv_folds=folds_cb3, seed=temp_seed
+                )
+                best_row = result_df.loc[result_df["Accuracy Mean"].idxmax()]
+                best_ws = int(best_row["WS"])
+                st.success(f"✅ WS terbaik: {best_ws} | Akurasi: {best_row['Accuracy Mean']:.2%}")
+
+                st.dataframe(result_df.round(4), use_container_width=True)
+
+                fig_acc = plt.figure(figsize=(6, 2))
+                plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
+                plt.title(f"Akurasi vs WS - {label.upper()}")
+                plt.xlabel("WS")
+                plt.ylabel("Akurasi")
+                st.pyplot(fig_acc)
+
+            except Exception as e:
+                st.error(f"❌ Gagal proses CatBoost: {e}")
+                continue
+
+            # === Step 2: Latih Model LSTM Sementara ===
+            try:
+                model = train_temp_lstm_model(df, label, window_size=best_ws, seed=temp_seed)
+                if model is None:
+                    st.error("❌ Gagal melatih model.")
+                    continue
+            except Exception as e:
+                st.error(f"❌ Error pelatihan model: {e}")
+                continue
+
+            # === Step 3: Prediksi Angka Terakhir (Top6) ===
+            try:
+                top6, probs = get_top6_lstm_temp(model, df, window_size=best_ws)
+                all_top6.append(top6)
+                st.info(f"🎯 Top-6 Prediksi: {top6}")
+
+                df_conf = pd.DataFrame({"Digit": [str(d) for d in top6], "Confidence": probs})
+                fig_bar, ax = plt.subplots(figsize=(6, 1.8))
+                sns.barplot(x="Digit", y="Confidence", data=df_conf, palette="viridis", ax=ax)
+                ax.set_title(f"Confidence Bar - {label.upper()}")
+                st.pyplot(fig_bar)
+
+            except Exception as e:
+                st.error(f"❌ Error prediksi: {e}")
+                continue
+
+        # === Step 4: Rekap Kombinasi 4D ===
+        if len(all_top6) == 4:
+            st.subheader("🔢 Kombinasi 4D dari Semua Digit")
+            from itertools import product
+            kombinasi = list(product(*all_top6))  # kombinasi semua top6 digit
+            st.write(f"Total kombinasi: `{len(kombinasi)}`")
+            for i, komb in enumerate(kombinasi[:20], 1):
+                st.markdown(f"{i}. `{''.join(map(str, komb))}`")
