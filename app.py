@@ -423,10 +423,6 @@ with tab3:
 
     if "tab3_full_results" not in st.session_state:
         st.session_state.tab3_full_results = {}
-    if "tab3_top3_ws_acc" not in st.session_state:
-        st.session_state.tab3_top3_ws_acc = {}
-    if "tab3_top3_ws_conf" not in st.session_state:
-        st.session_state.tab3_top3_ws_conf = {}
     if "tab3_ensemble_acc" not in st.session_state:
         st.session_state.tab3_ensemble_acc = {}
     if "tab3_ensemble_conf" not in st.session_state:
@@ -434,8 +430,6 @@ with tab3:
 
     if st.button("🚀 Jalankan Prediksi Otomatis", use_container_width=True):
         st.session_state.tab3_full_results = {}
-        st.session_state.tab3_top3_ws_acc = {}
-        st.session_state.tab3_top3_ws_conf = {}
         st.session_state.tab3_ensemble_acc = {}
         st.session_state.tab3_ensemble_conf = {}
 
@@ -448,13 +442,10 @@ with tab3:
                     min_ws=min_ws_cb3, max_ws=max_ws_cb3,
                     cv_folds=folds_cb3, seed=temp_seed
                 )
-                result_df["Top6_List"] = result_df["Top6"].apply(lambda x: [int(i) for i in str(x).split(",") if i.strip().isdigit()])
                 best_row = result_df.loc[result_df["Accuracy Mean"].idxmax()]
                 best_ws = int(best_row["WS"])
 
                 st.success(f"✅ WS terbaik: {best_ws} | Akurasi: {best_row['Accuracy Mean']:.2%}")
-
-                # Visual
                 fig_acc = plt.figure(figsize=(6, 2))
                 plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
                 plt.title(f"Akurasi vs WS - {label.upper()}")
@@ -485,7 +476,6 @@ with tab3:
                 ax.set_title(f"Confidence Bar - {label.upper()}")
                 st.pyplot(fig_bar)
 
-                # Simpan ke state
                 st.session_state.tab3_full_results[label] = {
                     "ws": best_ws,
                     "acc": best_row["Accuracy Mean"],
@@ -494,39 +484,50 @@ with tab3:
                     "probs": probs,
                 }
 
-                # === TOP 3 by ACCURACY
+                # ======== Top-3 WS by Accuracy & Confidence ========
                 top3_acc = result_df.sort_values("Accuracy Mean", ascending=False).head(3)
-                st.session_state.tab3_top3_ws_acc[label] = top3_acc
+                top3_conf = result_df.sort_values("Top6 Conf", ascending=False).head(3)
 
-                # === TOP 3 by CONFIDENCE
-                result_df["Conf_Score"] = result_df["Top6_List"].apply(lambda lst: sum([0 if not isinstance(lst, list) else len(lst) for _ in lst]))
-                top3_conf = result_df.sort_values("Conf_Score", ascending=False).head(3)
-                st.session_state.tab3_top3_ws_conf[label] = top3_conf
+                # === Ensemble Top6 by Accuracy ===
+                ensemble_acc = []
+                for _, row in top3_acc.iterrows():
+                    try:
+                        ws = int(row["WS"])
+                        model = train_temp_lstm_model(df, label, window_size=ws, seed=temp_seed)
+                        if model:
+                            top6, _ = get_top6_lstm_temp(model, df, window_size=ws)
+                            ensemble_acc.extend(top6)
+                    except:
+                        pass
+                top6_ensemble_acc = list(pd.Series(ensemble_acc).value_counts().head(6).index)
+                st.session_state.tab3_ensemble_acc[label] = top6_ensemble_acc
 
-                # === ENSEMBLE from TOP3 WS by ACC
-                all_digits = []
-                for row in top3_acc.itertuples():
-                    if isinstance(row.Top6_List, list):
-                        all_digits.extend(row.Top6_List)
-                ensemble_acc = pd.Series(all_digits).value_counts().head(6).index.tolist()
-                st.session_state.tab3_ensemble_acc[label] = ensemble_acc
+                # === Ensemble Top6 by Confidence ===
+                ensemble_conf = []
+                for _, row in top3_conf.iterrows():
+                    try:
+                        ws = int(row["WS"])
+                        model = train_temp_lstm_model(df, label, window_size=ws, seed=temp_seed)
+                        if model:
+                            top6, _ = get_top6_lstm_temp(model, df, window_size=ws)
+                            ensemble_conf.extend(top6)
+                    except:
+                        pass
+                top6_ensemble_conf = list(pd.Series(ensemble_conf).value_counts().head(6).index)
+                st.session_state.tab3_ensemble_conf[label] = top6_ensemble_conf
 
-                # === ENSEMBLE from TOP3 WS by CONF
-                all_digits_c = []
-                for row in top3_conf.itertuples():
-                    if isinstance(row.Top6_List, list):
-                        all_digits_c.extend(row.Top6_List)
-                ensemble_conf = pd.Series(all_digits_c).value_counts().head(6).index.tolist()
-                st.session_state.tab3_ensemble_conf[label] = ensemble_conf
+                st.success(f"✅ Ensemble ACC: {top6_ensemble_acc} | Ensemble CONF: {top6_ensemble_conf}")
 
             except Exception as e:
                 st.error(f"❌ Error prediksi: {e}")
                 continue
 
-    # === OUTPUT: Tampilkan Semua Data ===
+    # === Tampilkan Semua Hasil ===
     if st.session_state.tab3_full_results:
         st.markdown("---")
         st.subheader("📦 Rekap Hasil Semua Digit")
+
+        all_top6 = []
 
         for label in DIGIT_LABELS:
             result = st.session_state.tab3_full_results.get(label)
@@ -544,44 +545,22 @@ with tab3:
             ax.set_title(f"Confidence Bar - {label.upper()}")
             st.pyplot(fig_bar)
 
-            # === TAMPILKAN ENSEMBLE TOP-6 dari TOP3 WS ACC & CONF ===
-            ensemble_acc = st.session_state.tab3_ensemble_acc.get(label, [])
-            ensemble_conf = st.session_state.tab3_ensemble_conf.get(label, [])
+            all_top6.append(result["top6"])
 
-            if ensemble_acc:
-                st.markdown("**🎯 Ensemble Top-6 dari Top-3 WS berdasarkan Akurasi:**")
-                st.markdown(f"`{ensemble_acc}`")
+        # Ensemble Rekap
+        st.subheader("📊 Ensemble Top-6 dari Top-3 WS")
+        for label in DIGIT_LABELS:
+            top_acc = st.session_state.tab3_ensemble_acc.get(label, [])
+            top_conf = st.session_state.tab3_ensemble_conf.get(label, [])
+            st.markdown(f"**{label.upper()}**")
+            st.markdown(f"- 🔢 Top6 by ACC: `{top_acc}`")
+            st.markdown(f"- 🔢 Top6 by CONF: `{top_conf}`")
 
-            if ensemble_conf:
-                st.markdown("**🎯 Ensemble Top-6 dari Top-3 WS berdasarkan Confidence:**")
-                st.markdown(f"`{ensemble_conf}`")
-
-
-            # === TABEL Top-6 dari Top-3 WS ===
-            top3_acc_ws = st.session_state.tab3_top3_ws_acc.get(label)
-            top3_conf_ws = st.session_state.tab3_top3_ws_conf.get(label)
-
-            if top3_acc_ws is not None:
-                top6_acc = top3_acc_ws["Top6_List"].tolist()
-                top6_acc_flat = pd.Series([d for sublist in top6_acc for d in sublist]).value_counts().head(6)
-                st.markdown(f"**📊 Ensemble Top-6 (Top3 ACC)**")
-                st.table(top6_acc_flat)
-
-            if top3_conf_ws is not None:
-                top6_conf = top3_conf_ws["Top6_List"].tolist()
-                top6_conf_flat = pd.Series([d for sublist in top6_conf for d in sublist]).value_counts().head(6)
-                st.markdown(f"**📊 Ensemble Top-6 (Top3 CONF)**")
-                st.table(top6_conf_flat)
-
-        
-        # === REKAP KOMBINASI 4D
-        if all(label in st.session_state.tab3_ensemble_acc for label in DIGIT_LABELS):
-            st.subheader("🔢 Kombinasi 4D dari Ensemble ACC")
+        # Rekap kombinasi 4D
+        if len(all_top6) == 4:
+            st.subheader("🔢 Kombinasi 4D dari Semua Digit (Top-6 WS Terbaik)")
             from itertools import product
-            top6_lists = [st.session_state.tab3_ensemble_acc[label] for label in DIGIT_LABELS]
-            kombinasi = list(product(*top6_lists))
+            kombinasi = list(product(*all_top6))
             st.write(f"Total kombinasi: `{len(kombinasi)}`")
             for i, komb in enumerate(kombinasi[:20], 1):
                 st.markdown(f"{i}. `{''.join(map(str, komb))}`")
-
-                            
