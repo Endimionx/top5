@@ -248,9 +248,9 @@ with tab2:
                             st.error(f"❌ Gagal {label.upper()}: {e}")
         st.markdown("---")
         if st.button("🔎 Scan Semua Digit Sekaligus", use_container_width=True):
-        st.session_state.scan_step = 0
-        st.session_state.scan_in_progress = True
-        st.rerun()
+            st.session_state.scan_step = 0
+            st.session_state.scan_in_progress = True
+            st.rerun()
         
     st.markdown("### 🧾 Hasil Terakhir per Digit")
     for label in DIGIT_LABELS:
