@@ -204,10 +204,8 @@ with tab2:
         st.session_state.ws_result_table = pd.DataFrame()
     if "window_per_digit" not in st.session_state:
         st.session_state.window_per_digit = {}
-
-    for label in DIGIT_LABELS:
-        st.session_state.setdefault(f"best_ws_{label}", None)
-        st.session_state.setdefault(f"top6_{label}", [])
+    if "scan_state" not in st.session_state:
+        st.session_state.scan_state = {"current_idx": 0, "in_progress": False, "ws_info": []}
 
     with st.expander("⚙️ Opsi Cross Validation"):
         use_cv = st.checkbox("Gunakan Cross Validation", value=False, key="use_cv_toggle")
@@ -216,6 +214,7 @@ with tab2:
         else:
             cv_folds = None
 
+    # Scan per digit
     with st.expander("🔍 Scan Angka Normal (Per Digit)", expanded=False):
         for label in DIGIT_LABELS:
             if st.button(f"🔍 {label.upper()}", key=f"btn_{label}", use_container_width=True):
@@ -235,6 +234,7 @@ with tab2:
                     except Exception as e:
                         st.error(f"❌ Gagal {label.upper()}: {e}")
 
+    # Scan semua digit otomatis
     st.markdown("### 🧾 Hasil Terakhir per Digit")
     for label in DIGIT_LABELS:
         ws = st.session_state.get(f"best_ws_{label}")
@@ -243,11 +243,14 @@ with tab2:
             st.info(f"📌 {label.upper()} | WS: {ws} | Top-6: {', '.join(map(str, top6))}")
 
     st.markdown("---")
-    if st.button("🔎 Scan Semua Digit Sekaligus", use_container_width=True):
-        with st.spinner("🔄 Mencari window size semua digit..."):
-            ws_info = []
-            progress = st.progress(0.0)
-            for idx, label in enumerate(DIGIT_LABELS):
+    if st.button("🔁 Mulai Scan Semua Digit", use_container_width=True):
+        st.session_state.scan_state = {"current_idx": 0, "in_progress": True, "ws_info": []}
+
+    if st.session_state.scan_state["in_progress"]:
+        idx = st.session_state.scan_state["current_idx"]
+        if idx < len(DIGIT_LABELS):
+            label = DIGIT_LABELS[idx]
+            with st.spinner(f"🔍 Memproses {label.upper()} ({idx+1}/{len(DIGIT_LABELS)})..."):
                 try:
                     ws, top6 = find_best_window_size_with_model_true(
                         df, label, selected_lokasi, model_type=model_type,
@@ -258,20 +261,25 @@ with tab2:
                     st.session_state.window_per_digit[label] = ws
                     st.session_state[f"best_ws_{label}"] = ws
                     st.session_state[f"top6_{label}"] = top6
-                    ws_info.append({
+                    st.session_state.scan_state["ws_info"].append({
                         "Digit": label.upper(),
                         "Best WS": ws,
                         "Top6": ", ".join(map(str, top6)) if top6 else "-"
                     })
                 except Exception as e:
-                    ws_info.append({
+                    st.session_state.scan_state["ws_info"].append({
                         "Digit": label.upper(),
                         "Best WS": "-",
                         "Top6": "-"
                     })
                     st.error(f"❌ Gagal {label.upper()} WS: {e}")
-                progress.progress((idx + 1) / len(DIGIT_LABELS))
-            st.session_state.ws_result_table = pd.DataFrame(ws_info)
+                st.session_state.scan_state["current_idx"] += 1
+                st.rerun()
+        else:
+            # Selesai
+            st.session_state.ws_result_table = pd.DataFrame(st.session_state.scan_state["ws_info"])
+            st.session_state.scan_state["in_progress"] = False
+            st.success("✅ Scan semua digit selesai!")
 
     if not st.session_state.ws_result_table.empty:
         st.subheader("✅ Hasil Window Size")
@@ -291,10 +299,8 @@ with tab2:
             tbl.scale(1, 1.5)
             st.pyplot(fig)
 
-            # Simpan gambar
-            fig.savefig("hasil_ws.png", bbox_inches='tight')
-            st.success("📸 Gambar tabel disimpan sebagai hasil_ws.png")
-
+            # Simpan sebagai gambar PNG
+            fig.savefig("hasil_scan_ws.png", bbox_inches='tight')
+            st.success("🖼️ Gambar hasil disimpan: hasil_scan_ws.png")
         except Exception as e:
-            st.warning(f"Gagal tampilkan/simpan tabel: {e}")
-                        
+            st.warning(f"Gagal simpan gambar: {e}")
