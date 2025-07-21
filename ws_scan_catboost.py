@@ -3,6 +3,9 @@ import pandas as pd
 import streamlit as st
 from sklearn.model_selection import KFold, cross_val_score
 from catboost import CatBoostClassifier
+from ai_model import (
+    preprocess_data
+)
 
 def create_features_targets(df, window_size, target_digit):
     """
