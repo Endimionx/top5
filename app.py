@@ -21,7 +21,8 @@ from lokasi_list import lokasi_list
 from user_manual import tampilkan_user_manual
 from ws_scan_catboost import (
     scan_ws_catboost,  # Pastikan file ini ada dan telah ter-import
-    train_temp_lstm_model
+    train_temp_lstm_model,
+    get_top6_lstm_temp
 )
 st.set_page_config(page_title="Prediksi AI", layout="wide")
 
