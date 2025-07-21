@@ -5,6 +5,7 @@ import os
 import numpy as np
 import time
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 from markov_model import top6_markov, top6_markov_order2, top6_markov_hybrid
 from ai_model import (
