@@ -23,8 +23,8 @@ from user_manual import tampilkan_user_manual
 from ws_scan_catboost import (
     scan_ws_catboost,  # Pastikan file ini ada dan telah ter-import
     train_temp_lstm_model,
-    get_top6_lstm_temp
-)
+    get_top6_lstm_temp,
+    show_catboost_heatmaps
 st.set_page_config(page_title="Prediksi AI", layout="wide")
 
 st.title("Prediksi 4D - AI")
