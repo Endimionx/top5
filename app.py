@@ -544,6 +544,19 @@ with tab3:
             ax.set_title(f"Confidence Bar - {label.upper()}")
             st.pyplot(fig_bar)
 
+            # === TAMPILKAN ENSEMBLE TOP-6 dari TOP3 WS ACC & CONF ===
+            ensemble_acc = st.session_state.tab3_ensemble_acc.get(label, [])
+            ensemble_conf = st.session_state.tab3_ensemble_conf.get(label, [])
+
+            if ensemble_acc:
+                st.markdown("**🎯 Ensemble Top-6 dari Top-3 WS berdasarkan Akurasi:**")
+                st.markdown(f"`{ensemble_acc}`")
+
+            if ensemble_conf:
+                st.markdown("**🎯 Ensemble Top-6 dari Top-3 WS berdasarkan Confidence:**")
+                st.markdown(f"`{ensemble_conf}`")
+
+
             # === TABEL Top-6 dari Top-3 WS ===
             top3_acc_ws = st.session_state.tab3_top3_ws_acc.get(label)
             top3_conf_ws = st.session_state.tab3_top3_ws_conf.get(label)
@@ -560,18 +573,7 @@ with tab3:
                 st.markdown(f"**📊 Ensemble Top-6 (Top3 CONF)**")
                 st.table(top6_conf_flat)
 
-        # === TAMPILKAN ENSEMBLE TOP-6 dari TOP3 WS ACC & CONF ===
-ensemble_acc = st.session_state.tab3_ensemble_acc.get(label, [])
-ensemble_conf = st.session_state.tab3_ensemble_conf.get(label, [])
-
-if ensemble_acc:
-    st.markdown("**🎯 Ensemble Top-6 dari Top-3 WS berdasarkan Akurasi:**")
-    st.markdown(f"`{ensemble_acc}`")
-
-if ensemble_conf:
-    st.markdown("**🎯 Ensemble Top-6 dari Top-3 WS berdasarkan Confidence:**")
-    st.markdown(f"`{ensemble_conf}`")
-
+        
         # === REKAP KOMBINASI 4D
         if all(label in st.session_state.tab3_ensemble_acc for label in DIGIT_LABELS):
             st.subheader("🔢 Kombinasi 4D dari Ensemble ACC")
