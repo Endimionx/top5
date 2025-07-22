@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np
 from collections import Counter, defaultdict
 from itertools import product
 from ensemble_probabilistic import ensemble_probabilistic
@@ -15,36 +14,33 @@ from ws_scan_catboost import (
     DIGIT_LABELS,
 )
 
-def ensemble_confidence_voting(
-    lstm_dict, catboost_top6, heatmap_counts,
-    weights=[1.2, 1.0, 0.6],
-    min_lstm_conf=0.3
-):
-    def softmax(x):
-        e_x = np.exp(x - np.max(x))
-        return e_x / e_x.sum()
-
+def ensemble_confidence_voting(lstm_dict, catboost_top6, heatmap_counts, weights=[1.2, 1.0, 0.6]):
     score = defaultdict(float)
-
     for ws, (digits, confs) in lstm_dict.items():
-        if not digits or confs is None or len(confs) == 0:
+        if not digits or not hasattr(confs, '__iter__') or len(confs) == 0:
             continue
-        if max(confs) < min_lstm_conf:
-            continue
-        norm_confs = softmax(confs)
+        max_conf = max(confs)
+        norm_confs = [c / max_conf if max_conf > 0 else 0 for c in confs]
         for d, c in zip(digits, norm_confs):
             score[d] += weights[0] * c
-
     for d in catboost_top6:
         score[d] += weights[1]
-
     for d, count in heatmap_counts.items():
         score[d] += weights[2] * count
+    ranked = sorted(score.items(), key=lambda x: x[1], reverse=True)
+    return [d for d, _ in ranked[:6]]
 
-    if not score:
+def hybrid_voting(conf_list, prob_list):
+    """Gabungkan 2 hasil voting (conf + prob) menjadi 1 hasil hybrid."""
+    if not conf_list and not prob_list:
         return []
 
-    ranked = sorted(score.items(), key=lambda x: x[1], reverse=True)
+    count = defaultdict(float)
+    for rank, digit in enumerate(conf_list):
+        count[digit] += (6 - rank)
+    for rank, digit in enumerate(prob_list):
+        count[digit] += (6 - rank)
+    ranked = sorted(count.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
 def tab3(df):
@@ -53,21 +49,21 @@ def tab3(df):
     folds_cb3 = st.slider("📂 Jumlah Fold", 2, 10, 3, key="tab3_cv")
     temp_seed = st.number_input("🎲 Seed", 0, 9999, 42, key="tab3_seed")
 
-    st.markdown("### ⚖️ Bobot Voting")
-    lstm_weight = st.slider("LSTM Weight", 0.5, 2.0, 1.2, 0.1, key="tab3_lstm_weight")
-    cb_weight = st.slider("CatBoost Weight", 0.5, 2.0, 1.0, 0.1, key="tab3_cb_weight")
-    hm_weight = st.slider("Heatmap Weight", 0.0, 1.0, 0.6, 0.1, key="tab3_hm_weight")
-    lstm_min_conf = st.slider("Min Confidence LSTM", 0.0, 1.0, 0.3, 0.05, key="tab3_min_conf")
-
-    for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob"]:
+    for key in [
+        "tab3_full_results", "tab3_top6_acc", "tab3_top6_conf",
+        "tab3_ensemble", "tab3_ensemble_prob", "tab3_ensemble_hybrid"
+    ]:
         if key not in st.session_state:
             st.session_state[key] = {}
 
-    st.markdown("Opsi Scan Per Digit")
+    st.markdown("### 📌 Opsi Scan Per Digit (Opsional)")
     selected_digit_tab3 = st.selectbox("Pilih digit yang ingin discan", ["(Semua)"] + DIGIT_LABELS, key="tab3_selected_digit")
 
     if st.button("🔎 Scan Per Digit", use_container_width=True):
-        for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob"]:
+        for key in [
+            "tab3_full_results", "tab3_top6_acc", "tab3_top6_conf",
+            "tab3_ensemble", "tab3_ensemble_prob", "tab3_ensemble_hybrid"
+        ]:
             st.session_state[key] = {}
 
         target_digits = DIGIT_LABELS if selected_digit_tab3 == "(Semua)" else [selected_digit_tab3]
@@ -77,7 +73,6 @@ def tab3(df):
             try:
                 result_df = scan_ws_catboost(df, label, min_ws_cb3, max_ws_cb3, folds_cb3, temp_seed)
 
-                # Top-3 by Accuracy
                 top3_acc = result_df.sort_values("Accuracy Mean", ascending=False).head(3)
                 st.session_state.tab3_top6_acc[label] = {}
                 for _, row in top3_acc.iterrows():
@@ -89,7 +84,6 @@ def tab3(df):
                     except:
                         st.session_state.tab3_top6_acc[label][ws] = ([], [])
 
-                # Top-3 by Confidence
                 top3_conf = result_df.sort_values("Top6 Conf", ascending=False).head(3)
                 st.session_state.tab3_top6_conf[label] = {}
                 for _, row in top3_conf.iterrows():
@@ -109,7 +103,6 @@ def tab3(df):
                     "result_df": result_df,
                 }
 
-                # ==== Ensemble Voting Section ====
                 lstm_dict = st.session_state.tab3_top6_acc.get(label, {})
                 if not isinstance(lstm_dict, dict):
                     lstm_dict = {}
@@ -123,42 +116,29 @@ def tab3(df):
                 for t in top6_all:
                     heatmap_counts.update(t)
 
-                final_ens_conf = ensemble_confidence_voting(
-                    lstm_dict,
-                    catboost_top6_all,
-                    heatmap_counts,
-                    weights=[lstm_weight, cb_weight, hm_weight],
-                    min_lstm_conf=lstm_min_conf
-                )
+                final_ens_conf = ensemble_confidence_voting(lstm_dict, catboost_top6_all, heatmap_counts)
                 st.session_state.tab3_ensemble[label] = final_ens_conf
 
-                # ==== Probabilistic Voting (Top-5 WS by Confidence) ====
-                top5_conf_df = result_df.sort_values("Top6 Conf", ascending=False).head(5)
-                probs_list = []
-                catboost_accuracies = []
+                all_probs = []
+                for _, (digits, probs) in lstm_dict.items():
+                    if probs is not None and len(probs) > 0:
+                        all_probs.append(probs)
 
-                for _, row in top5_conf_df.iterrows():
-                    ws = int(row["WS"])
-                    try:
-                        model = train_temp_lstm_model(df, label, ws, temp_seed)
-                        top6, probs = get_top6_lstm_temp(model, df, ws)
-                        if probs is not None and len(probs) > 0:
-                            probs_list.append(probs)
-                            catboost_accuracies.append(row["Accuracy Mean"])
-                    except:
-                        continue
-
-                if probs_list:
-                    final_ens_prob = ensemble_probabilistic(probs_list, catboost_accuracies)
+                if all_probs:
+                    catboost_accuracies = list(result_df.sort_values("Accuracy Mean", ascending=False)["Accuracy Mean"].head(3))
+                    final_ens_prob = ensemble_probabilistic(all_probs, catboost_accuracies)
                     st.session_state.tab3_ensemble_prob[label] = final_ens_prob
                 else:
                     final_ens_prob = []
 
+                final_ens_hybrid = hybrid_voting(final_ens_conf, final_ens_prob)
+                st.session_state.tab3_ensemble_hybrid[label] = final_ens_hybrid
+
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
                 st.write(f"Probabilistic Voting: `{final_ens_prob}`")
+                st.write(f"🧪 Hybrid Voting: `{final_ens_hybrid}`")
 
-                # Visualisasi Akurasi
                 fig_acc = plt.figure(figsize=(6, 2))
                 plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
                 plt.title(f"Akurasi vs WS - {label.upper()}")
@@ -166,10 +146,8 @@ def tab3(df):
                 plt.ylabel("Akurasi")
                 st.pyplot(fig_acc)
 
-                # Heatmap
                 show_catboost_heatmaps(result_df, label)
 
-                # Prediksi Langsung
                 try:
                     model = train_temp_lstm_model(df, label, best_ws, temp_seed)
                     top6, probs = get_top6_lstm_temp(model, df, best_ws)
