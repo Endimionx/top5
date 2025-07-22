@@ -1,7 +1,10 @@
+# tab3.py
+
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
 from collections import Counter, defaultdict
 from itertools import product
 from ensemble_probabilistic import ensemble_probabilistic
@@ -14,19 +17,35 @@ from ws_scan_catboost import (
     DIGIT_LABELS,
 )
 
-def ensemble_confidence_voting(lstm_dict, catboost_top6, heatmap_counts, weights=[1.2, 1.0, 0.6]):
+def ensemble_confidence_voting(
+    lstm_dict, catboost_top6, heatmap_counts,
+    weights=[1.2, 1.0, 0.6],
+    min_lstm_conf=0.3
+):
+    def softmax(x):
+        e_x = np.exp(x - np.max(x))
+        return e_x / e_x.sum()
+
     score = defaultdict(float)
+
     for ws, (digits, confs) in lstm_dict.items():
-        if not digits or not hasattr(confs, '__iter__') or len(confs) == 0:
+        if not digits or confs is None or len(confs) == 0:
             continue
-        max_conf = max(confs)
-        norm_confs = [c / max_conf if max_conf > 0 else 0 for c in confs]
+        if max(confs) < min_lstm_conf:
+            continue
+        norm_confs = softmax(confs)
         for d, c in zip(digits, norm_confs):
             score[d] += weights[0] * c
+
     for d in catboost_top6:
         score[d] += weights[1]
+
     for d, count in heatmap_counts.items():
         score[d] += weights[2] * count
+
+    if not score:
+        return []
+
     ranked = sorted(score.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
@@ -35,6 +54,12 @@ def tab3(df):
     max_ws_cb3 = st.number_input("🔁 Max WS", min_ws_cb3 + 1, 30, min_ws_cb3 + 6, key="tab3_max_ws")
     folds_cb3 = st.slider("📂 Jumlah Fold", 2, 10, 3, key="tab3_cv")
     temp_seed = st.number_input("🎲 Seed", 0, 9999, 42, key="tab3_seed")
+
+    st.markdown("### ⚖️ Bobot Voting")
+    lstm_weight = st.slider("LSTM Weight", 0.5, 2.0, 1.2, 0.1, key="tab3_lstm_weight")
+    cb_weight = st.slider("CatBoost Weight", 0.5, 2.0, 1.0, 0.1, key="tab3_cb_weight")
+    hm_weight = st.slider("Heatmap Weight", 0.0, 1.0, 0.6, 0.1, key="tab3_hm_weight")
+    lstm_min_conf = st.slider("Min Confidence LSTM", 0.0, 1.0, 0.3, 0.05, key="tab3_min_conf")
 
     for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob"]:
         if key not in st.session_state:
@@ -54,7 +79,6 @@ def tab3(df):
             try:
                 result_df = scan_ws_catboost(df, label, min_ws_cb3, max_ws_cb3, folds_cb3, temp_seed)
 
-                # Top-3 Accuracy
                 top3_acc = result_df.sort_values("Accuracy Mean", ascending=False).head(3)
                 st.session_state.tab3_top6_acc[label] = {}
                 for _, row in top3_acc.iterrows():
@@ -66,7 +90,6 @@ def tab3(df):
                     except:
                         st.session_state.tab3_top6_acc[label][ws] = ([], [])
 
-                # Top-3 Confidence
                 top3_conf = result_df.sort_values("Top6 Conf", ascending=False).head(3)
                 st.session_state.tab3_top6_conf[label] = {}
                 for _, row in top3_conf.iterrows():
@@ -86,7 +109,6 @@ def tab3(df):
                     "result_df": result_df,
                 }
 
-                # === Ensemble Voting & Probabilistic ===
                 lstm_dict = st.session_state.tab3_top6_acc.get(label, {})
                 if not isinstance(lstm_dict, dict):
                     lstm_dict = {}
@@ -100,7 +122,13 @@ def tab3(df):
                 for t in top6_all:
                     heatmap_counts.update(t)
 
-                final_ens_conf = ensemble_confidence_voting(lstm_dict, catboost_top6_all, heatmap_counts)
+                final_ens_conf = ensemble_confidence_voting(
+                    lstm_dict,
+                    catboost_top6_all,
+                    heatmap_counts,
+                    weights=[lstm_weight, cb_weight, hm_weight],
+                    min_lstm_conf=lstm_min_conf
+                )
                 st.session_state.tab3_ensemble[label] = final_ens_conf
 
                 all_probs = []
@@ -119,7 +147,6 @@ def tab3(df):
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
                 st.write(f"Probabilistic Voting: `{final_ens_prob}`")
 
-                # Akurasi Chart
                 fig_acc = plt.figure(figsize=(6, 2))
                 plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
                 plt.title(f"Akurasi vs WS - {label.upper()}")
@@ -127,10 +154,8 @@ def tab3(df):
                 plt.ylabel("Akurasi")
                 st.pyplot(fig_acc)
 
-                # Heatmap
                 show_catboost_heatmaps(result_df, label)
 
-                # Prediksi Langsung
                 try:
                     model = train_temp_lstm_model(df, label, best_ws, temp_seed)
                     top6, probs = get_top6_lstm_temp(model, df, best_ws)
