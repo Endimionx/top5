@@ -98,7 +98,7 @@ def tab3(df):
                 plt.ylabel("Akurasi")
                 st.pyplot(fig_acc)
 
-                for label in DIGIT_LABELS:
+                
                 top6_lstm = st.session_state.get(f"top6_lstm_{label}", [])
                 top6_catboost = st.session_state.get(f"top6_catboost_{label}", [])
                 top6_heatmap = st.session_state.get(f"top6_heatmap_{label}", [])
