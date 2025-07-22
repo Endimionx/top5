@@ -86,7 +86,7 @@ def tab3(df):
                     "result_df": result_df,
                 }
 
-                # === Ensemble Section (CONF & PROB)
+                # === Ensemble Voting & Probabilistic ===
                 lstm_dict = st.session_state.tab3_top6_acc.get(label, {})
                 if not isinstance(lstm_dict, dict):
                     lstm_dict = {}
@@ -119,7 +119,7 @@ def tab3(df):
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
                 st.write(f"Probabilistic Voting: `{final_ens_prob}`")
 
-                # Accuracy chart
+                # Akurasi Chart
                 fig_acc = plt.figure(figsize=(6, 2))
                 plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
                 plt.title(f"Akurasi vs WS - {label.upper()}")
@@ -130,7 +130,7 @@ def tab3(df):
                 # Heatmap
                 show_catboost_heatmaps(result_df, label)
 
-                # Direct prediction with best_ws
+                # Prediksi Langsung
                 try:
                     model = train_temp_lstm_model(df, label, best_ws, temp_seed)
                     top6, probs = get_top6_lstm_temp(model, df, best_ws)
@@ -143,5 +143,6 @@ def tab3(df):
                     st.pyplot(fig_bar)
                 except Exception as e:
                     st.warning(f"⚠️ Gagal prediksi langsung: {e}")
+
             except Exception as e:
                 st.error(f"❌ Gagal proses {label.upper()}: {e}")
