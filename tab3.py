@@ -65,7 +65,7 @@ def tab3(df):
         if key not in st.session_state:
             st.session_state[key] = {}
 
-    st.markdown("### 📌 Opsi Scan Per Digit (Opsional)")
+    st.markdown("Opsi Scan Per Digit")
     selected_digit_tab3 = st.selectbox("Pilih digit yang ingin discan", ["(Semua)"] + DIGIT_LABELS, key="tab3_selected_digit")
 
     if st.button("🔎 Scan Per Digit", use_container_width=True):
