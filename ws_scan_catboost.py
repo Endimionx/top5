@@ -8,6 +8,7 @@ from sklearn.model_selection import KFold, cross_val_score
 from catboost import CatBoostClassifier
 from tensorflow.keras.utils import to_categorical
 from ai_model import preprocess_data
+from collections import Counter
 
 DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 
@@ -192,3 +193,15 @@ def get_top6_lstm_temp(model, df, window_size=7):
 
     top6_idx = probs.argsort()[-6:][::-1]
     return top6_idx.tolist(), probs[top6_idx]
+
+
+def ensemble_top6(*top6_lists, weights=None):
+    counter = Counter()
+    n = len(top6_lists)
+    if weights is None:
+        weights = [1.0] * n
+    for lst, w in zip(top6_lists, weights):
+        for i, digit in enumerate(lst):
+            score = (6 - i) * w
+            counter[digit] += score
+    return [d for d, _ in counter.most_common(6)]
