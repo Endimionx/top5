@@ -1,4 +1,3 @@
-```python
 # tab3.py
 
 import streamlit as st
@@ -165,4 +164,4 @@ def tab3(df):
             st.write(f"Total kombinasi: `{len(kombinasi)}`")
             for i, komb in enumerate(kombinasi[:20], 1):
                 st.markdown(f"{i}. `{''.join(map(str, komb))}`")
-```
+
