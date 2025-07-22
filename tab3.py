@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from collections import Counter, defaultdict
 from itertools import product
+from ensemble_probabilistic import ensemble_probabilistic
 
 from ws_scan_catboost import (
     scan_ws_catboost,
@@ -105,7 +106,6 @@ def tab3(df):
 
                 show_catboost_heatmaps(result_df, label)
 
-                # Ensemble refined
                 lstm_dict = st.session_state.tab3_top6_acc[label]
                 catboost_top6_all = []
                 for ws_data in st.session_state.tab3_top6_conf[label].values():
@@ -120,7 +120,6 @@ def tab3(df):
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(final_ens)
 
-                # Prediksi langsung pakai best_ws
                 try:
                     model = train_temp_lstm_model(df, label, best_ws, temp_seed)
                     top6, probs = get_top6_lstm_temp(model, df, best_ws)
@@ -191,7 +190,6 @@ def tab3(df):
 
                 show_catboost_heatmaps(result_df, label)
 
-                # Ensemble refined
                 lstm_dict = st.session_state.tab3_top6_acc[label]
                 catboost_top6_all = []
                 for ws_data in st.session_state.tab3_top6_conf[label].values():
