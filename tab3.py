@@ -96,8 +96,7 @@ def tab3(df):
                 
                 show_catboost_heatmaps(result_df, label)
 
-                st.markdown(f"**⭐ Ensemble Top-6**: `{ensemble}`")
-
+                
                 try:
                     model = train_temp_lstm_model(df, label, window_size=best_ws, seed=temp_seed)
                     top6, probs = get_top6_lstm_temp(model, df, window_size=best_ws)
