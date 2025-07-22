@@ -1,3 +1,4 @@
+```python
 # tab3.py
 
 import streamlit as st
@@ -12,18 +13,9 @@ from ws_scan_catboost import (
     train_temp_lstm_model,
     get_top6_lstm_temp,
     show_catboost_heatmaps,
-    get_top6_catboost,
-    preprocess_data,
     DIGIT_LABELS,
     ensemble_top6
 )
-
-
-def get_first_top6(dict_top6):
-    for lst in dict_top6.values():
-        if lst: return lst
-    return []
-
 
 def tab3(df):
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
@@ -63,29 +55,28 @@ def tab3(df):
                     seed=temp_seed
                 )
 
-                top3_acc = result_df.sort_values("Accuracy Mean", ascending=False).head(3)
+                result_df["ConfCount"] = result_df["Top6"].apply(
+                    lambda x: sum([int(d) in range(10) for d in str(x).split(",") if d.strip().isdigit()])
+                )
+                result_df["ComboScore"] = 0.7 * result_df["Accuracy Mean"] + 0.3 * (result_df["ConfCount"] / 6)
+
+                top3_combo = result_df.sort_values("ComboScore", ascending=False).head(3)
                 st.session_state.tab3_top6_acc[label] = {}
-                for _, row in top3_acc.iterrows():
+                for _, row in top3_combo.iterrows():
                     ws = int(row["WS"])
                     try:
                         model = train_temp_lstm_model(df, label, window_size=ws, seed=temp_seed)
-                        top6, probs = get_top6_lstm_temp(model, df, window_size=ws)
+                        top6, _ = get_top6_lstm_temp(model, df, window_size=ws)
                         st.session_state.tab3_top6_acc[label][ws] = top6
                     except:
                         st.session_state.tab3_top6_acc[label][ws] = []
 
-                top3_conf = result_df.sort_values("Top6 Conf", ascending=False).head(3)
                 st.session_state.tab3_top6_conf[label] = {}
-                for _, row in top3_conf.iterrows():
+                for _, row in top3_combo.iterrows():
                     ws = int(row["WS"])
-                    try:
-                        model = train_temp_lstm_model(df, label, window_size=ws, seed=temp_seed)
-                        top6, probs = get_top6_lstm_temp(model, df, window_size=ws)
-                        st.session_state.tab3_top6_conf[label][ws] = top6
-                    except:
-                        st.session_state.tab3_top6_conf[label][ws] = []
+                    st.session_state.tab3_top6_conf[label][ws] = row["Top6"]
 
-                best_row = result_df.loc[result_df["Accuracy Mean"].idxmax()]
+                best_row = result_df.loc[result_df["ComboScore"].idxmax()]
                 best_ws = int(best_row["WS"])
                 st.session_state.tab3_full_results[label] = {
                     "ws": best_ws,
@@ -93,18 +84,19 @@ def tab3(df):
                     "result_df": result_df,
                 }
 
-                # Final ensemble top6
-                top6_lstm = get_first_top6(st.session_state.tab3_top6_acc.get(label, {}))
-                top6_heatmap = get_first_top6(st.session_state.tab3_top6_conf.get(label, {}))
+                fig_acc = plt.figure(figsize=(6, 2))
+                plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
+                plt.title(f"Akurasi vs WS - {label.upper()}")
+                plt.xlabel("WS")
+                plt.ylabel("Akurasi")
+                st.pyplot(fig_acc)
 
-                # Ambil CatBoost top6
-                X_all, y_dict = preprocess_data(df, window_size=best_ws)
-                if label in y_dict and len(X_all) > 0:
-                    y = y_dict[label].argmax(axis=1)
-                    top6_catboost = get_top6_catboost(X_all, y)
-                    st.session_state[f"top6_catboost_{label}"] = top6_catboost
-                else:
-                    top6_catboost = []
+                show_catboost_heatmaps(result_df, label)
+
+                # Final ensemble
+                top6_lstm = list(st.session_state.tab3_top6_acc[label].values())[0] if st.session_state.tab3_top6_acc[label] else []
+                top6_catboost = [int(d) for d in str(best_row["Top6"]).split(",") if d.strip().isdigit()]
+                top6_heatmap = []  # Placeholder jika ingin gunakan summary heatmap
 
                 ensemble = ensemble_top6(
                     top6_lstm,
@@ -115,10 +107,6 @@ def tab3(df):
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(ensemble)
                 st.session_state[f"final_ensemble_{label}"] = ensemble
-
-                show_catboost_heatmaps(result_df, label)
-
-                st.markdown(f"**⭐ Ensemble Top-6**: `{ensemble}`")
 
                 try:
                     model = train_temp_lstm_model(df, label, window_size=best_ws, seed=temp_seed)
@@ -138,92 +126,7 @@ def tab3(df):
             except Exception as e:
                 st.error(f"❌ Gagal proses {label.upper()}: {e}")
 
-    if st.button("🚀 Jalankan Prediksi Otomatis", use_container_width=True):
-        st.session_state.tab3_full_results = {}
-        st.session_state.tab3_top6_acc = {}
-        st.session_state.tab3_top6_conf = {}
-        st.session_state.tab3_ensemble = {}
-
-        for label in DIGIT_LABELS:
-            st.markdown(f"## 🔍 {label.upper()}")
-
-            try:
-                result_df = scan_ws_catboost(
-                    df, label,
-                    min_ws=min_ws_cb3,
-                    max_ws=max_ws_cb3,
-                    cv_folds=folds_cb3,
-                    seed=temp_seed
-                )
-
-                top3_acc = result_df.sort_values("Accuracy Mean", ascending=False).head(3)
-                st.session_state.tab3_top6_acc[label] = {}
-                for _, row in top3_acc.iterrows():
-                    ws = int(row["WS"])
-                    try:
-                        model = train_temp_lstm_model(df, label, window_size=ws, seed=temp_seed)
-                        top6, _ = get_top6_lstm_temp(model, df, window_size=ws)
-                        st.session_state.tab3_top6_acc[label][ws] = top6
-                    except:
-                        st.session_state.tab3_top6_acc[label][ws] = []
-
-                result_df["ConfCount"] = result_df["Top6"].apply(
-                    lambda x: sum([int(d) in range(10) for d in str(x).split(",") if d.strip().isdigit()])
-                )
-                top3_conf = result_df.sort_values("ConfCount", ascending=False).head(3)
-                st.session_state.tab3_top6_conf[label] = {}
-                for _, row in top3_conf.iterrows():
-                    ws = int(row["WS"])
-                    try:
-                        model = train_temp_lstm_model(df, label, window_size=ws, seed=temp_seed)
-                        top6, _ = get_top6_lstm_temp(model, df, window_size=ws)
-                        st.session_state.tab3_top6_conf[label][ws] = top6
-                    except:
-                        st.session_state.tab3_top6_conf[label][ws] = []
-
-                best_row = result_df.loc[result_df["Accuracy Mean"].idxmax()]
-                best_ws = int(best_row["WS"])
-                st.session_state.tab3_full_results[label] = {
-                    "ws": best_ws,
-                    "acc": best_row["Accuracy Mean"],
-                    "result_df": result_df,
-                }
-
-                fig_acc = plt.figure(figsize=(6, 2))
-                plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
-                plt.title(f"Akurasi vs WS - {label.upper()}")
-                plt.xlabel("WS")
-                plt.ylabel("Akurasi")
-                st.pyplot(fig_acc)
-
-                show_catboost_heatmaps(result_df, label)
-
-                # Final ensemble
-                top6_lstm = get_first_top6(st.session_state.tab3_top6_acc.get(label, {}))
-                top6_heatmap = get_first_top6(st.session_state.tab3_top6_conf.get(label, {}))
-
-                X_all, y_dict = preprocess_data(df, window_size=best_ws)
-                if label in y_dict and len(X_all) > 0:
-                    y = y_dict[label].argmax(axis=1)
-                    top6_catboost = get_top6_catboost(X_all, y)
-                    st.session_state[f"top6_catboost_{label}"] = top6_catboost
-                else:
-                    top6_catboost = []
-
-                ensemble = ensemble_top6(
-                    top6_lstm,
-                    top6_catboost,
-                    top6_heatmap,
-                    weights=[1.2, 1.0, 0.8]
-                )
-                st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
-                st.write(ensemble)
-                st.session_state[f"final_ensemble_{label}"] = ensemble
-
-            except Exception as e:
-                st.error(f"❌ Gagal proses {label.upper()}: {e}")
-                continue
-
+    # === Rekap Final ===
     if st.session_state.tab3_top6_acc and st.session_state.tab3_top6_conf:
         st.markdown("---")
         st.subheader("📦 Rekap Top-6 dari Top-3 WS")
@@ -234,17 +137,19 @@ def tab3(df):
             st.markdown(f"### 🔢 {label.upper()}")
 
             top_acc = st.session_state.tab3_top6_acc.get(label, {})
-            st.markdown("**🎯 Top-6 dari Top-3 WS by Accuracy**")
+            st.markdown("**🎯 Top-6 dari Top-3 WS by Combo Score**")
             df_acc = pd.DataFrame(dict([(f"WS {ws}", top6) for ws, top6 in top_acc.items()]))
             st.dataframe(df_acc)
 
             top_conf = st.session_state.tab3_top6_conf.get(label, {})
-            st.markdown("**🔥 Top-6 dari Top-3 WS by Confidence**")
-            df_conf = pd.DataFrame(dict([(f"WS {ws}", top6) for ws, top6 in top_conf.items()]))
+            st.markdown("**🔥 Top-6 dari CatBoost**")
+            df_conf = pd.DataFrame(dict([(f"WS {ws}", str(top6).split(",")) for ws, top6 in top_conf.items()]))
             st.dataframe(df_conf)
 
             combined = []
-            for lst in list(top_acc.values()) + list(top_conf.values()):
+            for lst in list(top_acc.values()) + [
+                [int(d) for d in str(s).split(",") if d.strip().isdigit()] for s in top_conf.values()
+            ]:
                 combined.extend(lst)
 
             counter = Counter(combined)
@@ -260,3 +165,4 @@ def tab3(df):
             st.write(f"Total kombinasi: `{len(kombinasi)}`")
             for i, komb in enumerate(kombinasi[:20], 1):
                 st.markdown(f"{i}. `{''.join(map(str, komb))}`")
+```
