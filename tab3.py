@@ -1,5 +1,3 @@
-# tab3.py
-
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -79,6 +77,7 @@ def tab3(df):
             try:
                 result_df = scan_ws_catboost(df, label, min_ws_cb3, max_ws_cb3, folds_cb3, temp_seed)
 
+                # Top-3 by Accuracy
                 top3_acc = result_df.sort_values("Accuracy Mean", ascending=False).head(3)
                 st.session_state.tab3_top6_acc[label] = {}
                 for _, row in top3_acc.iterrows():
@@ -90,6 +89,7 @@ def tab3(df):
                     except:
                         st.session_state.tab3_top6_acc[label][ws] = ([], [])
 
+                # Top-3 by Confidence
                 top3_conf = result_df.sort_values("Top6 Conf", ascending=False).head(3)
                 st.session_state.tab3_top6_conf[label] = {}
                 for _, row in top3_conf.iterrows():
@@ -109,6 +109,7 @@ def tab3(df):
                     "result_df": result_df,
                 }
 
+                # ==== Ensemble Voting Section ====
                 lstm_dict = st.session_state.tab3_top6_acc.get(label, {})
                 if not isinstance(lstm_dict, dict):
                     lstm_dict = {}
@@ -131,14 +132,24 @@ def tab3(df):
                 )
                 st.session_state.tab3_ensemble[label] = final_ens_conf
 
-                all_probs = []
-                for _, (digits, probs) in lstm_dict.items():
-                    if probs is not None and len(probs) > 0:
-                        all_probs.append(probs)
+                # ==== Probabilistic Voting (Top-5 WS by Confidence) ====
+                top5_conf_df = result_df.sort_values("Top6 Conf", ascending=False).head(5)
+                probs_list = []
+                catboost_accuracies = []
 
-                if all_probs:
-                    catboost_accuracies = list(result_df.sort_values("Accuracy Mean", ascending=False)["Accuracy Mean"].head(3))
-                    final_ens_prob = ensemble_probabilistic(all_probs, catboost_accuracies)
+                for _, row in top5_conf_df.iterrows():
+                    ws = int(row["WS"])
+                    try:
+                        model = train_temp_lstm_model(df, label, ws, temp_seed)
+                        top6, probs = get_top6_lstm_temp(model, df, ws)
+                        if probs is not None and len(probs) > 0:
+                            probs_list.append(probs)
+                            catboost_accuracies.append(row["Accuracy Mean"])
+                    except:
+                        continue
+
+                if probs_list:
+                    final_ens_prob = ensemble_probabilistic(probs_list, catboost_accuracies)
                     st.session_state.tab3_ensemble_prob[label] = final_ens_prob
                 else:
                     final_ens_prob = []
@@ -147,6 +158,7 @@ def tab3(df):
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
                 st.write(f"Probabilistic Voting: `{final_ens_prob}`")
 
+                # Visualisasi Akurasi
                 fig_acc = plt.figure(figsize=(6, 2))
                 plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
                 plt.title(f"Akurasi vs WS - {label.upper()}")
@@ -154,8 +166,10 @@ def tab3(df):
                 plt.ylabel("Akurasi")
                 st.pyplot(fig_acc)
 
+                # Heatmap
                 show_catboost_heatmaps(result_df, label)
 
+                # Prediksi Langsung
                 try:
                     model = train_temp_lstm_model(df, label, best_ws, temp_seed)
                     top6, probs = get_top6_lstm_temp(model, df, best_ws)
