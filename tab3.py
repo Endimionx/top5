@@ -111,6 +111,10 @@ def tab3(df):
 
                 # === Fix for ensemble_probabilistic ===
                 # Benar
+                # === Fix for ensemble_probabilistic ===
+                all_lstm_top6 = []
+                catboost_accs = []
+                
                 for ws in lstm_dict:
                     top6, probs = lstm_dict[ws]
                     if len(probs) > 0:
@@ -118,7 +122,7 @@ def tab3(df):
                         acc_row = result_df[result_df["WS"] == ws]
                         if not acc_row.empty:
                             catboost_accs.append(acc_row["Accuracy Mean"].values[0])
-                            
+                
                 if all_lstm_top6 and catboost_accs:
                     final_ens_prob = ensemble_probabilistic(all_lstm_top6, catboost_accs)
                     st.session_state.tab3_ensemble_prob[label] = final_ens_prob
