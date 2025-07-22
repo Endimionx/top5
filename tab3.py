@@ -28,7 +28,37 @@ def tab3(df):
         st.session_state.tab3_top6_conf = {}
     if "tab3_ensemble" not in st.session_state:
         st.session_state.tab3_ensemble = {}
+        
+    st.markdown("### 📌 Opsi Scan Per Digit (Opsional)")
+    selected_digit_tab3 = st.selectbox("Pilih digit yang ingin discan", ["(Semua)"] + DIGIT_LABELS, key="tab3_selected_digit")
 
+    if st.button("🔎 Scan Per Digit", use_container_width=True):
+        st.session_state.tab3_full_results = {}
+        st.session_state.tab3_top6_acc = {}
+        st.session_state.tab3_top6_conf = {}
+        st.session_state.tab3_ensemble = {}
+
+        target_digits = DIGIT_LABELS if selected_digit_tab3 == "(Semua)" else [selected_digit_tab3]
+
+        for label in target_digits:
+            st.markdown(f"## 🔍 {label.upper()}")
+
+            try:
+                result_df = scan_ws_catboost(
+                    df, label,
+                    min_ws=min_ws_cb3,
+                    max_ws=max_ws_cb3,
+                    cv_folds=folds_cb3,
+                    seed=temp_seed
+                )
+
+            # Proses Top-3 dan Training + Prediksi
+            # ... (SALIN isi dari proses prediksi & ensemble seperti di tombol "🚀 Jalankan Prediksi Otomatis")
+            # Anda cukup refactor bagian itu jadi fungsi terpisah jika ingin DRY (tidak duplikasi)
+
+            except Exception as e:
+                st.error(f"❌ Gagal proses {label.upper()}: {e}")
+            
     if st.button("🚀 Jalankan Prediksi Otomatis", use_container_width=True):
         st.session_state.tab3_full_results = {}
         st.session_state.tab3_top6_acc = {}
