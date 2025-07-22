@@ -109,7 +109,7 @@ def tab3(df):
                         all_probs.append(probs)
 
                 if all_probs:
-                    final_ens_prob = ensemble_probabilistic(all_probs)
+                    final_ens_prob = ensemble_probabilistic(all_probs, catboost_accuracies)
                     st.session_state.tab3_ensemble_prob[label] = final_ens_prob
                 else:
                     final_ens_prob = []
