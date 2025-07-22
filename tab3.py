@@ -93,29 +93,7 @@ def tab3(df):
                     "result_df": result_df,
                 }
 
-                # Final ensemble top6
-                top6_lstm = get_first_top6(st.session_state.tab3_top6_acc.get(label, {}))
-                top6_heatmap = get_first_top6(st.session_state.tab3_top6_conf.get(label, {}))
-
-                # Ambil CatBoost top6
-                X_all, y_dict = preprocess_data(df, window_size=best_ws)
-                if label in y_dict and len(X_all) > 0:
-                    y = y_dict[label].argmax(axis=1)
-                    top6_catboost = get_top6_catboost(X_all, y)
-                    st.session_state[f"top6_catboost_{label}"] = top6_catboost
-                else:
-                    top6_catboost = []
-
-                ensemble = ensemble_top6(
-                    top6_lstm,
-                    top6_catboost,
-                    top6_heatmap,
-                    weights=[1.2, 1.0, 0.8]
-                )
-                st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
-                st.write(ensemble)
-                st.session_state[f"final_ensemble_{label}"] = ensemble
-
+                
                 show_catboost_heatmaps(result_df, label)
 
                 st.markdown(f"**⭐ Ensemble Top-6**: `{ensemble}`")
@@ -198,28 +176,7 @@ def tab3(df):
 
                 show_catboost_heatmaps(result_df, label)
 
-                # Final ensemble
-                top6_lstm = get_first_top6(st.session_state.tab3_top6_acc.get(label, {}))
-                top6_heatmap = get_first_top6(st.session_state.tab3_top6_conf.get(label, {}))
-
-                X_all, y_dict = preprocess_data(df, window_size=best_ws)
-                if label in y_dict and len(X_all) > 0:
-                    y = y_dict[label].argmax(axis=1)
-                    top6_catboost = get_top6_catboost(X_all, y)
-                    st.session_state[f"top6_catboost_{label}"] = top6_catboost
-                else:
-                    top6_catboost = []
-
-                ensemble = ensemble_top6(
-                    top6_lstm,
-                    top6_catboost,
-                    top6_heatmap,
-                    weights=[1.2, 1.0, 0.8]
-                )
-                st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
-                st.write(ensemble)
-                st.session_state[f"final_ensemble_{label}"] = ensemble
-
+                
             except Exception as e:
                 st.error(f"❌ Gagal proses {label.upper()}: {e}")
                 continue
