@@ -29,6 +29,104 @@ def tab3(df):
     if "tab3_ensemble" not in st.session_state:
         st.session_state.tab3_ensemble = {}
         
+    st.markdown("### 📌 Opsi Scan Per Digit (Opsional)")
+        selected_digit_tab3 = st.selectbox("Pilih digit yang ingin discan", ["(Semua)"] + DIGIT_LABELS, key="tab3_selected_digit")
+        
+        if st.button("🔎 Scan Per Digit", use_container_width=True):
+            st.session_state.tab3_full_results = {}
+            st.session_state.tab3_top6_acc = {}
+            st.session_state.tab3_top6_conf = {}
+            st.session_state.tab3_ensemble = {}
+        
+            target_digits = DIGIT_LABELS if selected_digit_tab3 == "(Semua)" else [selected_digit_tab3]
+        
+            for label in target_digits:
+                st.markdown(f"## 🔍 {label.upper()}")
+        
+                try:
+                    result_df = scan_ws_catboost(
+                        df, label,
+                        min_ws=min_ws_cb3,
+                        max_ws=max_ws_cb3,
+                        cv_folds=folds_cb3,
+                        seed=temp_seed
+                    )
+        
+                    # === Top-3 by Accuracy ===
+                    top3_acc = result_df.sort_values("Accuracy Mean", ascending=False).head(3)
+                    st.session_state.tab3_top6_acc[label] = {}
+        
+                    for _, row in top3_acc.iterrows():
+                        ws = int(row["WS"])
+                        try:
+                            model = train_temp_lstm_model(df, label, window_size=ws, seed=temp_seed)
+                            top6, probs = get_top6_lstm_temp(model, df, window_size=ws)
+                            st.session_state.tab3_top6_acc[label][ws] = top6
+                        except:
+                            st.session_state.tab3_top6_acc[label][ws] = []
+        
+                    # === Top-3 by Top6 Conf ===
+                    top3_conf = result_df.sort_values("Top6 Conf", ascending=False).head(3)
+                    st.session_state.tab3_top6_conf[label] = {}
+        
+                    for _, row in top3_conf.iterrows():
+                        ws = int(row["WS"])
+                        try:
+                            model = train_temp_lstm_model(df, label, window_size=ws, seed=temp_seed)
+                            top6, probs = get_top6_lstm_temp(model, df, window_size=ws)
+                            st.session_state.tab3_top6_conf[label][ws] = top6
+                        except:
+                            st.session_state.tab3_top6_conf[label][ws] = []
+        
+                    # === Simpan ke state utama ===
+                    best_row = result_df.loc[result_df["Accuracy Mean"].idxmax()]
+                    best_ws = int(best_row["WS"])
+                    st.session_state.tab3_full_results[label] = {
+                        "ws": best_ws,
+                        "acc": best_row["Accuracy Mean"],
+                        "result_df": result_df,
+                    }
+        
+                    # === Ensemble Hasil ===
+                    combined = []
+                    for lst in list(st.session_state.tab3_top6_acc[label].values()) + list(st.session_state.tab3_top6_conf[label].values()):
+                        combined.extend(lst)
+                    from collections import Counter
+                    counter = Counter(combined)
+                    top_ensemble = [digit for digit, _ in counter.most_common(6)]
+                    st.session_state.tab3_ensemble[label] = top_ensemble
+        
+                    # === Visualisasi ===
+                    fig_acc = plt.figure(figsize=(6, 2))
+                    plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
+                    plt.title(f"Akurasi vs WS - {label.upper()}")
+                    plt.xlabel("WS")
+                    plt.ylabel("Akurasi")
+                    st.pyplot(fig_acc)
+        
+                    show_catboost_heatmaps(result_df, label)
+        
+                    st.markdown(f"**⭐ Ensemble Top-6**: `{top_ensemble}`")
+        
+                    # === Prediksi langsung pakai best_ws ===
+                    try:
+                        model = train_temp_lstm_model(df, label, window_size=best_ws, seed=temp_seed)
+                        top6, probs = get_top6_lstm_temp(model, df, window_size=best_ws)
+                        st.markdown("**🎯 Prediksi Langsung (Top-6):**")
+                        st.info(f"Top-6: {top6}")
+        
+                        df_conf = pd.DataFrame({"Digit": [str(d) for d in top6], "Confidence": probs})
+                        fig_bar, ax = plt.subplots(figsize=(6, 2))
+                        sns.barplot(x="Digit", y="Confidence", data=df_conf, palette="viridis", ax=ax)
+                        ax.set_title(f"Confidence Bar - {label.upper()}")
+                        st.pyplot(fig_bar)
+        
+                    except Exception as e:
+                        st.warning(f"⚠️ Gagal prediksi langsung: {e}")
+        
+                except Exception as e:
+                    st.error(f"❌ Gagal proses {label.upper()}: {e}")
+
     
     if st.button("🚀 Jalankan Prediksi Otomatis", use_container_width=True):
         st.session_state.tab3_full_results = {}
