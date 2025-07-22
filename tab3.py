@@ -12,7 +12,8 @@ from ws_scan_catboost import (
     train_temp_lstm_model,
     get_top6_lstm_temp,
     show_catboost_heatmaps,
-    DIGIT_LABELS
+    DIGIT_LABELS,
+    ensemble_top6
 )
 
 def tab3(df):
@@ -96,6 +97,21 @@ def tab3(df):
                 plt.xlabel("WS")
                 plt.ylabel("Akurasi")
                 st.pyplot(fig_acc)
+
+                for label in DIGIT_LABELS:
+                top6_lstm = st.session_state.get(f"top6_lstm_{label}", [])
+                top6_catboost = st.session_state.get(f"top6_catboost_{label}", [])
+                top6_heatmap = st.session_state.get(f"top6_heatmap_{label}", [])
+            
+                ensemble = ensemble_top6(
+                    top6_lstm,
+                    top6_catboost,
+                    top6_heatmap,
+                    weights=[1.2, 1.0, 0.8]
+                )
+                st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
+                st.write(ensemble)
+                st.session_state[f"final_ensemble_{label}"] = ensemble
 
                 show_catboost_heatmaps(result_df, label)
 
@@ -182,6 +198,20 @@ def tab3(df):
             except Exception as e:
                 st.error(f"❌ Gagal proses {label.upper()}: {e}")
                 continue
+
+            top6_lstm = st.session_state.get(f"top6_lstm_{label}", [])
+            top6_catboost = st.session_state.get(f"top6_catboost_{label}", [])
+            top6_heatmap = st.session_state.get(f"top6_heatmap_{label}", [])
+
+            ensemble = ensemble_top6(
+                top6_lstm,
+                top6_catboost,
+                top6_heatmap,
+                weights=[1.2, 1.0, 0.8]
+            )
+            st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
+            st.write(ensemble)
+            st.session_state[f"final_ensemble_{label}"] = ensemble
 
     if st.session_state.tab3_top6_acc and st.session_state.tab3_top6_conf:
         st.markdown("---")
