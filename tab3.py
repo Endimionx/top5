@@ -109,6 +109,7 @@ def tab3(df):
                         all_probs.append(probs)
 
                 if all_probs:
+                    catboost_accuracies = list(result_df.sort_values("Accuracy Mean", ascending=False)["Accuracy Mean"].head(3))
                     final_ens_prob = ensemble_probabilistic(all_probs, catboost_accuracies)
                     st.session_state.tab3_ensemble_prob[label] = final_ens_prob
                 else:
