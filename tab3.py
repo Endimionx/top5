@@ -1,4 +1,4 @@
-# tab3.py (modifikasi: hapus table top3 WS dan naikkan ensemble ke atas heatmap)
+# tab3.py
 
 import streamlit as st
 import pandas as pd
@@ -96,13 +96,6 @@ def tab3(df):
                     "result_df": result_df,
                 }
 
-                fig_acc = plt.figure(figsize=(6, 2))
-                plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
-                plt.title(f"Akurasi vs WS - {label.upper()}")
-                plt.xlabel("WS")
-                plt.ylabel("Akurasi")
-                st.pyplot(fig_acc)
-
                 # === Ensemble Voting & Probabilistic ===
                 lstm_dict = st.session_state.tab3_top6_acc[label]
                 catboost_top6_all = []
@@ -116,19 +109,38 @@ def tab3(df):
                 final_ens_conf = ensemble_confidence_voting(lstm_dict, catboost_top6_all, heatmap_counts)
                 st.session_state.tab3_ensemble[label] = final_ens_conf
 
-                all_lstm_top6 = [probs for _, (_, probs) in lstm_dict.items() if len(probs) > 0]
-                if all_lstm_top6:
-                    final_ens_prob = ensemble_probabilistic(all_lstm_top6)
+                # === Fix for ensemble_probabilistic ===
+                all_lstm_top6 = []
+                catboost_accs = []
+                for ws, (_, probs) in lstm_dict.items():
+                    if len(probs) > 0:
+                        all_lstm_top6.append(probs)
+                        acc_row = result_df[result_df["WS"] == ws]
+                        if not acc_row.empty:
+                            catboost_accs.append(acc_row["Accuracy Mean"].values[0])
+
+                if all_lstm_top6 and catboost_accs:
+                    final_ens_prob = ensemble_probabilistic(all_lstm_top6, catboost_accs)
                     st.session_state.tab3_ensemble_prob[label] = final_ens_prob
                 else:
                     final_ens_prob = []
 
+                # === Tampilkan hasil ensemble ===
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
                 st.write(f"Probabilistic Voting: `{final_ens_prob}`")
 
+                # === Visualisasi ===
+                fig_acc = plt.figure(figsize=(6, 2))
+                plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
+                plt.title(f"Akurasi vs WS - {label.upper()}")
+                plt.xlabel("WS")
+                plt.ylabel("Akurasi")
+                st.pyplot(fig_acc)
+
                 show_catboost_heatmaps(result_df, label)
 
+                # === Prediksi langsung ===
                 try:
                     model = train_temp_lstm_model(df, label, best_ws, temp_seed)
                     top6, probs = get_top6_lstm_temp(model, df, best_ws)
