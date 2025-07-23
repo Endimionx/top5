@@ -51,15 +51,6 @@ def hybrid_voting(conf, prob, alpha=0.5):
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
-def stacked_hybrid(hybrid, pred_direct):
-    counter = defaultdict(float)
-    for i, d in enumerate(hybrid):
-        counter[d] += (6 - i)
-    for i, d in enumerate(pred_direct):
-        counter[d] += (6 - i)
-    ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
-    return [d for d, _ in ranked[:6]]
-
 def dynamic_alpha(acc_conf, acc_prob):
     if acc_conf + acc_prob == 0:
         return 0.5
@@ -68,7 +59,6 @@ def dynamic_alpha(acc_conf, acc_prob):
 def log_prediction(label, conf, prob, hybrid, alpha, stacked=None):
     log_path = "log_tab3.txt"
     with open(log_path, "a") as f:
-        f.write(f"[{selected_lokasi.upper()}]\n")
         f.write(f"[{label.upper()}]\n")
         f.write(f"Confidence Voting: {conf}\n")
         f.write(f"Probabilistic Voting: {prob}\n")
@@ -76,6 +66,23 @@ def log_prediction(label, conf, prob, hybrid, alpha, stacked=None):
         if stacked:
             f.write(f"Stacked Hybrid: {stacked}\n")
         f.write("-" * 40 + "\n")
+
+def meta_learning(votes):
+    # Menggunakan voting terbaik berdasarkan skor akurasi
+    max_vote = max(votes, key=lambda x: x[1])
+    return max_vote[0]
+
+def calibration(confidences, probs):
+    # Kalibrasi dengan min-max scaling
+    min_conf, max_conf = min(confidences), max(confidences)
+    conf_calibrated = [(c - min_conf) / (max_conf - min_conf) for c in confidences]
+    prob_calibrated = [(p - min(probs)) / (max(probs) - min(probs)) for p in probs]
+    return conf_calibrated, prob_calibrated
+
+def auto_ml_ws_selection(ws_results):
+    # Memilih WS terbaik berdasarkan stabilitas
+    best_ws = max(ws_results, key=lambda x: x['accuracy'] - x['std'])
+    return best_ws
 
 def tab3(df):
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
@@ -210,11 +217,4 @@ def tab3(df):
             if os.path.exists(log_path):
                 with open(log_path, "r") as f:
                     st.code(f.read(), language="text")
-            else:
-                st.info("Belum ada log tersimpan.")
-    with col2:
-        if st.button("🧹 Hapus Log", use_container_width=True):
-            log_path = "log_tab3.txt"
-            if os.path.exists(log_path):
-                os.remove(log_path)
-                st.success("Log berhasil dihapus.")
+else:
