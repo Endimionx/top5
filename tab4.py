@@ -156,7 +156,6 @@ def find_historical_pattern(data, pos, pattern_length):
     return current_pattern, matches, digits
 
 def tab4(df):
-    
     if "angka" not in df.columns:
         st.error("❌ Kolom 'angka' tidak ditemukan di data.")
         return
@@ -211,7 +210,6 @@ def tab4(df):
             with st.form(key=f"form_pattern_{i}", clear_on_submit=False):
                 pattern_len = st.slider(f"📏 Pilih panjang pola (Posisi {digit_pos_label[i]})", 2, 6, 3, key=f"slider_{i}")
                 submitted = st.form_submit_button("🔍 Cari Pola Historis")
-    
                 if submitted:
                     pattern, matches, digits = find_historical_pattern(recent_data, i, pattern_len)
                     if matches:
@@ -221,8 +219,7 @@ def tab4(df):
                         st.markdown(f"<div style='display:flex;flex-wrap:wrap'>{badge}</div>", unsafe_allow_html=True)
                     else:
                         st.warning("❌ Pola terakhir belum pernah muncul sebelumnya.")
-            
-            
+
     st.markdown("### 🔥 Heatmap Posisi Digit")
     heatmap = digit_position_heatmap(angka_data)
     fig, ax = plt.subplots(figsize=(8, 2))
