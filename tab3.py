@@ -199,7 +199,7 @@ def tab3(df):
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("📄 Lihat Log Prediksi", use_container_width=True):
+        if st.button("📄 Lihat Log Prediksi x", use_container_width=True):
             log_path = "log_tab3.txt"
             if os.path.exists(log_path):
                 with open(log_path, "r") as f:
