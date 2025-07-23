@@ -97,7 +97,6 @@ def log_prediction(label, conf, prob, hybrid, alpha, stacked=None, lokasi=None):
         if stacked:
             f.write(f"Stacked Hybrid: {stacked}\n")
         f.write("-" * 40 + "\n")
-
 def tab3(df, lokasi):
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
     max_ws_cb3 = st.number_input("🔁 Max WS", min_ws_cb3 + 1, 30, min_ws_cb3 + 6, key="tab3_max_ws")
@@ -219,7 +218,7 @@ def tab3(df, lokasi):
 
                 final_hybrid = final_ensemble_with_markov(stacked, markov_top6)
 
-                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, stacked, final_hybrid, lokasi=lokasi)
+                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, final_stacked, lokasi=lokasi)
 
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
