@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import os
 from collections import Counter, defaultdict
 from ensemble_probabilistic import ensemble_probabilistic
 from ws_scan_catboost import (
@@ -50,21 +51,19 @@ def hybrid_voting(conf, prob, alpha=0.5):
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
-def hybrid_score_precision(conf, prob, alpha=0.5):
-    """Hybrid score yang mempertajam dengan penalti jarak ranking"""
-    all_digits = set(conf) | set(prob)
-    score = {}
-    for d in all_digits:
-        rank_conf = conf.index(d) if d in conf else 6
-        rank_prob = prob.index(d) if d in prob else 6
-        score[d] = alpha * (6 - rank_conf) + (1 - alpha) * (6 - rank_prob)
-    ranked = sorted(score.items(), key=lambda x: x[1], reverse=True)
-    return [d for d, _ in ranked[:6]]
-
 def dynamic_alpha(acc_conf, acc_prob):
     if acc_conf + acc_prob == 0:
         return 0.5
     return acc_conf / (acc_conf + acc_prob)
+
+def log_prediction(label, conf, prob, hybrid, alpha):
+    log_path = "log_tab3.txt"
+    with open(log_path, "a") as f:
+        f.write(f"[{label.upper()}]\n")
+        f.write(f"Confidence Voting: {conf}\n")
+        f.write(f"Probabilistic Voting: {prob}\n")
+        f.write(f"Hybrid Voting (α={alpha:.2f}): {hybrid}\n")
+        f.write("-" * 40 + "\n")
 
 def tab3(df):
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
@@ -162,8 +161,10 @@ def tab3(df):
                 acc_conf = best_row["Accuracy Mean"]
                 acc_prob = np.mean(catboost_accuracies) if all_probs else 0.0
                 alpha = dynamic_alpha(acc_conf, acc_prob)
-                hybrid = hybrid_score_precision(final_ens_conf, final_ens_prob, alpha=alpha)
+                hybrid = hybrid_voting(final_ens_conf, final_ens_prob, alpha=alpha)
                 st.session_state.tab3_hybrid[label] = hybrid
+
+                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha)
 
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
@@ -182,5 +183,16 @@ def tab3(df):
                     st.pyplot(fig_bar)
                 except Exception as e:
                     st.warning(f"⚠️ Gagal prediksi langsung: {e}")
+
             except Exception as e:
                 st.error(f"❌ Gagal proses {label.upper()}: {e}")
+
+    st.markdown("---")
+    if st.button("📄 Lihat Log Prediksi", use_container_width=True):
+        log_path = "log_tab3.txt"
+        if os.path.exists(log_path):
+            with open(log_path, "r") as f:
+                st.code(f.read(), language="text")
+        else:
+            st.info("Belum ada log tersimpan.")
+            
