@@ -84,7 +84,7 @@ def dynamic_alpha(acc_conf, acc_prob):
         return 0.5
     return acc_conf / (acc_conf + acc_prob)
 
-def log_prediction(label, conf, prob, hybrid, alpha, stacked=None, lokasi=None):
+def log_prediction(label, conf, prob, hybrid, alpha, stacked=None, final=none, lokasi=None):
     log_path = "log_tab3.txt"
     with open(log_path, "a") as f:
         if lokasi:
@@ -96,7 +96,10 @@ def log_prediction(label, conf, prob, hybrid, alpha, stacked=None, lokasi=None):
         f.write(f"Hybrid Voting (α={alpha:.2f}): {hybrid}\n")
         if stacked:
             f.write(f"Stacked Hybrid: {stacked}\n")
+        if final:
+            f.write(f"Final Hybrid: {final}\n")
         f.write("-" * 40 + "\n")
+
 def tab3(df, lokasi):
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
     max_ws_cb3 = st.number_input("🔁 Max WS", min_ws_cb3 + 1, 30, min_ws_cb3 + 6, key="tab3_max_ws")
@@ -218,7 +221,7 @@ def tab3(df, lokasi):
 
                 final_hybrid = final_ensemble_with_markov(stacked, markov_top6)
 
-                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, stacked, lokasi=lokasi)
+                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, stacked, final_hybrid, lokasi=lokasi)
 
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
