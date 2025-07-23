@@ -208,16 +208,21 @@ def tab4(df):
             st.info(f"🔮 Prediksi berikutnya: **{predict_big_small(recent_data, i)}**")
 
             st.markdown("**🔁 Pencarian Pola Historis**")
-            pattern_len = st.slider(f"Pilih panjang pola untuk posisi {digit_pos_label[i]}", 2, 6, 3, key=f"pattern_{i}")
-            pattern, matches, digits = find_historical_pattern(recent_data, i, pattern_len)
-            if matches:
-                st.success(f"Pola terakhir: {pattern} pernah muncul sebanyak {len(matches)} kali.")
-                st.info(f"Digit setelah pola tersebut:")
-                badge = "".join([render_digit_badge(d) for d in matches])
-                st.markdown(f"<div style='display:flex;flex-wrap:wrap'>{badge}</div>", unsafe_allow_html=True)
-            else:
-                st.warning("❌ Pola terakhir belum pernah muncul sebelumnya.")
-
+            with st.form(key=f"form_pattern_{i}", clear_on_submit=False):
+                pattern_len = st.slider(f"📏 Pilih panjang pola (Posisi {digit_pos_label[i]})", 2, 6, 3, key=f"slider_{i}")
+                submitted = st.form_submit_button("🔍 Cari Pola Historis")
+    
+                if submitted:
+                    pattern, matches, digits = find_historical_pattern(recent_data, i, pattern_len)
+                    if matches:
+                        st.success(f"Pola terakhir: {pattern} pernah muncul sebanyak {len(matches)} kali.")
+                        st.info(f"Digit setelah pola tersebut:")
+                        badge = "".join([render_digit_badge(d) for d in matches])
+                        st.markdown(f"<div style='display:flex;flex-wrap:wrap'>{badge}</div>", unsafe_allow_html=True)
+                    else:
+                        st.warning("❌ Pola terakhir belum pernah muncul sebelumnya.")
+            
+            
     st.markdown("### 🔥 Heatmap Posisi Digit")
     heatmap = digit_position_heatmap(angka_data)
     fig, ax = plt.subplots(figsize=(8, 2))
