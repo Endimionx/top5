@@ -166,6 +166,7 @@ def tab4(df):
         return
 
     run_all = st.button("🔍 Jalankan Analisis Lengkap")
+
     if not run_all:
         st.info("Tekan tombol di atas untuk menampilkan hasil analisis.")
         return
@@ -205,26 +206,27 @@ def tab4(df):
                 st.success(f"Jumlah digit `{key}`: `{val}`")
             st.info(f"🔮 Prediksi berikutnya: **{predict_big_small(recent_data, i)}**")
 
+            # --- Pola Historis ---
             st.markdown("**🔁 Pencarian Pola Historis**")
-            pattern_key = f"pattern_result_{i}"
-            if pattern_key not in st.session_state:
-                st.session_state[pattern_key] = {"pattern": [], "matches": []}
+            slider_key = f"pattern_len_{i}"
+            default_len = 3
+            if slider_key not in st.session_state:
+                st.session_state[slider_key] = default_len
 
-            with st.form(key=f"form_pattern_{i}"):
-                pattern_len = st.slider(f"📏 Panjang Pola (Posisi {digit_pos_label[i]})", 2, 6, 3, key=f"slider_{i}")
-                submit = st.form_submit_button("🔍 Cari Pola Historis")
+            with st.form(key=f"form_pattern_{i}", clear_on_submit=False):
+                new_len = st.slider(f"📏 Pilih panjang pola (Posisi {digit_pos_label[i]})", 2, 6, st.session_state[slider_key], key=f"slider_{i}")
+                submitted = st.form_submit_button("🔍 Cari Pola Historis")
 
-                if submit:
-                    pattern, matches, _ = find_historical_pattern(recent_data, i, pattern_len)
-                    st.session_state[pattern_key] = {"pattern": pattern, "matches": matches}
-
-            result = st.session_state[pattern_key]
-            if result["matches"]:
-                st.success(f"Pola terakhir: {result['pattern']} pernah muncul sebanyak {len(result['matches'])} kali.")
-                badge = "".join([render_digit_badge(d) for d in result["matches"]])
-                st.markdown(f"<div style='display:flex;flex-wrap:wrap'>{badge}</div>", unsafe_allow_html=True)
-            else:
-                st.warning("❌ Pola terakhir belum pernah muncul sebelumnya.")
+                if submitted:
+                    st.session_state[slider_key] = new_len
+                    pattern, matches, digits = find_historical_pattern(recent_data, i, new_len)
+                    if matches:
+                        st.success(f"Pola terakhir: {pattern} pernah muncul sebanyak {len(matches)} kali.")
+                        st.info("Digit setelah pola tersebut:")
+                        badge = "".join([render_digit_badge(d) for d in matches])
+                        st.markdown(f"<div style='display:flex;flex-wrap:wrap'>{badge}</div>", unsafe_allow_html=True)
+                    else:
+                        st.warning("❌ Pola terakhir belum pernah muncul sebelumnya.")
 
     st.markdown("### 🔥 Heatmap Posisi Digit")
     heatmap = digit_position_heatmap(angka_data)
