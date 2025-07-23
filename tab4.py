@@ -41,6 +41,24 @@ def analyze_trend(data, pos):
         prev = curr
     return trend
 
+def predict_trend(data, pos):
+    trend_list = []
+    for num in data:
+        trend_list.append(split_digits(num)[pos])
+    trend_array = pd.Series(trend_list)
+    if len(trend_array) < 3:
+        return "-"
+    diff = trend_array.diff().dropna()
+    last_trend = diff.iloc[-3:]
+    naik = sum(last_trend > 0)
+    turun = sum(last_trend < 0)
+    if naik > turun:
+        return "Naik"
+    elif turun > naik:
+        return "Turun"
+    else:
+        return "Tetap"
+
 def even_odd_analysis(data, pos):
     counts = {'genap': 0, 'ganjil': 0}
     for num in data:
@@ -51,6 +69,10 @@ def even_odd_analysis(data, pos):
             counts['ganjil'] += 1
     return counts
 
+def predict_even_odd(data, pos):
+    last_digit = split_digits(data[-1])[pos]
+    return "Genap" if last_digit % 2 != 0 else "Ganjil"
+
 def big_small_analysis(data, pos):
     counts = {'besar': 0, 'kecil': 0}
     for num in data:
@@ -60,6 +82,10 @@ def big_small_analysis(data, pos):
         else:
             counts['kecil'] += 1
     return counts
+
+def predict_big_small(data, pos):
+    last_digit = split_digits(data[-1])[pos]
+    return "Besar" if last_digit < 5 else "Kecil"
 
 def digit_position_heatmap(data):
     pos_counts = np.zeros((4, 10))
@@ -143,29 +169,37 @@ def tab4(df):
     for i, tab in enumerate(tabs):
         with tab:
             st.subheader(f"📌 Posisi Digit: {digit_pos_label[i]}")
-            freq = analyze_frequency(angka_data, i)
+            recent_data = angka_data[-30:]
+
+            freq = analyze_frequency(recent_data, i)
             freq_df = pd.DataFrame(freq.items(), columns=["Digit", "Frekuensi"]).sort_values("Digit")
-            st.markdown("**📈 Frekuensi Digit**")
+            st.markdown("**📈 Frekuensi Digit (30 terakhir)**")
             st.bar_chart(freq_df.set_index("Digit"))
 
             st.markdown("**⏱️ Delay Kemunculan Digit**")
-            delay = analyze_delay(angka_data, i)
+            delay = analyze_delay(recent_data, i)
             render_delay(delay)
 
             st.markdown("**📉 Tren Naik / Turun**")
-            trend = analyze_trend(angka_data, i)
+            trend = analyze_trend(recent_data, i)
             for key, val in trend.items():
                 st.success(f"Jumlah tren `{key}`: `{val}`")
+            pred_trend = predict_trend(recent_data, i)
+            st.info(f"🔮 Prediksi tren berikutnya: **{pred_trend}**")
 
             st.markdown("**🧮 Statistik Ganjil / Genap**")
-            eo = even_odd_analysis(angka_data, i)
+            eo = even_odd_analysis(recent_data, i)
             for key, val in eo.items():
                 st.success(f"Jumlah digit `{key}`: `{val}`")
+            pred_eo = predict_even_odd(recent_data, i)
+            st.info(f"🔮 Prediksi berikutnya: **{pred_eo}**")
 
             st.markdown("**🔢 Statistik Besar / Kecil**")
-            bs = big_small_analysis(angka_data, i)
+            bs = big_small_analysis(recent_data, i)
             for key, val in bs.items():
                 st.success(f"Jumlah digit `{key}`: `{val}`")
+            pred_bs = predict_big_small(recent_data, i)
+            st.info(f"🔮 Prediksi berikutnya: **{pred_bs}**")
 
     st.markdown("### 🔥 Heatmap Posisi Digit")
     heatmap = digit_position_heatmap(angka_data)
@@ -195,4 +229,4 @@ def tab4(df):
     badge_html = "".join([render_digit_badge(d) for d in prediksi])
     st.markdown(f"<div style='display:flex; flex-wrap:wrap'>{badge_html}</div>", unsafe_allow_html=True)
 
-    st.caption("📌 Prediksi ini berdasarkan kombinasi delay, frekuensi, dan posisi digit.")
+    st.caption("📌 Prediksi berdasarkan kombinasi statistik delay, frekuensi, dan posisi digit.")
