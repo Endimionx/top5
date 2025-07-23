@@ -84,7 +84,7 @@ def dynamic_alpha(acc_conf, acc_prob):
         return 0.5
     return acc_conf / (acc_conf + acc_prob)
 
-def log_prediction(label, conf, prob, hybrid, alpha, stacked=None, final=none, lokasi=None):
+def log_prediction(label, conf, prob, hybrid, alpha, stacked=None, final=None, lokasi=None):
     log_path = "log_tab3.txt"
     with open(log_path, "a") as f:
         if lokasi:
