@@ -68,6 +68,7 @@ def dynamic_alpha(acc_conf, acc_prob):
 def log_prediction(label, conf, prob, hybrid, alpha, stacked=None):
     log_path = "log_tab3.txt"
     with open(log_path, "a") as f:
+        f.write(f"[{selected_lokasi.upper()}]\n")
         f.write(f"[{label.upper()}]\n")
         f.write(f"Confidence Voting: {conf}\n")
         f.write(f"Probabilistic Voting: {prob}\n")
