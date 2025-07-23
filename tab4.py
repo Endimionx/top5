@@ -145,7 +145,7 @@ def render_delay(delay_dict):
 def find_historical_pattern(data, pos, pattern_length):
     digits = [split_digits(num)[pos] for num in data]
     if len(digits) <= pattern_length:
-        return [], []
+        return [], [], digits  # <-- tambahkan return digits
 
     current_pattern = digits[-pattern_length:]
     matches = []
@@ -155,7 +155,9 @@ def find_historical_pattern(data, pos, pattern_length):
         if window == current_pattern and next_index < len(digits):
             matches.append(digits[next_index])
 
-    return current_pattern, matches
+    return current_pattern, matches, digits
+
+
 def tab4(df):
 
     if "angka" not in df.columns:
@@ -204,7 +206,7 @@ def tab4(df):
 
             st.markdown("**🔁 Pencarian Pola Historis**")
             pattern_len = st.slider(f"Pilih panjang pola untuk posisi {digit_pos_label[i]}", 2, 6, 3, key=f"pattern_{i}")
-            pattern, matches = find_historical_pattern(recent_data, i, pattern_len)
+            pattern, matches, digits = find_historical_pattern(recent_data, i, pattern_len)
             st.write("✅ Data total:", len(digits))
             st.write("📌 Pola terakhir:", current_pattern)
             st.write("🔁 Kemunculan:", matches)
