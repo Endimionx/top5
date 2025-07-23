@@ -15,12 +15,17 @@ from ws_scan_catboost import (
     DIGIT_LABELS,
 )
 
-def ensemble_confidence_voting(lstm_dict, catboost_top6, heatmap_counts, weights=[1.2, 1.0, 0.6], min_lstm_conf=0.3):
+def ensemble_confidence_voting(
+    lstm_dict, catboost_top6, heatmap_counts,
+    weights=[1.2, 1.0, 0.6],
+    min_lstm_conf=0.3
+):
     def softmax(x):
         e_x = np.exp(x - np.max(x))
         return e_x / e_x.sum()
 
     score = defaultdict(float)
+
     for ws, (digits, confs) in lstm_dict.items():
         if not digits or confs is None or len(confs) == 0:
             continue
@@ -29,8 +34,10 @@ def ensemble_confidence_voting(lstm_dict, catboost_top6, heatmap_counts, weights
         norm_confs = softmax(confs)
         for d, c in zip(digits, norm_confs):
             score[d] += weights[0] * c
+
     for d in catboost_top6:
         score[d] += weights[1]
+
     for d, count in heatmap_counts.items():
         score[d] += weights[2] * count
 
@@ -40,13 +47,13 @@ def ensemble_confidence_voting(lstm_dict, catboost_top6, heatmap_counts, weights
     ranked = sorted(score.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
-def hybrid_voting(conf_list, prob_list):
-    count = defaultdict(float)
-    for rank, digit in enumerate(conf_list):
-        count[digit] += (6 - rank)
-    for rank, digit in enumerate(prob_list):
-        count[digit] += (6 - rank)
-    ranked = sorted(count.items(), key=lambda x: x[1], reverse=True)
+def hybrid_voting(conf_votes, prob_votes, alpha=0.6):
+    score = defaultdict(float)
+    for rank, digit in enumerate(conf_votes):
+        score[digit] += alpha * (6 - rank)
+    for rank, digit in enumerate(prob_votes):
+        score[digit] += (1 - alpha) * (6 - rank)
+    ranked = sorted(score.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
 def tab3(df):
@@ -60,12 +67,13 @@ def tab3(df):
     cb_weight = st.slider("CatBoost Weight", 0.5, 2.0, 1.0, 0.1, key="tab3_cb_weight")
     hm_weight = st.slider("Heatmap Weight", 0.0, 1.0, 0.6, 0.1, key="tab3_hm_weight")
     lstm_min_conf = st.slider("Min Confidence LSTM", 0.0, 1.0, 0.3, 0.05, key="tab3_min_conf")
+    hybrid_alpha = st.slider("Hybrid Alpha (Conf vs Prob)", 0.0, 1.0, 0.6, 0.05, key="tab3_hybrid_alpha")
 
     for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_ensemble_hybrid"]:
         if key not in st.session_state:
             st.session_state[key] = {}
 
-    st.markdown("### 📌 Opsi Scan Per Digit (Opsional)")
+    st.markdown("Opsi Scan Per Digit")
     selected_digit_tab3 = st.selectbox("Pilih digit yang ingin discan", ["(Semua)"] + DIGIT_LABELS, key="tab3_selected_digit")
 
     if st.button("🔎 Scan Per Digit", use_container_width=True):
@@ -120,9 +128,7 @@ def tab3(df):
                     heatmap_counts.update(t)
 
                 final_ens_conf = ensemble_confidence_voting(
-                    lstm_dict,
-                    catboost_top6_all,
-                    heatmap_counts,
+                    lstm_dict, catboost_top6_all, heatmap_counts,
                     weights=[lstm_weight, cb_weight, hm_weight],
                     min_lstm_conf=lstm_min_conf
                 )
@@ -140,13 +146,13 @@ def tab3(df):
                 else:
                     final_ens_prob = []
 
-                final_ens_hybrid = hybrid_voting(final_ens_conf, final_ens_prob)
-                st.session_state.tab3_ensemble_hybrid[label] = final_ens_hybrid
+                hybrid_result = hybrid_voting(final_ens_conf, final_ens_prob, alpha=hybrid_alpha)
+                st.session_state.tab3_ensemble_hybrid[label] = hybrid_result
 
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
                 st.write(f"Probabilistic Voting: `{final_ens_prob}`")
-                st.write(f"🧪 Hybrid Voting: `{final_ens_hybrid}`")
+                st.success(f"Hybrid Voting: `{hybrid_result}`")
 
                 fig_acc = plt.figure(figsize=(6, 2))
                 plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
