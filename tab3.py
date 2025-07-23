@@ -3,13 +3,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-import os
 from collections import Counter, defaultdict
 from ensemble_probabilistic import ensemble_probabilistic
 from ws_scan_catboost import (
     scan_ws_catboost,
     train_temp_lstm_model,
     get_top6_lstm_temp,
+    show_catboost_heatmaps,
     DIGIT_LABELS,
 )
 
@@ -56,15 +56,6 @@ def dynamic_alpha(acc_conf, acc_prob):
         return 0.5
     return acc_conf / (acc_conf + acc_prob)
 
-def log_prediction(label, conf, prob, hybrid, alpha):
-    log_path = "log_tab3.txt"
-    with open(log_path, "a") as f:
-        f.write(f"[{label.upper()}]\n")
-        f.write(f"Confidence Voting: {conf}\n")
-        f.write(f"Probabilistic Voting: {prob}\n")
-        f.write(f"Hybrid Voting (α={alpha:.2f}): {hybrid}\n")
-        f.write("-" * 40 + "\n")
-
 def tab3(df):
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
     max_ws_cb3 = st.number_input("🔁 Max WS", min_ws_cb3 + 1, 30, min_ws_cb3 + 6, key="tab3_max_ws")
@@ -76,6 +67,10 @@ def tab3(df):
     cb_weight = st.slider("CatBoost Weight", 0.5, 2.0, 1.0, 0.1, key="tab3_cb_weight")
     hm_weight = st.slider("Heatmap Weight", 0.0, 1.0, 0.6, 0.1, key="tab3_hm_weight")
     lstm_min_conf = st.slider("Min Confidence LSTM", 0.0, 1.0, 0.3, 0.05, key="tab3_min_conf")
+
+    hybrid_mode = st.selectbox("🧠 Hybrid Voting Mode", ["Dynamic", "Static"], key="tab3_hybrid_mode")
+    if hybrid_mode == "Static":
+        alpha_slider = st.slider("Alpha (for Hybrid)", 0.0, 1.0, 0.5, 0.05, key="tab3_alpha")
 
     for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_hybrid"]:
         if key not in st.session_state:
@@ -160,16 +155,22 @@ def tab3(df):
 
                 acc_conf = best_row["Accuracy Mean"]
                 acc_prob = np.mean(catboost_accuracies) if all_probs else 0.0
-                alpha = dynamic_alpha(acc_conf, acc_prob)
+
+                alpha = dynamic_alpha(acc_conf, acc_prob) if hybrid_mode == "Dynamic" else alpha_slider
                 hybrid = hybrid_voting(final_ens_conf, final_ens_prob, alpha=alpha)
                 st.session_state.tab3_hybrid[label] = hybrid
-
-                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha)
 
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
                 st.write(f"Probabilistic Voting: `{final_ens_prob}`")
-                st.write(f"Hybrid Voting (α={alpha:.2f}): `{hybrid}`")
+                st.write(f"Hybrid Voting ({hybrid_mode} α={alpha:.2f}): `{hybrid}`")
+
+                fig_acc = plt.figure(figsize=(6, 2))
+                plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
+                plt.title(f"Akurasi vs WS - {label.upper()}")
+                plt.xlabel("WS")
+                plt.ylabel("Akurasi")
+                st.pyplot(fig_acc)
 
                 try:
                     model = train_temp_lstm_model(df, label, best_ws, temp_seed)
@@ -186,13 +187,3 @@ def tab3(df):
 
             except Exception as e:
                 st.error(f"❌ Gagal proses {label.upper()}: {e}")
-
-    st.markdown("---")
-    if st.button("📄 Lihat Log Prediksi", use_container_width=True):
-        log_path = "log_tab3.txt"
-        if os.path.exists(log_path):
-            with open(log_path, "r") as f:
-                st.code(f.read(), language="text")
-        else:
-            st.info("Belum ada log tersimpan.")
-            
