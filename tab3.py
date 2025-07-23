@@ -17,11 +17,7 @@ def softmax(x):
     e_x = np.exp(x - np.max(x))
     return e_x / e_x.sum()
 
-def ensemble_confidence_voting(
-    lstm_dict, catboost_top6, heatmap_counts,
-    weights=[1.2, 1.0, 0.6],
-    min_lstm_conf=0.3
-):
+def ensemble_confidence_voting(lstm_dict, catboost_top6, heatmap_counts, weights=[1.2, 1.0, 0.6], min_lstm_conf=0.3):
     score = defaultdict(float)
     for ws, (digits, confs) in lstm_dict.items():
         if not digits or confs is None or len(confs) == 0:
@@ -40,29 +36,25 @@ def ensemble_confidence_voting(
     ranked = sorted(score.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
-def hybrid_voting(conf, prob, alpha=0.5):
-    if not conf and not prob:
-        return []
+def hybrid_voting(conf, prob, direct, alpha_conf=0.4, alpha_prob=0.35, alpha_direct=0.25):
     counter = defaultdict(float)
     for i, d in enumerate(conf):
-        counter[d] += alpha * (6 - i)
+        counter[d] += alpha_conf * (6 - i)
     for i, d in enumerate(prob):
-        counter[d] += (1 - alpha) * (6 - i)
+        counter[d] += alpha_prob * (6 - i)
+    for i, d in enumerate(direct):
+        counter[d] += alpha_direct * (6 - i)
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
-def dynamic_alpha(acc_conf, acc_prob):
-    if acc_conf + acc_prob == 0:
-        return 0.5
-    return acc_conf / (acc_conf + acc_prob)
-
-def log_prediction(label, conf, prob, hybrid, alpha):
+def log_prediction(label, conf, prob, direct, hybrid):
     log_path = "log_tab3.txt"
     with open(log_path, "a") as f:
         f.write(f"[{label.upper()}]\n")
         f.write(f"Confidence Voting: {conf}\n")
         f.write(f"Probabilistic Voting: {prob}\n")
-        f.write(f"Hybrid Voting (α={alpha:.2f}): {hybrid}\n")
+        f.write(f"Direct Top6: {direct}\n")
+        f.write(f"Hybrid Voting (Stacked): {hybrid}\n")
         f.write("-" * 40 + "\n")
 
 def tab3(df):
@@ -77,19 +69,14 @@ def tab3(df):
     hm_weight = st.slider("Heatmap Weight", 0.0, 1.0, 0.6, 0.1, key="tab3_hm_weight")
     lstm_min_conf = st.slider("Min Confidence LSTM", 0.0, 1.0, 0.3, 0.05, key="tab3_min_conf")
 
-    st.markdown("### 🔧 Hybrid Voting Option")
-    hybrid_mode = st.selectbox("Mode Hybrid Voting", ["Dynamic Alpha", "Manual Alpha"], key="tab3_hybrid_mode")
-    if hybrid_mode == "Manual Alpha":
-        alpha_manual = st.slider("Alpha Manual", 0.0, 1.0, 0.5, 0.05, key="tab3_alpha")
-
-    for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_hybrid"]:
+    for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_direct", "tab3_hybrid"]:
         if key not in st.session_state:
             st.session_state[key] = {}
 
     selected_digit_tab3 = st.selectbox("Pilih digit yang ingin discan", ["(Semua)"] + DIGIT_LABELS, key="tab3_selected_digit")
 
     if st.button("🔎 Scan Per Digit", use_container_width=True):
-        for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_hybrid"]:
+        for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_direct", "tab3_hybrid"]:
             st.session_state[key] = {}
 
         target_digits = DIGIT_LABELS if selected_digit_tab3 == "(Semua)" else [selected_digit_tab3]
@@ -143,9 +130,7 @@ def tab3(df):
                     heatmap_counts.update(t)
 
                 final_ens_conf = ensemble_confidence_voting(
-                    lstm_dict,
-                    catboost_top6_all,
-                    heatmap_counts,
+                    lstm_dict, catboost_top6_all, heatmap_counts,
                     weights=[lstm_weight, cb_weight, hm_weight],
                     min_lstm_conf=lstm_min_conf
                 )
@@ -159,45 +144,38 @@ def tab3(df):
                 if all_probs:
                     catboost_accuracies = list(result_df.sort_values("Accuracy Mean", ascending=False)["Accuracy Mean"].head(3))
                     final_ens_prob = ensemble_probabilistic(all_probs, catboost_accuracies)
-                    st.session_state.tab3_ensemble_prob[label] = final_ens_prob
                 else:
                     final_ens_prob = []
 
-                acc_conf = best_row["Accuracy Mean"]
-                acc_prob = np.mean(catboost_accuracies) if all_probs else 0.0
-                alpha_used = (
-                    alpha_manual if hybrid_mode == "Manual Alpha"
-                    else dynamic_alpha(acc_conf, acc_prob)
+                st.session_state.tab3_ensemble_prob[label] = final_ens_prob
+
+                try:
+                    model_direct = train_temp_lstm_model(df, label, best_ws, temp_seed)
+                    top6_direct, _ = get_top6_lstm_temp(model_direct, df, best_ws)
+                except:
+                    top6_direct = []
+
+                st.session_state.tab3_direct[label] = top6_direct
+
+                hybrid = hybrid_voting(
+                    final_ens_conf, final_ens_prob, top6_direct,
+                    alpha_conf=0.4, alpha_prob=0.35, alpha_direct=0.25
                 )
-                hybrid = hybrid_voting(final_ens_conf, final_ens_prob, alpha=alpha_used)
                 st.session_state.tab3_hybrid[label] = hybrid
 
-                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used)
+                log_prediction(label, final_ens_conf, final_ens_prob, top6_direct, hybrid)
 
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
                 st.write(f"Probabilistic Voting: `{final_ens_prob}`")
-                st.write(f"Hybrid Voting (α={alpha_used:.2f}): `{hybrid}`")
-
-                try:
-                    model = train_temp_lstm_model(df, label, best_ws, temp_seed)
-                    top6, probs = get_top6_lstm_temp(model, df, best_ws)
-                    st.markdown("**🎯 Prediksi Langsung (Top-6):**")
-                    st.info(f"Top-6: {top6}")
-                    df_conf = pd.DataFrame({"Digit": [str(d) for d in top6], "Confidence": probs})
-                    fig_bar, ax = plt.subplots(figsize=(6, 2))
-                    sns.barplot(x="Digit", y="Confidence", data=df_conf, palette="viridis", ax=ax)
-                    ax.set_title(f"Confidence Bar - {label.upper()}")
-                    st.pyplot(fig_bar)
-                except Exception as e:
-                    st.warning(f"⚠️ Gagal prediksi langsung: {e}")
+                st.write(f"Direct Top6: `{top6_direct}`")
+                st.success(f"Hybrid Voting (Stacked): `{hybrid}`")
 
             except Exception as e:
                 st.error(f"❌ Gagal proses {label.upper()}: {e}")
 
     st.markdown("---")
     col1, col2 = st.columns(2)
-
     with col1:
         if st.button("📄 Lihat Log Prediksi", use_container_width=True):
             log_path = "log_tab3.txt"
@@ -206,12 +184,9 @@ def tab3(df):
                     st.code(f.read(), language="text")
             else:
                 st.info("Belum ada log tersimpan.")
-
     with col2:
-        if st.button("🗑️ Hapus Log Prediksi", use_container_width=True):
+        if st.button("🗑️ Hapus Log", use_container_width=True):
             log_path = "log_tab3.txt"
             if os.path.exists(log_path):
                 os.remove(log_path)
-                st.success("Log prediksi berhasil dihapus.")
-            else:
-                st.info("Tidak ada file log untuk dihapus.")
+                st.success("Log berhasil dihapus.")
