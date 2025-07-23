@@ -151,8 +151,6 @@ def render_delay(delay_dict):
     st.markdown(f"<div style='display:flex;flex-wrap:wrap'>{badge_html}</div>", unsafe_allow_html=True)
 
 def tab4(df):
-    st.title("📊 Analisis Pola Angka 4D")
-
     if "angka" not in df.columns:
         st.error("❌ Kolom 'angka' tidak ditemukan di data.")
         return
