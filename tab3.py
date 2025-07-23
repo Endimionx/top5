@@ -9,11 +9,11 @@ from ws_scan_catboost import (
     scan_ws_catboost,
     train_temp_lstm_model,
     get_top6_lstm_temp,
-    show_catboost_heatmaps,
     DIGIT_LABELS,
 )
 
 def softmax(x):
+    x = np.array(x)
     e_x = np.exp(x - np.max(x))
     return e_x / e_x.sum()
 
@@ -40,14 +40,14 @@ def ensemble_confidence_voting(
     ranked = sorted(score.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
-def hybrid_voting(conf, prob, alpha=0.5):
+def hybrid_voting(conf, prob, alpha=0.5, decay=0.85):
     if not conf and not prob:
         return []
     counter = defaultdict(float)
     for i, d in enumerate(conf):
-        counter[d] += alpha * (6 - i)
+        counter[d] += alpha * (decay ** i)
     for i, d in enumerate(prob):
-        counter[d] += (1 - alpha) * (6 - i)
+        counter[d] += (1 - alpha) * (decay ** i)
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
@@ -68,9 +68,10 @@ def tab3(df):
     hm_weight = st.slider("Heatmap Weight", 0.0, 1.0, 0.6, 0.1, key="tab3_hm_weight")
     lstm_min_conf = st.slider("Min Confidence LSTM", 0.0, 1.0, 0.3, 0.05, key="tab3_min_conf")
 
-    hybrid_mode = st.selectbox("🧠 Hybrid Voting Mode", ["Dynamic", "Static"], key="tab3_hybrid_mode")
-    if hybrid_mode == "Static":
-        alpha_slider = st.slider("Alpha (for Hybrid)", 0.0, 1.0, 0.5, 0.05, key="tab3_alpha")
+    hybrid_mode = st.radio("🔀 Hybrid Mode", ["Dynamic Alpha", "Static Alpha"], horizontal=True)
+    static_alpha = 0.5
+    if hybrid_mode == "Static Alpha":
+        static_alpha = st.slider("Alpha Static", 0.0, 1.0, 0.5, 0.05, key="tab3_static_alpha")
 
     for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_hybrid"]:
         if key not in st.session_state:
@@ -155,15 +156,14 @@ def tab3(df):
 
                 acc_conf = best_row["Accuracy Mean"]
                 acc_prob = np.mean(catboost_accuracies) if all_probs else 0.0
-
-                alpha = dynamic_alpha(acc_conf, acc_prob) if hybrid_mode == "Dynamic" else alpha_slider
+                alpha = dynamic_alpha(acc_conf, acc_prob) if hybrid_mode == "Dynamic Alpha" else static_alpha
                 hybrid = hybrid_voting(final_ens_conf, final_ens_prob, alpha=alpha)
                 st.session_state.tab3_hybrid[label] = hybrid
 
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
                 st.write(f"Probabilistic Voting: `{final_ens_prob}`")
-                st.write(f"Hybrid Voting ({hybrid_mode} α={alpha:.2f}): `{hybrid}`")
+                st.write(f"Hybrid Voting (α={alpha:.2f}): `{hybrid}`")
 
                 fig_acc = plt.figure(figsize=(6, 2))
                 plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
@@ -175,8 +175,8 @@ def tab3(df):
                 try:
                     model = train_temp_lstm_model(df, label, best_ws, temp_seed)
                     top6, probs = get_top6_lstm_temp(model, df, best_ws)
-                    st.markdown("**🎯 Prediksi Langsung (Top-6):**")
-                    st.info(f"Top-6: {top6}")
+                    #st.markdown("**🎯 Prediksi Langsung (Top-6):**")
+                    #st.info(f"Top-6: {top6}")
                     df_conf = pd.DataFrame({"Digit": [str(d) for d in top6], "Confidence": probs})
                     fig_bar, ax = plt.subplots(figsize=(6, 2))
                     sns.barplot(x="Digit", y="Confidence", data=df_conf, palette="viridis", ax=ax)
