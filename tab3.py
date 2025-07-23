@@ -218,7 +218,7 @@ def tab3(df, lokasi):
 
                 final_hybrid = final_ensemble_with_markov(stacked, markov_top6)
 
-                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, final_stacked, lokasi=lokasi)
+                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, stacked, lokasi=lokasi)
 
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
