@@ -154,9 +154,6 @@ def find_historical_pattern(data, pos, pattern_length):
         next_index = i + pattern_length
         if window == current_pattern and next_index < len(digits):
             matches.append(digits[next_index])
-    st.write("✅ Data total:", len(digits))
-    st.write("📌 Pola terakhir:", current_pattern)
-    st.write("🔁 Kemunculan:", matches)
 
     return current_pattern, matches, digits
 
