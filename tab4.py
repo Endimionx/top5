@@ -8,7 +8,6 @@ from collections import Counter
 def split_digits(num_str):
     return [int(d) for d in str(num_str).zfill(4)]
 
-# Analisis dan prediksi per fungsi
 def analyze_frequency(data, pos):
     digits = [split_digits(num)[pos] for num in data]
     return Counter(digits)
@@ -62,10 +61,7 @@ def even_odd_analysis(data, pos):
     counts = {'genap': 0, 'ganjil': 0}
     for num in data:
         d = split_digits(num)[pos]
-        if d % 2 == 0:
-            counts['genap'] += 1
-        else:
-            counts['ganjil'] += 1
+        counts['genap' if d % 2 == 0 else 'ganjil'] += 1
     return counts
 
 def predict_even_odd(data, pos):
@@ -76,10 +72,7 @@ def big_small_analysis(data, pos):
     counts = {'besar': 0, 'kecil': 0}
     for num in data:
         d = split_digits(num)[pos]
-        if d >= 5:
-            counts['besar'] += 1
-        else:
-            counts['kecil'] += 1
+        counts['besar' if d >= 5 else 'kecil'] += 1
     return counts
 
 def predict_big_small(data, pos):
@@ -112,8 +105,7 @@ def predict_next_pattern(freq, delay, heatmap):
     predicted_digits += [d for d, _ in sorted_freq[:2]]
     rare_pos_digits = [int(np.argmin(row)) for row in heatmap]
     predicted_digits += rare_pos_digits
-    predicted_digits = list(dict.fromkeys(predicted_digits))
-    return predicted_digits[:6]
+    return list(dict.fromkeys(predicted_digits))[:6]
 
 def render_digit_badge(digit):
     return f"""<div style='
@@ -141,16 +133,30 @@ def render_delay(delay_dict):
     for digit, d in top_delay:
         st.info(f"Digit `{digit}` belum muncul selama `{d}` langkah.")
 
-    st.markdown("**🔢 Badge Digit dengan Delay Tertinggi:**")
     badge_html = "".join([
         f"<div style='background:#333;color:#fff;border-radius:50%;width:48px;height:48px;"
         f"display:inline-flex;align-items:center;justify-content:center;font-size:20px;"
         f"margin:4px;box-shadow:0 0 6px rgba(255, 255, 0, 0.4);'>{d}</div>"
         for d, _ in top_delay
     ])
+    st.markdown("**🔢 Badge Digit dengan Delay Tertinggi:**")
     st.markdown(f"<div style='display:flex;flex-wrap:wrap'>{badge_html}</div>", unsafe_allow_html=True)
 
+def find_historical_pattern(data, pos, pattern_length):
+    digits = [split_digits(num)[pos] for num in data]
+    if len(digits) <= pattern_length:
+        return [], []
+    current_pattern = digits[-pattern_length:]
+    matches = []
+    for i in range(len(digits) - pattern_length):
+        if digits[i:i+pattern_length] == current_pattern:
+            if i + pattern_length < len(digits):
+                matches.append(digits[i + pattern_length])
+    return current_pattern, matches
+
 def tab4(df):
+    st.title("📊 Analisis Pola Angka 4D")
+
     if "angka" not in df.columns:
         st.error("❌ Kolom 'angka' tidak ditemukan di data.")
         return
@@ -160,71 +166,78 @@ def tab4(df):
         st.warning("⚠️ Data 4D kosong.")
         return
 
-    if st.button("🔍 Jalankan Analisis Pola"):
-        digit_pos_label = ["Ribu", "Ratus", "Puluh", "Satuan"]
-        tabs = st.tabs(digit_pos_label)
+    digit_pos_label = ["Ribu", "Ratus", "Puluh", "Satuan"]
+    tabs = st.tabs(digit_pos_label)
 
-        for i, tab in enumerate(tabs):
-            with tab:
-                st.subheader(f"📌 Posisi Digit: {digit_pos_label[i]}")
-                recent_data = angka_data[-30:]
+    for i, tab in enumerate(tabs):
+        with tab:
+            st.subheader(f"📌 Posisi Digit: {digit_pos_label[i]}")
+            recent_data = angka_data[-30:]
 
-                freq = analyze_frequency(recent_data, i)
-                freq_df = pd.DataFrame(freq.items(), columns=["Digit", "Frekuensi"]).sort_values("Digit")
-                st.markdown("**📈 Frekuensi Digit (30 terakhir)**")
-                st.bar_chart(freq_df.set_index("Digit"))
+            freq = analyze_frequency(recent_data, i)
+            freq_df = pd.DataFrame(freq.items(), columns=["Digit", "Frekuensi"]).sort_values("Digit")
+            st.markdown("**📈 Frekuensi Digit (30 terakhir)**")
+            st.bar_chart(freq_df.set_index("Digit"))
 
-                st.markdown("**⏱️ Delay Kemunculan Digit**")
-                delay = analyze_delay(recent_data, i)
-                render_delay(delay)
+            st.markdown("**⏱️ Delay Kemunculan Digit**")
+            delay = analyze_delay(recent_data, i)
+            render_delay(delay)
 
-                st.markdown("**📉 Tren Naik / Turun**")
-                trend = analyze_trend(recent_data, i)
-                for key, val in trend.items():
-                    st.success(f"Jumlah tren `{key}`: `{val}`")
-                pred_trend = predict_trend(recent_data, i)
-                st.info(f"🔮 Prediksi tren berikutnya: **{pred_trend}**")
+            st.markdown("**📉 Tren Naik / Turun**")
+            trend = analyze_trend(recent_data, i)
+            for key, val in trend.items():
+                st.success(f"Jumlah tren `{key}`: `{val}`")
+            st.info(f"🔮 Prediksi tren berikutnya: **{predict_trend(recent_data, i)}**")
 
-                st.markdown("**🧮 Statistik Ganjil / Genap**")
-                eo = even_odd_analysis(recent_data, i)
-                for key, val in eo.items():
-                    st.success(f"Jumlah digit `{key}`: `{val}`")
-                pred_eo = predict_even_odd(recent_data, i)
-                st.info(f"🔮 Prediksi berikutnya: **{pred_eo}**")
+            st.markdown("**🧮 Statistik Ganjil / Genap**")
+            eo = even_odd_analysis(recent_data, i)
+            for key, val in eo.items():
+                st.success(f"Jumlah digit `{key}`: `{val}`")
+            st.info(f"🔮 Prediksi berikutnya: **{predict_even_odd(recent_data, i)}**")
 
-                st.markdown("**🔢 Statistik Besar / Kecil**")
-                bs = big_small_analysis(recent_data, i)
-                for key, val in bs.items():
-                    st.success(f"Jumlah digit `{key}`: `{val}`")
-                pred_bs = predict_big_small(recent_data, i)
-                st.info(f"🔮 Prediksi berikutnya: **{pred_bs}**")
+            st.markdown("**🔢 Statistik Besar / Kecil**")
+            bs = big_small_analysis(recent_data, i)
+            for key, val in bs.items():
+                st.success(f"Jumlah digit `{key}`: `{val}`")
+            st.info(f"🔮 Prediksi berikutnya: **{predict_big_small(recent_data, i)}**")
 
-        st.markdown("### 🔥 Heatmap Posisi Digit")
-        heatmap = digit_position_heatmap(angka_data)
-        fig, ax = plt.subplots(figsize=(8, 2))
-        sns.heatmap(heatmap, annot=True, fmt=".0f", cmap="YlGnBu",
-                    xticklabels=list(range(10)),
-                    yticklabels=digit_pos_label,
-                    ax=ax)
-        ax.set_title("Heatmap Posisi Digit")
-        st.pyplot(fig)
+            st.markdown("**🔁 Pencarian Pola Historis**")
+            pattern_len = st.slider(f"Pilih panjang pola untuk posisi {digit_pos_label[i]}", 2, 6, 3, key=f"pattern_{i}")
+            pattern, matches = find_historical_pattern(recent_data, i, pattern_len)
+            if matches:
+                st.success(f"Pola terakhir: {pattern} pernah muncul sebanyak {len(matches)} kali.")
+                st.info(f"Digit setelah pola tersebut:")
+                badge = "".join([render_digit_badge(d) for d in matches])
+                st.markdown(f"<div style='display:flex;flex-wrap:wrap'>{badge}</div>", unsafe_allow_html=True)
+            else:
+                st.warning("❌ Pola terakhir belum pernah muncul sebelumnya.")
 
-        st.markdown("### 🔀 Pola Zigzag")
-        zz = zigzag_pattern(angka_data)
-        st.success(f"Zigzag pattern ditemukan: `{zz}` kali")
+    st.markdown("### 🔥 Heatmap Posisi Digit")
+    heatmap = digit_position_heatmap(angka_data)
+    fig, ax = plt.subplots(figsize=(8, 2))
+    sns.heatmap(heatmap, annot=True, fmt=".0f", cmap="YlGnBu",
+                xticklabels=list(range(10)),
+                yticklabels=digit_pos_label,
+                ax=ax)
+    ax.set_title("Heatmap Posisi Digit")
+    st.pyplot(fig)
 
-        st.markdown("### 🧠 Insight Otomatis")
-        freq_all = analyze_frequency(angka_data, 0)
-        delay_all = analyze_delay(angka_data, 0)
-        most_common_digit = max(freq_all.items(), key=lambda x: x[1])[0]
-        delay_sorted = sorted(delay_all.items(), key=lambda x: x[1], reverse=True)
-        st.info(f"Digit paling sering muncul (ribuan): `{most_common_digit}`")
-        if delay_sorted:
-            st.info(f"Digit dengan delay tertinggi (ribuan): `{delay_sorted[0][0]}` selama `{delay_sorted[0][1]}` langkah")
+    st.markdown("### 🔀 Pola Zigzag")
+    zz = zigzag_pattern(angka_data)
+    st.success(f"Zigzag pattern ditemukan: `{zz}` kali")
 
-        st.markdown("### 🔮 Prediksi Pola Selanjutnya")
-        prediksi = predict_next_pattern(freq_all, delay_all, heatmap)
-        badge_html = "".join([render_digit_badge(d) for d in prediksi])
-        st.markdown(f"<div style='display:flex; flex-wrap:wrap'>{badge_html}</div>", unsafe_allow_html=True)
+    st.markdown("### 🧠 Insight Otomatis")
+    freq_all = analyze_frequency(angka_data, 0)
+    delay_all = analyze_delay(angka_data, 0)
+    most_common_digit = max(freq_all.items(), key=lambda x: x[1])[0]
+    delay_sorted = sorted(delay_all.items(), key=lambda x: x[1], reverse=True)
+    st.info(f"Digit paling sering muncul (ribuan): `{most_common_digit}`")
+    if delay_sorted:
+        st.info(f"Digit dengan delay tertinggi (ribuan): `{delay_sorted[0][0]}` selama `{delay_sorted[0][1]}` langkah")
 
-        st.caption("📌 Prediksi berdasarkan kombinasi statistik delay, frekuensi, dan posisi digit.")
+    st.markdown("### 🔮 Prediksi Pola Selanjutnya")
+    prediksi = predict_next_pattern(freq_all, delay_all, heatmap)
+    badge_html = "".join([render_digit_badge(d) for d in prediksi])
+    st.markdown(f"<div style='display:flex; flex-wrap:wrap'>{badge_html}</div>", unsafe_allow_html=True)
+
+    st.caption("📌 Prediksi berdasarkan kombinasi statistik delay, frekuensi, dan posisi digit.")
