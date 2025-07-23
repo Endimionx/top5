@@ -217,4 +217,14 @@ def tab3(df):
             if os.path.exists(log_path):
                 with open(log_path, "r") as f:
                     st.code(f.read(), language="text")
-else:
+            else:
+                st.info("Belum ada log tersimpan.")
+    with col2:
+        if st.button("🧹 Hapus Log", use_container_width=True):
+            log_path = "log_tab3.txt"
+            if os.path.exists(log_path):
+                os.remove(log_path)
+                st.success("Log berhasil dihapus.")
+            else:
+                st.info("Tidak ada log yang bisa dihapus.")
+    
