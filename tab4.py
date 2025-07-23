@@ -156,8 +156,7 @@ def find_historical_pattern(data, pos, pattern_length):
     return current_pattern, matches, digits
 
 def tab4(df):
-    st.title("📊 Analisis Pola Angka 4D")
-
+    
     if "angka" not in df.columns:
         st.error("❌ Kolom 'angka' tidak ditemukan di data.")
         return
