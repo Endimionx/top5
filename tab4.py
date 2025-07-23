@@ -106,11 +106,11 @@ def predict_next_pattern(freq, delay, heatmap):
 def tab4(df):
     st.title("📊 Analisis Pola Angka 4D")
 
-    if "4D" not in df.columns:
+    if "angka" not in df.columns:
         st.error("❌ Kolom '4D' tidak ditemukan di data.")
         return
 
-    angka_data = df["4D"].dropna().astype(int).tolist()
+    angka_data = df["angka"].dropna().astype(int).tolist()
 
     if not angka_data:
         st.warning("⚠️ Data 4D kosong.")
