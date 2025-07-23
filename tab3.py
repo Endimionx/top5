@@ -200,20 +200,26 @@ def tab3(df):
                 else:
                     final_ens_prob = []
 
+                # Hitung akurasi masing-masing
                 acc_conf = best_row["Accuracy Mean"]
                 acc_prob = np.mean(catboost_accuracies) if all_probs else 0.0
                 alpha_used = alpha_manual if hybrid_mode == "Manual Alpha" else dynamic_alpha(acc_conf, acc_prob)
                 hybrid = hybrid_voting(final_ens_conf, final_ens_prob, alpha=alpha_used)
-                st.session_state.tab3_hybrid[label] = hybrid
 
-                # Langsung prediksi pakai WS terbaik
+                # Prediksi langsung
                 try:
                     model = train_temp_lstm_model(df, label, best_ws, temp_seed)
-                    top6_direct, _ = get_top6_lstm_temp(model, df, best_ws)
+                    top6_direct, probs = get_top6_lstm_temp(model, df, best_ws)
+
+                    if probs is not None and np.max(probs) < 0.3:
+                        top6_direct = []
+                    elif probs is not None:
+                        probs = probs / np.sum(probs)
                 except:
                     top6_direct = []
 
-                final_stacked = stacked_hybrid(hybrid, top6_direct)
+                # Gunakan stacked hybrid otomatis
+                final_stacked = stacked_hybrid_auto(hybrid, top6_direct, acc_hybrid=acc_conf, acc_direct=acc_conf)
                 st.session_state.tab3_stacked[label] = final_stacked
 
                 log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, final_stacked)
