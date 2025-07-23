@@ -196,10 +196,22 @@ def tab3(df):
                 st.error(f"❌ Gagal proses {label.upper()}: {e}")
 
     st.markdown("---")
-    if st.button("📄 Lihat Log Prediksi", use_container_width=True):
-        log_path = "log_tab3.txt"
-        if os.path.exists(log_path):
-            with open(log_path, "r") as f:
-                st.code(f.read(), language="text")
-        else:
-            st.info("Belum ada log tersimpan.")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("📄 Lihat Log Prediksi", use_container_width=True):
+            log_path = "log_tab3.txt"
+            if os.path.exists(log_path):
+                with open(log_path, "r") as f:
+                    st.code(f.read(), language="text")
+            else:
+                st.info("Belum ada log tersimpan.")
+
+    with col2:
+        if st.button("🗑️ Hapus Log Prediksi", use_container_width=True):
+            log_path = "log_tab3.txt"
+            if os.path.exists(log_path):
+                os.remove(log_path)
+                st.success("Log prediksi berhasil dihapus.")
+            else:
+                st.info("Tidak ada file log untuk dihapus.")
