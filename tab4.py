@@ -154,6 +154,9 @@ def find_historical_pattern(data, pos, pattern_length):
         next_index = i + pattern_length
         if window == current_pattern and next_index < len(digits):
             matches.append(digits[next_index])
+    st.write("✅ Data total:", len(digits))
+    st.write("📌 Pola terakhir:", current_pattern)
+    st.write("🔁 Kemunculan:", matches)
 
     return current_pattern, matches, digits
 
@@ -207,9 +210,7 @@ def tab4(df):
             st.markdown("**🔁 Pencarian Pola Historis**")
             pattern_len = st.slider(f"Pilih panjang pola untuk posisi {digit_pos_label[i]}", 2, 6, 3, key=f"pattern_{i}")
             pattern, matches, digits = find_historical_pattern(recent_data, i, pattern_len)
-            st.write("✅ Data total:", len(digits))
-            st.write("📌 Pola terakhir:", current_pattern)
-            st.write("🔁 Kemunculan:", matches)
+            
             if matches:
                 st.success(f"Pola terakhir: {pattern} pernah muncul sebanyak {len(matches)} kali.")
                 st.info(f"Digit setelah pola tersebut:")
