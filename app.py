@@ -27,6 +27,7 @@ from ws_scan_catboost import (
     show_catboost_heatmaps
 )
 from tab3 import tab3
+from tab4 import tab4
 
 st.set_page_config(page_title="Prediksi AI", layout="wide")
 
@@ -97,7 +98,7 @@ with st.expander("✏️ Edit Data Angka Manual", expanded=True):
     df = pd.DataFrame({"angka": st.session_state.angka_list})
 
 # ======== Tabs Utama ========
-tab3_container, tab2, tab1 = st.tabs(["🔮 Prediksi & Evaluasi", "🪟 Scan Angka", "CatBoost"])
+tab4_container, tab3_container, tab2, tab1 = st.tabs(["Scan Pola", "🔮 Scan Angka", "🪟 Scan Angka", "CatBoost"])
 
 # ======== TAB 1 ========
 with tab1:
@@ -418,5 +419,6 @@ with tab2:
 
 with tab3_container:
     tab3(df)
-    
+with tab4_container:
+    tab4(df)
             
