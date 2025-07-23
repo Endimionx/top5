@@ -418,7 +418,7 @@ with tab2:
                     st.warning(f"⚠️ Gagal visualisasi: {e}")
 
 with tab3_container:
-    tab3(df)
+    tab3(df, selected_lokasi)
 with tab4_container:
     tab4(df)
             
