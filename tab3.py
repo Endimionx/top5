@@ -1,4 +1,4 @@
-import streamlit as st
+...import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -219,7 +219,7 @@ def tab3(df, lokasi):
 
                 final_hybrid = final_ensemble_with_markov(stacked, markov_top6)
 
-                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, stacked, final_hybrid, lokasi)
+                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, stacked, final_hybrid, lokasi=lokasi)
 
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
