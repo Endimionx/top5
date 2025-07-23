@@ -420,6 +420,5 @@ with tab2:
 with tab3_container:
     tab3(df)
 with tab4_container:
-    st.write(df.columns)
     tab4(df)
             
