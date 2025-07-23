@@ -9,7 +9,6 @@ from ws_scan_catboost import (
     scan_ws_catboost,
     train_temp_lstm_model,
     get_top6_lstm_temp,
-    show_catboost_heatmaps,
     DIGIT_LABELS,
 )
 
@@ -49,6 +48,17 @@ def hybrid_voting(conf, prob, alpha=0.5):
     for i, d in enumerate(prob):
         counter[d] += (1 - alpha) * (6 - i)
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
+    return [d for d, _ in ranked[:6]]
+
+def hybrid_score_precision(conf, prob, alpha=0.5):
+    """Hybrid score yang mempertajam dengan penalti jarak ranking"""
+    all_digits = set(conf) | set(prob)
+    score = {}
+    for d in all_digits:
+        rank_conf = conf.index(d) if d in conf else 6
+        rank_prob = prob.index(d) if d in prob else 6
+        score[d] = alpha * (6 - rank_conf) + (1 - alpha) * (6 - rank_prob)
+    ranked = sorted(score.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
 def dynamic_alpha(acc_conf, acc_prob):
@@ -152,22 +162,13 @@ def tab3(df):
                 acc_conf = best_row["Accuracy Mean"]
                 acc_prob = np.mean(catboost_accuracies) if all_probs else 0.0
                 alpha = dynamic_alpha(acc_conf, acc_prob)
-                hybrid = hybrid_voting(final_ens_conf, final_ens_prob, alpha=alpha)
+                hybrid = hybrid_score_precision(final_ens_conf, final_ens_prob, alpha=alpha)
                 st.session_state.tab3_hybrid[label] = hybrid
 
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
                 st.write(f"Probabilistic Voting: `{final_ens_prob}`")
                 st.write(f"Hybrid Voting (α={alpha:.2f}): `{hybrid}`")
-
-                fig_acc = plt.figure(figsize=(6, 2))
-                plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
-                plt.title(f"Akurasi vs WS - {label.upper()}")
-                plt.xlabel("WS")
-                plt.ylabel("Akurasi")
-                st.pyplot(fig_acc)
-
-                show_catboost_heatmaps(result_df, label)
 
                 try:
                     model = train_temp_lstm_model(df, label, best_ws, temp_seed)
@@ -181,6 +182,5 @@ def tab3(df):
                     st.pyplot(fig_bar)
                 except Exception as e:
                     st.warning(f"⚠️ Gagal prediksi langsung: {e}")
-
             except Exception as e:
                 st.error(f"❌ Gagal proses {label.upper()}: {e}")
