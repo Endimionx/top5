@@ -59,6 +59,13 @@ def stacked_hybrid(hybrid, pred_direct):
         counter[d] += (6 - i)
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
+def get_stacked_weights(acc_hybrid, acc_direct, decay=0.8):
+    total = acc_hybrid + acc_direct
+    if total == 0:
+        return 0.5, 0.5
+    w_hybrid = acc_hybrid / total
+    w_direct = acc_direct / total
+    return w_hybrid, w_direct
 def stacked_hybrid_auto(hybrid, pred_direct, acc_hybrid=0.6, acc_direct=0.4):
     weight_hybrid, weight_direct = get_stacked_weights(acc_hybrid, acc_direct)
     counter = defaultdict(float)
