@@ -84,20 +84,21 @@ def dynamic_alpha(acc_conf, acc_prob):
         return 0.5
     return acc_conf / (acc_conf + acc_prob)
 
-def log_prediction(label, conf, prob, hybrid, alpha, stacked=None, final=None):
+def def log_prediction(label, conf, prob, hybrid, alpha, stacked=None, lokasi=None):
     log_path = "log_tab3.txt"
     with open(log_path, "a") as f:
-        f.write(f"[{label.upper()}]\n")
+        if lokasi:
+            f.write(f"[{label.upper()}] | Lokasi: {lokasi}\n")
+        else:
+            f.write(f"[{label.upper()}]\n")
         f.write(f"Confidence Voting: {conf}\n")
         f.write(f"Probabilistic Voting: {prob}\n")
         f.write(f"Hybrid Voting (α={alpha:.2f}): {hybrid}\n")
         if stacked:
             f.write(f"Stacked Hybrid: {stacked}\n")
-        if final:
-            f.write(f"Final Hybrid + Markov: {final}\n")
         f.write("-" * 40 + "\n")
 
-def tab3(df):
+def tab3(df, lokasi):
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
     max_ws_cb3 = st.number_input("🔁 Max WS", min_ws_cb3 + 1, 30, min_ws_cb3 + 6, key="tab3_max_ws")
     folds_cb3 = st.slider("📂 Jumlah Fold", 2, 10, 3, key="tab3_cv")
