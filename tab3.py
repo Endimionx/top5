@@ -51,6 +51,15 @@ def hybrid_voting(conf, prob, alpha=0.5):
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
+def stacked_hybrid(hybrid, pred_direct):
+    counter = defaultdict(float)
+    for i, d in enumerate(hybrid):
+        counter[d] += (6 - i)
+    for i, d in enumerate(pred_direct):
+        counter[d] += (6 - i)
+    ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
+    return [d for d, _ in ranked[:6]]
+    
 def dynamic_alpha(acc_conf, acc_prob):
     if acc_conf + acc_prob == 0:
         return 0.5
