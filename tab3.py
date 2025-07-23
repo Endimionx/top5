@@ -77,6 +77,11 @@ def tab3(df):
     hm_weight = st.slider("Heatmap Weight", 0.0, 1.0, 0.6, 0.1, key="tab3_hm_weight")
     lstm_min_conf = st.slider("Min Confidence LSTM", 0.0, 1.0, 0.3, 0.05, key="tab3_min_conf")
 
+    st.markdown("### 🔧 Hybrid Voting Option")
+    hybrid_mode = st.selectbox("Mode Hybrid Voting", ["Dynamic Alpha", "Manual Alpha"], key="tab3_hybrid_mode")
+    if hybrid_mode == "Manual Alpha":
+        alpha_manual = st.slider("Alpha Manual", 0.0, 1.0, 0.5, 0.05, key="tab3_alpha")
+
     for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_hybrid"]:
         if key not in st.session_state:
             st.session_state[key] = {}
@@ -160,16 +165,19 @@ def tab3(df):
 
                 acc_conf = best_row["Accuracy Mean"]
                 acc_prob = np.mean(catboost_accuracies) if all_probs else 0.0
-                alpha = dynamic_alpha(acc_conf, acc_prob)
-                hybrid = hybrid_voting(final_ens_conf, final_ens_prob, alpha=alpha)
+                alpha_used = (
+                    alpha_manual if hybrid_mode == "Manual Alpha"
+                    else dynamic_alpha(acc_conf, acc_prob)
+                )
+                hybrid = hybrid_voting(final_ens_conf, final_ens_prob, alpha=alpha_used)
                 st.session_state.tab3_hybrid[label] = hybrid
 
-                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha)
+                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used)
 
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
                 st.write(f"Probabilistic Voting: `{final_ens_prob}`")
-                st.write(f"Hybrid Voting (α={alpha:.2f}): `{hybrid}`")
+                st.write(f"Hybrid Voting (α={alpha_used:.2f}): `{hybrid}`")
 
                 try:
                     model = train_temp_lstm_model(df, label, best_ws, temp_seed)
@@ -195,4 +203,3 @@ def tab3(df):
                 st.code(f.read(), language="text")
         else:
             st.info("Belum ada log tersimpan.")
-            
