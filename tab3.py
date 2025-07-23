@@ -12,6 +12,7 @@ from ws_scan_catboost import (
     get_top6_lstm_temp,
     DIGIT_LABELS,
 )
+from markov_model import top6_markov_hybrid
 
 def softmax(x):
     e_x = np.exp(x - np.max(x))
@@ -51,21 +52,6 @@ def hybrid_voting(conf, prob, alpha=0.5):
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
-def stacked_hybrid(hybrid, pred_direct):
-    counter = defaultdict(float)
-    for i, d in enumerate(hybrid):
-        counter[d] += (6 - i)
-    for i, d in enumerate(pred_direct):
-        counter[d] += (6 - i)
-    ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
-    return [d for d, _ in ranked[:6]]
-def get_stacked_weights(acc_hybrid, acc_direct, decay=0.8):
-    total = acc_hybrid + acc_direct
-    if total == 0:
-        return 0.5, 0.5
-    w_hybrid = acc_hybrid / total
-    w_direct = acc_direct / total
-    return w_hybrid, w_direct
 def stacked_hybrid_auto(hybrid, pred_direct, acc_hybrid=0.6, acc_direct=0.4):
     weight_hybrid, weight_direct = get_stacked_weights(acc_hybrid, acc_direct)
     counter = defaultdict(float)
@@ -75,13 +61,30 @@ def stacked_hybrid_auto(hybrid, pred_direct, acc_hybrid=0.6, acc_direct=0.4):
         counter[d] += weight_direct * np.exp(-(i / 2))
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
-    
+
+def final_ensemble_with_markov(stacked, markov):
+    counter = defaultdict(float)
+    for i, d in enumerate(stacked):
+        counter[d] += (6 - i)
+    for i, d in enumerate(markov):
+        counter[d] += (6 - i)
+    ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
+    return [d for d, _ in ranked[:6]]
+
+def get_stacked_weights(acc_hybrid, acc_direct):
+    total = acc_hybrid + acc_direct
+    if total == 0:
+        return 0.5, 0.5
+    w_hybrid = acc_hybrid / total
+    w_direct = acc_direct / total
+    return w_hybrid, w_direct
+
 def dynamic_alpha(acc_conf, acc_prob):
     if acc_conf + acc_prob == 0:
         return 0.5
     return acc_conf / (acc_conf + acc_prob)
 
-def log_prediction(label, conf, prob, hybrid, alpha, stacked=None):
+def log_prediction(label, conf, prob, hybrid, alpha, stacked=None, final=None):
     log_path = "log_tab3.txt"
     with open(log_path, "a") as f:
         f.write(f"[{label.upper()}]\n")
@@ -90,24 +93,9 @@ def log_prediction(label, conf, prob, hybrid, alpha, stacked=None):
         f.write(f"Hybrid Voting (α={alpha:.2f}): {hybrid}\n")
         if stacked:
             f.write(f"Stacked Hybrid: {stacked}\n")
+        if final:
+            f.write(f"Final Hybrid + Markov: {final}\n")
         f.write("-" * 40 + "\n")
-
-def meta_learning(votes):
-    # Menggunakan voting terbaik berdasarkan skor akurasi
-    max_vote = max(votes, key=lambda x: x[1])
-    return max_vote[0]
-
-def calibration(confidences, probs):
-    # Kalibrasi dengan min-max scaling
-    min_conf, max_conf = min(confidences), max(confidences)
-    conf_calibrated = [(c - min_conf) / (max_conf - min_conf) for c in confidences]
-    prob_calibrated = [(p - min(probs)) / (max(probs) - min(probs)) for p in probs]
-    return conf_calibrated, prob_calibrated
-
-def auto_ml_ws_selection(ws_results):
-    # Memilih WS terbaik berdasarkan stabilitas
-    best_ws = max(ws_results, key=lambda x: x['accuracy'] - x['std'])
-    return best_ws
 
 def tab3(df):
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
@@ -207,17 +195,14 @@ def tab3(df):
                 else:
                     final_ens_prob = []
 
-                # Hitung akurasi masing-masing
                 acc_conf = best_row["Accuracy Mean"]
                 acc_prob = np.mean(catboost_accuracies) if all_probs else 0.0
                 alpha_used = alpha_manual if hybrid_mode == "Manual Alpha" else dynamic_alpha(acc_conf, acc_prob)
                 hybrid = hybrid_voting(final_ens_conf, final_ens_prob, alpha=alpha_used)
 
-                # Prediksi langsung
                 try:
                     model = train_temp_lstm_model(df, label, best_ws, temp_seed)
                     top6_direct, probs = get_top6_lstm_temp(model, df, best_ws)
-
                     if probs is not None and np.max(probs) < 0.3:
                         top6_direct = []
                     elif probs is not None:
@@ -225,17 +210,22 @@ def tab3(df):
                 except:
                     top6_direct = []
 
-                # Gunakan stacked hybrid otomatis
-                final_stacked = stacked_hybrid_auto(hybrid, top6_direct, acc_hybrid=acc_conf, acc_direct=acc_conf)
-                st.session_state.tab3_stacked[label] = final_stacked
+                stacked = stacked_hybrid_auto(hybrid, top6_direct, acc_hybrid=acc_conf, acc_direct=acc_conf)
+                st.session_state.tab3_stacked[label] = stacked
 
-                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, final_stacked)
+                markov_all = top6_markov_hybrid(df)
+                markov_top6 = markov_all[DIGIT_LABELS.index(label)]
+
+                final_hybrid = final_ensemble_with_markov(stacked, markov_top6)
+
+                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, stacked, final_hybrid)
 
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
                 st.write(f"Probabilistic Voting: `{final_ens_prob}`")
                 st.write(f"Hybrid Voting (α={alpha_used:.2f}): `{hybrid}`")
-                st.success(f"📌 Stacked Hybrid (Hybrid + Prediksi Langsung): `{final_stacked}`")
+                st.write(f"Stacked Hybrid: `{stacked}`")
+                st.success(f"📌 Final Hybrid + Markov: `{final_hybrid}`")
 
             except Exception as e:
                 st.error(f"❌ Gagal proses {label.upper()}: {e}")
@@ -258,4 +248,3 @@ def tab3(df):
                 st.success("Log berhasil dihapus.")
             else:
                 st.info("Tidak ada log yang bisa dihapus.")
-    
