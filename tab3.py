@@ -4,9 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from collections import Counter, defaultdict
-from itertools import product
 from ensemble_probabilistic import ensemble_probabilistic
-
 from ws_scan_catboost import (
     scan_ws_catboost,
     train_temp_lstm_model,
@@ -15,11 +13,15 @@ from ws_scan_catboost import (
     DIGIT_LABELS,
 )
 
-def ensemble_confidence_voting(lstm_dict, catboost_top6, heatmap_counts, weights, min_lstm_conf=0.3):
-    def softmax(x):
-        e_x = np.exp(x - np.max(x))
-        return e_x / e_x.sum()
+def softmax(x):
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum()
 
+def ensemble_confidence_voting(
+    lstm_dict, catboost_top6, heatmap_counts,
+    weights=[1.2, 1.0, 0.6],
+    min_lstm_conf=0.3
+):
     score = defaultdict(float)
     for ws, (digits, confs) in lstm_dict.items():
         if not digits or confs is None or len(confs) == 0:
@@ -38,11 +40,21 @@ def ensemble_confidence_voting(lstm_dict, catboost_top6, heatmap_counts, weights
     ranked = sorted(score.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
-def hybrid_voting(conf_score, prob_score, alpha=0.5):
-    score = defaultdict(float)
-    for d in set(conf_score.keys()).union(prob_score.keys()):
-        score[d] = alpha * conf_score.get(d, 0) + (1 - alpha) * prob_score.get(d, 0)
-    return [d for d, _ in sorted(score.items(), key=lambda x: x[1], reverse=True)[:6]]
+def hybrid_voting(conf, prob, alpha=0.5):
+    if not conf and not prob:
+        return []
+    counter = defaultdict(float)
+    for i, d in enumerate(conf):
+        counter[d] += alpha * (6 - i)
+    for i, d in enumerate(prob):
+        counter[d] += (1 - alpha) * (6 - i)
+    ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
+    return [d for d, _ in ranked[:6]]
+
+def dynamic_alpha(acc_conf, acc_prob):
+    if acc_conf + acc_prob == 0:
+        return 0.5
+    return acc_conf / (acc_conf + acc_prob)
 
 def tab3(df):
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
@@ -51,26 +63,19 @@ def tab3(df):
     temp_seed = st.number_input("🎲 Seed", 0, 9999, 42, key="tab3_seed")
 
     st.markdown("### ⚖️ Bobot Voting")
-    lstm_weight = st.slider("LSTM Weight", 0.5, 2.0, 1.2, 0.1)
-    cb_weight = st.slider("CatBoost Weight", 0.5, 2.0, 1.0, 0.1)
-    hm_weight = st.slider("Heatmap Weight", 0.0, 1.0, 0.6, 0.1)
-    lstm_min_conf = st.slider("Min Confidence LSTM", 0.0, 1.0, 0.3, 0.05)
+    lstm_weight = st.slider("LSTM Weight", 0.5, 2.0, 1.2, 0.1, key="tab3_lstm_weight")
+    cb_weight = st.slider("CatBoost Weight", 0.5, 2.0, 1.0, 0.1, key="tab3_cb_weight")
+    hm_weight = st.slider("Heatmap Weight", 0.0, 1.0, 0.6, 0.1, key="tab3_hm_weight")
+    lstm_min_conf = st.slider("Min Confidence LSTM", 0.0, 1.0, 0.3, 0.05, key="tab3_min_conf")
 
-    mode = st.radio("Pilih Mode Hybrid Voting", ["Static", "Dynamic"])
-    if mode == "Static":
-        alpha = st.slider("Alpha (Static Hybrid Weight)", 0.0, 1.0, 0.5, 0.05)
-    else:
-        alpha = None  # Akan ditentukan per-digit secara dinamis
-
-    for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_ensemble_hybrid"]:
+    for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_hybrid"]:
         if key not in st.session_state:
             st.session_state[key] = {}
 
-    st.markdown("### 🔍 Opsi Scan Per Digit")
-    selected_digit_tab3 = st.selectbox("Pilih digit yang ingin discan", ["(Semua)"] + DIGIT_LABELS)
+    selected_digit_tab3 = st.selectbox("Pilih digit yang ingin discan", ["(Semua)"] + DIGIT_LABELS, key="tab3_selected_digit")
 
     if st.button("🔎 Scan Per Digit", use_container_width=True):
-        for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_ensemble_hybrid"]:
+        for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_hybrid"]:
             st.session_state[key] = {}
 
         target_digits = DIGIT_LABELS if selected_digit_tab3 == "(Semua)" else [selected_digit_tab3]
@@ -123,15 +128,13 @@ def tab3(df):
                 for t in top6_all:
                     heatmap_counts.update(t)
 
-                conf_score = defaultdict(float)
                 final_ens_conf = ensemble_confidence_voting(
-                    lstm_dict, catboost_top6_all, heatmap_counts,
+                    lstm_dict,
+                    catboost_top6_all,
+                    heatmap_counts,
                     weights=[lstm_weight, cb_weight, hm_weight],
                     min_lstm_conf=lstm_min_conf
                 )
-                for i, d in enumerate(final_ens_conf):
-                    conf_score[d] = len(final_ens_conf) - i
-
                 st.session_state.tab3_ensemble[label] = final_ens_conf
 
                 all_probs = []
@@ -143,27 +146,19 @@ def tab3(df):
                     catboost_accuracies = list(result_df.sort_values("Accuracy Mean", ascending=False)["Accuracy Mean"].head(3))
                     final_ens_prob = ensemble_probabilistic(all_probs, catboost_accuracies)
                     st.session_state.tab3_ensemble_prob[label] = final_ens_prob
-                    prob_score = {d: len(final_ens_prob) - i for i, d in enumerate(final_ens_prob)}
                 else:
                     final_ens_prob = []
-                    prob_score = {}
 
-                # Dynamic Alpha Estimation
-                if mode == "Dynamic":
-                    if len(final_ens_prob) >= 5 and len(final_ens_conf) >= 5:
-                        overlap = len(set(final_ens_conf).intersection(final_ens_prob))
-                        alpha = 0.5 + 0.1 * (overlap - 3)
-                        alpha = max(0.1, min(0.9, alpha))
-                    else:
-                        alpha = 0.5  # fallback
+                acc_conf = best_row["Accuracy Mean"]
+                acc_prob = np.mean(catboost_accuracies) if all_probs else 0.0
+                alpha = dynamic_alpha(acc_conf, acc_prob)
+                hybrid = hybrid_voting(final_ens_conf, final_ens_prob, alpha=alpha)
+                st.session_state.tab3_hybrid[label] = hybrid
 
-                final_ens_hybrid = hybrid_voting(conf_score, prob_score, alpha)
-                st.session_state.tab3_ensemble_hybrid[label] = final_ens_hybrid
-
-                st.markdown(f"### 🧠 Ensemble Top6 - {label.upper()}")
+                st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
                 st.write(f"Probabilistic Voting: `{final_ens_prob}`")
-                st.write(f"Hybrid Voting (α={round(alpha, 2)}): `{final_ens_hybrid}`")
+                st.write(f"Hybrid Voting (α={alpha:.2f}): `{hybrid}`")
 
                 fig_acc = plt.figure(figsize=(6, 2))
                 plt.bar(result_df["WS"], result_df["Accuracy Mean"], color="skyblue")
