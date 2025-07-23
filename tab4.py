@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from collections import Counter
 
+
 def split_digits(num_str):
     return [int(d) for d in str(num_str).zfill(4)]
 
@@ -81,6 +82,32 @@ def render_digit_badge(d):
                 display:flex;align-items:center;justify-content:center;font-size:20px;
                 box-shadow:0 0 6px rgba(0,255,255,0.4);margin:4px;'>{d}</div>"""
 
+
+def render_delay(delay_dict):
+    import pandas as pd
+    import streamlit as st
+
+    # Bar chart vertikal
+    delay_df = pd.DataFrame(delay_dict.items(), columns=["Digit", "Delay"]).sort_values("Digit")
+    st.markdown("**📊 Grafik Delay Kemunculan Digit**")
+    st.bar_chart(delay_df.set_index("Digit"))
+
+    # Top-3 delay tertinggi
+    st.markdown("**🕒 Top-3 Digit dengan Delay Tertinggi**")
+    top_delay = sorted(delay_dict.items(), key=lambda x: x[1], reverse=True)[:3]
+    for digit, d in top_delay:
+        st.info(f"Digit `{digit}` belum muncul selama `{d}` langkah.")
+
+    # Visual badge (opsional)
+    st.markdown("**🔢 Badge Digit dengan Delay Tertinggi:**")
+    badge_html = "".join([
+        f"<div style='background:#333;color:#fff;border-radius:50%;width:48px;height:48px;"
+        f"display:inline-flex;align-items:center;justify-content:center;font-size:20px;"
+        f"margin:4px;box-shadow:0 0 6px rgba(255, 255, 0, 0.4);'>{d}</div>"
+        for d, _ in top_delay
+    ])
+    st.markdown(f"<div style='display:flex;flex-wrap:wrap'>{badge_html}</div>", unsafe_allow_html=True)
+
 def tab4(df):
     st.title("📊 Analisis Pola Angka 4D")
 
@@ -108,7 +135,8 @@ def tab4(df):
             delay = analyze_delay(angka_data, i)
             st.markdown("**⏱️ Delay Kemunculan Digit**")
             st.write(pd.DataFrame(delay.items(), columns=["Digit", "Delay"]).set_index("Digit").style.bar(subset=["Delay"], color='#00f0ff'))
-
+            render_delay(delay)
+            
             trend = analyze_trend(angka_data, i)
             st.markdown("**📈 Tren Naik / Turun**")
             st.write(pd.DataFrame(trend.items(), columns=["Arah", "Jumlah"]).set_index("Arah").style.bar(color='#ffcf00'))
