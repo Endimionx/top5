@@ -145,8 +145,7 @@ def render_delay(delay_dict):
 def find_historical_pattern(data, pos, pattern_length):
     digits = [split_digits(num)[pos] for num in data]
     if len(digits) <= pattern_length:
-        return [], [], digits  # <-- tambahkan return digits
-
+        return [], [], digits
     current_pattern = digits[-pattern_length:]
     matches = []
     for i in range(len(digits) - pattern_length):
@@ -154,11 +153,10 @@ def find_historical_pattern(data, pos, pattern_length):
         next_index = i + pattern_length
         if window == current_pattern and next_index < len(digits):
             matches.append(digits[next_index])
-
     return current_pattern, matches, digits
 
-
 def tab4(df):
+    st.title("📊 Analisis Pola Angka 4D")
 
     if "angka" not in df.columns:
         st.error("❌ Kolom 'angka' tidak ditemukan di data.")
@@ -206,15 +204,16 @@ def tab4(df):
 
             st.markdown("**🔁 Pencarian Pola Historis**")
             pattern_len = st.slider(f"Pilih panjang pola untuk posisi {digit_pos_label[i]}", 2, 6, 3, key=f"pattern_{i}")
-            pattern, matches, digits = find_historical_pattern(recent_data, i, pattern_len)
-            
-            if matches:
-                st.success(f"Pola terakhir: {pattern} pernah muncul sebanyak {len(matches)} kali.")
-                st.info(f"Digit setelah pola tersebut:")
-                badge = "".join([render_digit_badge(d) for d in matches])
-                st.markdown(f"<div style='display:flex;flex-wrap:wrap'>{badge}</div>", unsafe_allow_html=True)
-            else:
-                st.warning("❌ Pola terakhir belum pernah muncul sebelumnya.")
+            run_pattern = st.button(f"🔍 Cek Pola untuk Posisi {digit_pos_label[i]}", key=f"btn_pattern_{i}")
+            if run_pattern:
+                pattern, matches, digits = find_historical_pattern(recent_data, i, pattern_len)
+                if matches:
+                    st.success(f"Pola terakhir: {pattern} pernah muncul sebanyak {len(matches)} kali.")
+                    st.info(f"Digit setelah pola tersebut:")
+                    badge = "".join([render_digit_badge(d) for d in matches])
+                    st.markdown(f"<div style='display:flex;flex-wrap:wrap'>{badge}</div>", unsafe_allow_html=True)
+                else:
+                    st.warning("❌ Pola terakhir belum pernah muncul sebelumnya.")
 
     st.markdown("### 🔥 Heatmap Posisi Digit")
     heatmap = digit_position_heatmap(angka_data)
