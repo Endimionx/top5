@@ -155,7 +155,6 @@ def find_historical_pattern(data, pos, pattern_length):
     return current_pattern, matches
 
 def tab4(df):
-    st.title("📊 Analisis Pola Angka 4D")
 
     if "angka" not in df.columns:
         st.error("❌ Kolom 'angka' tidak ditemukan di data.")
@@ -172,7 +171,7 @@ def tab4(df):
     for i, tab in enumerate(tabs):
         with tab:
             st.subheader(f"📌 Posisi Digit: {digit_pos_label[i]}")
-            recent_data = angka_data[-30:]
+            recent_data = angka_data
 
             freq = analyze_frequency(recent_data, i)
             freq_df = pd.DataFrame(freq.items(), columns=["Digit", "Frekuensi"]).sort_values("Digit")
