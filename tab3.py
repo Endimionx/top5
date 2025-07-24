@@ -1,8 +1,9 @@
+# tab3.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 import os
-from collections import Counter, defaultdict
+from collections import Counter
 from ensemble_probabilistic import ensemble_probabilistic
 from ws_scan_catboost import (
     scan_ws_catboost,
@@ -11,75 +12,15 @@ from ws_scan_catboost import (
     DIGIT_LABELS,
 )
 from markov_model import top6_markov_hybrid
-
-def softmax(x):
-    e_x = np.exp(x - np.max(x))
-    return e_x / e_x.sum()
-
-def ensemble_confidence_voting(lstm_dict, catboost_top6, heatmap_counts,
-                                weights=[1.2, 1.0, 0.6], min_lstm_conf=0.3):
-    score = defaultdict(float)
-    for ws, (digits, confs) in lstm_dict.items():
-        if not digits or confs is None or len(confs) == 0:
-            continue
-        if max(confs) < min_lstm_conf:
-            continue
-        norm_confs = softmax(confs)
-        for d, c in zip(digits, norm_confs):
-            score[d] += weights[0] * c
-    for d in catboost_top6:
-        score[d] += weights[1]
-    for d, count in heatmap_counts.items():
-        score[d] += weights[2] * count
-    if not score:
-        return []
-    ranked = sorted(score.items(), key=lambda x: x[1], reverse=True)
-    return [d for d, _ in ranked[:6]]
-
-def hybrid_voting(conf, prob, alpha=0.5):
-    counter = defaultdict(float)
-    for i, d in enumerate(conf or []):
-        counter[d] += alpha * (6 - i)
-    for i, d in enumerate(prob or []):
-        counter[d] += (1 - alpha) * (6 - i)
-    ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
-    return [d for d, _ in ranked[:6]]
-
-def stacked_hybrid_auto(hybrid, pred_direct, acc_hybrid=0.6, acc_direct=0.4):
-    w_hybrid, w_direct = get_stacked_weights(acc_hybrid, acc_direct)
-    counter = defaultdict(float)
-    for i, d in enumerate(hybrid or []):
-        counter[d] += w_hybrid * np.exp(-(i / 2))
-    for i, d in enumerate(pred_direct or []):
-        counter[d] += w_direct * np.exp(-(i / 2))
-    ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
-    return [d for d, _ in ranked[:6]]
-
-def final_ensemble_with_markov(stacked, markov, weight_markov=0.3):
-    counter = defaultdict(float)
-    for i, d in enumerate(stacked or []):
-        counter[d] += (6 - i)  # Full bobot
-    for i, d in enumerate(markov or []):
-        counter[d] += weight_markov * (6 - i)  # Diberi bobot lebih kecil
-    ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
-    return [d for d, _ in ranked[:6]]
-
-def get_stacked_weights(acc_hybrid, acc_direct):
-    total = acc_hybrid + acc_direct
-    return (acc_hybrid / total, acc_direct / total) if total else (0.5, 0.5)
-
-def dynamic_alpha(acc_conf, acc_prob):
-    return acc_conf / (acc_conf + acc_prob) if (acc_conf + acc_prob) else 0.5
-
-def log_prediction(label, conf, prob, hybrid, alpha, stacked=None, final=None, lokasi=None):
-    with open("log_tab3.txt", "a") as f:
-        f.write(f"[{label.upper()}] | Lokasi: {lokasi}\n" if lokasi else f"[{label.upper()}]\n")
-        f.write(f"Confidence Voting: {conf}\n")
-        f.write(f"Probabilistic Voting: {prob}\n")
-        f.write(f"Hybrid Voting (α={alpha:.2f}): {hybrid}\n")
-        if stacked: f.write(f"Stacked Hybrid: {stacked}\n")
-        if final: f.write(f"Final Hybrid: {final}\n")
-        f.write("-" * 40 + "\n")
+from tab3_utils import (
+    detect_anomaly_latest,
+    ensemble_confidence_voting,
+    hybrid_voting,
+    stacked_hybrid_auto,
+    final_ensemble_with_markov,
+    dynamic_alpha,
+    log_prediction,
+)
 
 def show_live_accuracy(df, pred_dict):
     st.markdown("### 📊 Simulasi Live Accuracy")
@@ -128,6 +69,10 @@ def tab3(df, lokasi):
         simulasi_pred = {}
         simulasi_real = {}
 
+        anomaly_mode = detect_anomaly_latest(df)
+        if anomaly_mode:
+            st.warning("⚠️ Anomali terdeteksi! Bobot Markov dikurangi dan alpha disesuaikan.")
+
         for label in target_digits:
             st.markdown(f"### 🔍 {label.upper()}")
             try:
@@ -159,6 +104,7 @@ def tab3(df, lokasi):
                 prob = ensemble_probabilistic(all_probs, [acc_conf]*len(all_probs)) if all_probs else []
 
                 alpha_used = alpha_manual if hybrid_mode == "Manual Alpha" else dynamic_alpha(acc_conf, acc_prob)
+                if anomaly_mode: alpha_used *= 0.6
                 hybrid = hybrid_voting(conf, prob, alpha_used)
 
                 try:
@@ -170,12 +116,12 @@ def tab3(df, lokasi):
 
                 stacked = stacked_hybrid_auto(hybrid, top6_direct, acc_conf, acc_conf)
                 markov_top6 = top6_markov_hybrid(df)[DIGIT_LABELS.index(label)]
-                final = final_ensemble_with_markov(stacked, markov_top6, weight_markov=0.3)
+                final = final_ensemble_with_markov(stacked, markov_top6, weight_markov=0.3 if not anomaly_mode else 0.15)
 
                 st.session_state.tab3_stacked[label] = stacked
                 st.session_state.tab3_final[label] = final
 
-                log_prediction(label, conf, prob, hybrid, alpha_used, stacked, final, lokasi)
+                log_prediction(label, conf, prob, hybrid, alpha_used, stacked, final, lokasi, anomaly=anomaly_mode)
 
                 st.write(f"Confidence: `{conf}`")
                 st.write(f"Probabilistic: `{prob}`")
