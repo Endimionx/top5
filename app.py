@@ -28,6 +28,7 @@ from ws_scan_catboost import (
 )
 from tab3 import tab3
 from tab4 import tab4
+from tab5 import tab5
 
 st.set_page_config(page_title="Prediksi AI", layout="wide")
 
@@ -98,7 +99,7 @@ with st.expander("✏️ Edit Data Angka Manual", expanded=True):
     df = pd.DataFrame({"angka": st.session_state.angka_list})
 
 # ======== Tabs Utama ========
-tab4_container, tab3_container, tab2, tab1 = st.tabs(["Scan Pola", "🔮 Scan Angka", "🪟 Scan Angka", "CatBoost"])
+tab5_container, tab4_container, tab3_container, tab2, tab1 = st.tabs(["Tester", "Scan Pola", "🔮 Scan Angka", "🪟 Scan Angka", "CatBoost"])
 
 # ======== TAB 1 ========
 with tab1:
@@ -421,4 +422,6 @@ with tab3_container:
     tab3(df, selected_lokasi)
 with tab4_container:
     tab4(df)
+with tab5_container:
+    tab5(df, selected_lokasi)
             
