@@ -1,7 +1,5 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
 import os
 from collections import Counter, defaultdict
@@ -18,7 +16,11 @@ def softmax(x):
     e_x = np.exp(x - np.max(x))
     return e_x / e_x.sum()
 
-def ensemble_confidence_voting(lstm_dict, catboost_top6, heatmap_counts, weights=[1.2, 1.0, 0.6], min_lstm_conf=0.3):
+def ensemble_confidence_voting(
+    lstm_dict, catboost_top6, heatmap_counts,
+    weights=[1.2, 1.0, 0.6],
+    min_lstm_conf=0.3
+):
     score = defaultdict(float)
     for ws, (digits, confs) in lstm_dict.items():
         if not digits or confs is None or len(confs) == 0:
@@ -38,12 +40,10 @@ def ensemble_confidence_voting(lstm_dict, catboost_top6, heatmap_counts, weights
     return [d for d, _ in ranked[:6]]
 
 def hybrid_voting(conf, prob, alpha=0.5):
-    if not conf and not prob:
-        return []
     counter = defaultdict(float)
-    for i, d in enumerate(conf):
+    for i, d in enumerate(conf or []):
         counter[d] += alpha * (6 - i)
-    for i, d in enumerate(prob):
+    for i, d in enumerate(prob or []):
         counter[d] += (1 - alpha) * (6 - i)
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
@@ -51,18 +51,18 @@ def hybrid_voting(conf, prob, alpha=0.5):
 def stacked_hybrid_auto(hybrid, pred_direct, acc_hybrid=0.6, acc_direct=0.4):
     weight_hybrid, weight_direct = get_stacked_weights(acc_hybrid, acc_direct)
     counter = defaultdict(float)
-    for i, d in enumerate(hybrid):
+    for i, d in enumerate(hybrid or []):
         counter[d] += weight_hybrid * np.exp(-(i / 2))
-    for i, d in enumerate(pred_direct):
+    for i, d in enumerate(pred_direct or []):
         counter[d] += weight_direct * np.exp(-(i / 2))
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
 def final_ensemble_with_markov(stacked, markov):
     counter = defaultdict(float)
-    for i, d in enumerate(stacked):
+    for i, d in enumerate(stacked or []):
         counter[d] += (6 - i)
-    for i, d in enumerate(markov):
+    for i, d in enumerate(markov or []):
         counter[d] += (6 - i)
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
@@ -96,27 +96,29 @@ def log_prediction(label, conf, prob, hybrid, alpha, stacked=None, final=None, l
             f.write(f"Final Hybrid: {final}\n")
         f.write("-" * 40 + "\n")
 
-def simulate_live_accuracy(df, final_results, digit_label):
-    correct = 0
-    total = 0
-    for i, row in df.iterrows():
-        if i < 1:
-            continue
-        pred = final_results.get(digit_label, [])
-        if not pred:
-            continue
-        true_digit = int(str(row["angka"])[DIGIT_LABELS.index(digit_label)])
-        if true_digit in pred:
-            correct += 1
-        total += 1
-    acc = (correct / total * 100) if total > 0 else 0.0
-    return acc
+def show_live_accuracy(df, predictions_dict):
+    st.markdown("### 📊 Simulasi Live Accuracy")
+    col1, col2 = st.columns(2)
+    with col1:
+        jumlah = st.number_input("Jumlah Data Terakhir", 10, 200, 50, key="live_acc_n")
+    with col2:
+        kunci = st.selectbox("Jenis Prediksi", list(predictions_dict.keys()), key="live_acc_kunci")
 
-def show_auto_ensemble_adaptive(alpha, acc_conf, acc_prob):
-    st.markdown("### 🔄 Auto Ensemble Adaptive Info")
-    st.write(f"📌 Auto Alpha (Confidence vs Probabilistic): `{alpha:.2f}`")
-    st.write(f"📈 Accuracy Confidence: `{acc_conf:.2f}`")
-    st.write(f"📉 Accuracy Probabilistic: `{acc_prob:.2f}`")
+    if kunci not in predictions_dict:
+        st.warning("Belum ada hasil prediksi.")
+        return
+
+    real = df["angka"].astype(str).apply(lambda x: int(x[DIGIT_LABELS.index(kunci)]))[-jumlah:]
+    pred = predictions_dict[kunci]
+    benar = sum([r in pred for r in real])
+    acc = benar / len(real) if len(real) > 0 else 0
+    st.success(f"Akurasi Real ({kunci.upper()}): `{acc:.2%}` dari {jumlah} data terakhir.")
+
+def show_auto_ensemble_adaptive(predictions_dict):
+    st.markdown("### 🧠 Auto Ensemble Adaptive")
+    for label, pred in predictions_dict.items():
+        if pred:
+            st.write(f"{label.upper()}: `{pred}`")
 
 def tab3(df, lokasi):
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
@@ -135,63 +137,60 @@ def tab3(df, lokasi):
     if hybrid_mode == "Manual Alpha":
         alpha_manual = st.slider("Alpha Manual", 0.0, 1.0, 0.5, 0.05, key="tab3_alpha")
 
-    for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_hybrid", "tab3_stacked", "tab3_final"]:
+    selected_digit_tab3 = st.selectbox("Pilih digit yang ingin discan", ["(Semua)"] + DIGIT_LABELS, key="tab3_selected_digit")
+
+    for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_stacked", "tab3_final"]:
         if key not in st.session_state:
             st.session_state[key] = {}
 
-    selected_digit_tab3 = st.selectbox("Pilih digit yang ingin discan", ["(Semua)"] + DIGIT_LABELS, key="tab3_selected_digit")
-
     if st.button("🔎 Scan Per Digit", use_container_width=True):
-        for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_hybrid", "tab3_stacked", "tab3_final"]:
-            st.session_state[key] = {}
+        st.session_state.tab3_final = {}
 
-        alpha_used = 0.5
-        acc_conf = 0.0
-        acc_prob = 0.0
         target_digits = DIGIT_LABELS if selected_digit_tab3 == "(Semua)" else [selected_digit_tab3]
 
         for label in target_digits:
             st.markdown(f"## 🔍 {label.upper()}")
+            alpha_used = 0.5
+            acc_conf = 0.0
+            acc_prob = 0.0
+            hybrid = []
+            stacked = []
+            final_hybrid = []
+
             try:
                 result_df = scan_ws_catboost(df, label, min_ws_cb3, max_ws_cb3, folds_cb3, temp_seed)
 
                 top3_acc = result_df.sort_values("Accuracy Mean", ascending=False).head(3)
-                st.session_state.tab3_top6_acc[label] = {}
+                top6_acc_dict = {}
                 for _, row in top3_acc.iterrows():
                     ws = int(row["WS"])
                     try:
                         model = train_temp_lstm_model(df, label, ws, temp_seed)
                         top6, probs = get_top6_lstm_temp(model, df, ws)
-                        st.session_state.tab3_top6_acc[label][ws] = (top6, probs)
+                        top6_acc_dict[ws] = (top6, probs)
                     except:
-                        st.session_state.tab3_top6_acc[label][ws] = ([], [])
+                        top6_acc_dict[ws] = ([], [])
+                st.session_state.tab3_top6_acc[label] = top6_acc_dict
 
                 top3_conf = result_df.sort_values("Top6 Conf", ascending=False).head(3)
-                st.session_state.tab3_top6_conf[label] = {}
+                top6_conf_dict = {}
                 for _, row in top3_conf.iterrows():
                     ws = int(row["WS"])
                     try:
                         model = train_temp_lstm_model(df, label, ws, temp_seed)
                         top6, probs = get_top6_lstm_temp(model, df, ws)
-                        st.session_state.tab3_top6_conf[label][ws] = (top6, probs)
+                        top6_conf_dict[ws] = (top6, probs)
                     except:
-                        st.session_state.tab3_top6_conf[label][ws] = ([], [])
+                        top6_conf_dict[ws] = ([], [])
+                st.session_state.tab3_top6_conf[label] = top6_conf_dict
 
                 best_row = result_df.loc[result_df["Accuracy Mean"].idxmax()]
                 best_ws = int(best_row["WS"])
-                st.session_state.tab3_full_results[label] = {
-                    "ws": best_ws,
-                    "acc": best_row["Accuracy Mean"],
-                    "result_df": result_df,
-                }
+                acc_conf = best_row["Accuracy Mean"]
+                st.session_state.tab3_full_results[label] = {"ws": best_ws, "acc": acc_conf}
 
                 lstm_dict = st.session_state.tab3_top6_acc.get(label, {})
-                if not isinstance(lstm_dict, dict):
-                    lstm_dict = {}
-
-                catboost_top6_all = []
-                for ws_data in st.session_state.tab3_top6_conf[label].values():
-                    catboost_top6_all.extend(ws_data[0])
+                catboost_top6_all = [d for ws in st.session_state.tab3_top6_conf[label].values() for d in ws[0]]
 
                 top6_all = result_df["Top6"].apply(lambda x: [int(i) for i in str(x).split(",") if i.strip().isdigit()])
                 heatmap_counts = Counter()
@@ -199,51 +198,39 @@ def tab3(df, lokasi):
                     heatmap_counts.update(t)
 
                 final_ens_conf = ensemble_confidence_voting(
-                    lstm_dict,
-                    catboost_top6_all,
-                    heatmap_counts,
+                    lstm_dict, catboost_top6_all, heatmap_counts,
                     weights=[lstm_weight, cb_weight, hm_weight],
                     min_lstm_conf=lstm_min_conf
                 )
                 st.session_state.tab3_ensemble[label] = final_ens_conf
 
-                all_probs = []
-                for _, (digits, probs) in lstm_dict.items():
-                    if probs is not None and len(probs) > 0:
-                        all_probs.append(probs)
-
+                all_probs = [probs for _, probs in lstm_dict.values() if probs]
                 if all_probs:
-                    catboost_accuracies = list(result_df.sort_values("Accuracy Mean", ascending=False)["Accuracy Mean"].head(3))
-                    final_ens_prob = ensemble_probabilistic(all_probs, catboost_accuracies)
-                    st.session_state.tab3_ensemble_prob[label] = final_ens_prob
+                    acc_prob = np.mean(result_df.sort_values("Accuracy Mean", ascending=False)["Accuracy Mean"].head(3))
+                    final_ens_prob = ensemble_probabilistic(all_probs, [acc_conf]*len(all_probs))
                 else:
                     final_ens_prob = []
 
-                acc_conf = best_row["Accuracy Mean"]
-                acc_prob = np.mean(catboost_accuracies) if all_probs else 0.0
                 alpha_used = alpha_manual if hybrid_mode == "Manual Alpha" else dynamic_alpha(acc_conf, acc_prob)
-                hybrid = hybrid_voting(final_ens_conf, final_ens_prob, alpha=alpha_used)
+                hybrid = hybrid_voting(final_ens_conf, final_ens_prob, alpha_used)
 
                 try:
                     model = train_temp_lstm_model(df, label, best_ws, temp_seed)
                     top6_direct, probs = get_top6_lstm_temp(model, df, best_ws)
                     if probs is not None and np.max(probs) < 0.3:
                         top6_direct = []
-                    elif probs is not None:
-                        probs = probs / np.sum(probs)
                 except:
                     top6_direct = []
 
-                stacked = stacked_hybrid_auto(hybrid, top6_direct, acc_hybrid=acc_conf, acc_direct=acc_conf)
-                st.session_state.tab3_stacked[label] = stacked
-
+                stacked = stacked_hybrid_auto(hybrid, top6_direct, acc_conf, acc_conf)
                 markov_all = top6_markov_hybrid(df)
                 markov_top6 = markov_all[DIGIT_LABELS.index(label)]
 
                 final_hybrid = final_ensemble_with_markov(stacked, markov_top6)
+                st.session_state.tab3_stacked[label] = final_hybrid
                 st.session_state.tab3_final[label] = final_hybrid
 
-                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, stacked, final_hybrid, lokasi=lokasi)
+                log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, stacked, final_hybrid, lokasi)
 
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
                 st.write(f"Confidence Voting: `{final_ens_conf}`")
@@ -254,6 +241,11 @@ def tab3(df, lokasi):
 
             except Exception as e:
                 st.error(f"❌ Gagal proses {label.upper()}: {e}")
+                st.session_state.tab3_stacked[label] = []
+                st.session_state.tab3_final[label] = []
+
+    show_live_accuracy(df, st.session_state.tab3_final)
+    show_auto_ensemble_adaptive(st.session_state.tab3_final)
 
     st.markdown("---")
     col1, col2 = st.columns(2)
@@ -273,12 +265,3 @@ def tab3(df, lokasi):
                 st.success("Log berhasil dihapus.")
             else:
                 st.info("Tidak ada log yang bisa dihapus.")
-
-    # 📊 Simulasi Live Accuracy
-    st.markdown("### 📊 Simulasi Live Accuracy")
-    for digit_label in DIGIT_LABELS:
-        acc_live = simulate_live_accuracy(df, st.session_state.tab3_final, digit_label)
-        st.info(f"📍 {digit_label.upper()} → Live Accuracy: `{acc_live:.2f}%`")
-
-    # 🔄 Auto Ensemble Adaptive Info
-    show_auto_ensemble_adaptive(alpha_used, acc_conf, acc_prob)
