@@ -185,9 +185,13 @@ def temperature_scale(probs, T=1.5):
     scaled_probs = np.exp(scaled_logits) / np.sum(np.exp(scaled_logits))
     return scaled_probs
     
+import numpy as np
+from scipy.special import softmax
+
 def get_top6_lstm_temp(model, df, ws):
     recent_seq = df["angka"].astype(str).apply(lambda x: [int(d) for d in x])
     input_seq = recent_seq.iloc[-ws:].values.tolist()
+
     input_array = np.array(input_seq).flatten().reshape(1, ws, 4)
 
     preds = model.predict(input_array)
@@ -198,13 +202,14 @@ def get_top6_lstm_temp(model, df, ws):
     else:
         probs = preds
 
-    # 🔥 Kalibrasi dengan Temperature Scaling
-    probs = temperature_scale(probs, T=1.5)
+    if len(probs) != 10:
+        print("[LSTM TEMP] ⚠️ probs tidak valid:", probs)
+        return [], None
 
     top6_idx = np.argsort(probs)[::-1][:6]
     top6_digits = top6_idx.tolist()
-    # Biarkan yang direturn adalah probs 10-digit full
-    return top6_digits, probs
+
+    return top6_digits, probs  # ← return full 10-digit probs
     
 def ensemble_top6(*top6_lists, weights=None):
     counter = Counter()
