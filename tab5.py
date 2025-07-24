@@ -71,7 +71,7 @@ def final_ensemble_with_markov(stacked, markov, weight_markov=0.3):
 def dynamic_alpha(acc_conf, acc_prob):
     return acc_conf / (acc_conf + acc_prob) if (acc_conf + acc_prob) else 0.5
 
-def tab5(df):
+def tab5(df, lokasi):
     st.header("🧠 Tab5 - Smart Adaptive Prediction")
 
     min_ws = st.number_input("Min Window Size", 3, 20, 5, key="tab5_min_ws")
