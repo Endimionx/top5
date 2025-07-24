@@ -246,25 +246,59 @@ def tab3(df, lokasi):
 
     show_live_accuracy(df, st.session_state.tab3_final)
     show_auto_ensemble_adaptive(st.session_state.tab3_final)
-    # Tampilkan hasil simulasi prediksi top-6 untuk semua posisi
-    st.markdown("### 🎯 Hasil Prediksi Simulasi (Top-6 per Posisi)")
+    st.markdown("### 🧪 Simulasi Live Accuracy")
 
+    # Simulasi: target hari ini (df[-1]), prediksi dari df[:-1]
+    simulasi_df = df[:-1]
+    target_df = df.iloc[-1]
+    simulasi_prediksi = {}
+    simulasi_target_real = {}
+    simulasi_matches = {}
+    
+    for label in DIGIT_LABELS:
+        try:
+            # Ambil WS terbaik sebelumnya
+            best_ws_data = st.session_state.tab3_full_results.get(label)
+            if not best_ws_data:
+                continue
+            best_ws = best_ws_data["ws"]
+            acc_best = best_ws_data["acc"]
+    
+            # Train model tanpa data terakhir
+            model_sim = train_temp_lstm_model(simulasi_df, label, best_ws, temp_seed)
+            top6_simulasi, probs_simulasi = get_top6_lstm_temp(model_sim, simulasi_df, best_ws)
+    
+            # Real digit dari data terakhir
+            real_digit = int(f"{int(target_df['angka']):04d}"[DIGIT_LABELS.index(label)])
+    
+            simulasi_prediksi[label] = top6_simulasi
+            simulasi_target_real[label] = real_digit
+            simulasi_matches[label] = real_digit in top6_simulasi if top6_simulasi else False
+    
+        except Exception as e:
+            simulasi_prediksi[label] = []
+            simulasi_target_real[label] = None
+            simulasi_matches[label] = False
+    
+    # Hitung skor keseluruhan
+    skor_simulasi = sum(1 for v in simulasi_matches.values() if v)
+    st.success(f"🎯 Simulasi Live Accuracy: {skor_simulasi} / 4")
+    
+    # Tampilkan tabel prediksi simulasi
+    st.markdown("### 📊 Hasil Simulasi Prediksi (df[-1])")
     simulasi_tabel = []
-    digit_order = ['RIBUAN', 'RATUSAN', 'PULUHAN', 'SATUAN']
-    for posisi in digit_order:
-        top6 = simulasi_prediksi.get(posisi, [])
-        real = simulasi_target_real.get(posisi, None)
-        if top6:
-            simulasi_tabel.append({
-                "Posisi": posisi,
-                "Top-6": ", ".join(str(d) for d in top6),
-                "Target Real": real,
-                "Match (in Top-6)": "✅" if real in top6 else "❌"
-            })
-
-    df_simulasi = pd.DataFrame(simulasi_tabel)
-    st.table(df_simulasi)
-
+    for label in DIGIT_LABELS:
+        top6 = simulasi_prediksi.get(label, [])
+        real = simulasi_target_real.get(label, None)
+        match = "✅" if real in top6 else "❌"
+        simulasi_tabel.append({
+            "Posisi": label,
+            "Top-6": ", ".join(str(d) for d in top6),
+            "Target Real": real,
+            "Match": match
+        })
+    
+    st.table(pd.DataFrame(simulasi_tabel))
     st.markdown("---")
     col1, col2 = st.columns(2)
     with col1:
