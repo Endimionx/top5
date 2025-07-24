@@ -55,12 +55,12 @@ def stacked_hybrid_auto(hybrid, pred_direct, acc_hybrid=0.6, acc_direct=0.4):
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
-def final_ensemble_with_markov(stacked, markov):
+def final_ensemble_with_markov(stacked, markov, weight_markov=0.3):
     counter = defaultdict(float)
     for i, d in enumerate(stacked or []):
-        counter[d] += (6 - i)
+        counter[d] += (6 - i)  # Full bobot
     for i, d in enumerate(markov or []):
-        counter[d] += (6 - i)
+        counter[d] += weight_markov * (6 - i)  # Diberi bobot lebih kecil
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
@@ -170,7 +170,7 @@ def tab3(df, lokasi):
 
                 stacked = stacked_hybrid_auto(hybrid, top6_direct, acc_conf, acc_conf)
                 markov_top6 = top6_markov_hybrid(df)[DIGIT_LABELS.index(label)]
-                final = final_ensemble_with_markov(stacked, markov_top6)
+                final = final_ensemble_with_markov(stacked, markov_top6, weight_markov=0.3)
 
                 st.session_state.tab3_stacked[label] = stacked
                 st.session_state.tab3_final[label] = final
