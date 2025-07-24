@@ -218,7 +218,7 @@ def tab3(df, lokasi):
         if os.path.exists("log_tab3.txt"):
             with open("log_tab3.txt", "r") as f: st.code(f.read())
         else: st.info("Belum ada log.")
-    if col2.button("🧹 Hapus Log", use_container_width=True=True):
+    if col2.button("🧹 Hapus Log", use_container_width=True):
         if os.path.exists("log_tab3.txt"):
             os.remove("log_tab3.txt")
             st.success("Log dihapus.")
