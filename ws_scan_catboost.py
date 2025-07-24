@@ -178,6 +178,13 @@ def train_temp_lstm_model(df, label, window_size=7, seed=42):
     model.fit(X_all, y, epochs=20, batch_size=16, verbose=0, callbacks=[es])
     return model
 
+def temperature_scale(probs, T=1.5):
+    """Melakukan temperature scaling ke output probabilitas."""
+    logits = np.log(probs + 1e-9)  # Hindari log(0)
+    scaled_logits = logits / T
+    scaled_probs = np.exp(scaled_logits) / np.sum(np.exp(scaled_logits))
+    return scaled_probs
+    
 def get_top6_lstm_temp(model, df, ws):
     recent_seq = df["angka"].astype(str).apply(lambda x: [int(d) for d in x])
     input_seq = recent_seq.iloc[-ws:].values.tolist()
@@ -191,12 +198,14 @@ def get_top6_lstm_temp(model, df, ws):
     else:
         probs = preds
 
+    # 🔥 Kalibrasi dengan Temperature Scaling
+    probs = temperature_scale(probs, T=1.5)
+
     top6_idx = np.argsort(probs)[::-1][:6]
     top6_digits = top6_idx.tolist()
-    top6_probs = probs[top6_idx].tolist()
-
-    return top6_digits, probs  # ✅ return FULL 10-D probs, not just top6_probs
-
+    # Biarkan yang direturn adalah probs 10-digit full
+    return top6_digits, probs
+    
 def ensemble_top6(*top6_lists, weights=None):
     counter = Counter()
     n = len(top6_lists)
