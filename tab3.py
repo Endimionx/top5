@@ -16,11 +16,7 @@ def softmax(x):
     e_x = np.exp(x - np.max(x))
     return e_x / e_x.sum()
 
-def ensemble_confidence_voting(
-    lstm_dict, catboost_top6, heatmap_counts,
-    weights=[1.2, 1.0, 0.6],
-    min_lstm_conf=0.3
-):
+def ensemble_confidence_voting(lstm_dict, catboost_top6, heatmap_counts, weights=[1.2, 1.0, 0.6], min_lstm_conf=0.3):
     score = defaultdict(float)
     for ws, (digits, confs) in lstm_dict.items():
         if not digits or confs is None or len(confs) == 0:
@@ -120,7 +116,15 @@ def show_auto_ensemble_adaptive(predictions_dict):
         if pred:
             st.write(f"{label.upper()}: `{pred}`")
 
+def safe_in(item, collection):
+    if isinstance(collection, (np.ndarray, list)):
+        return item in collection
+    return False
+
 def tab3(df, lokasi):
+    simulasi_prediksi = {}
+    simulasi_target_real = {}
+
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
     max_ws_cb3 = st.number_input("🔁 Max WS", min_ws_cb3 + 1, 30, min_ws_cb3 + 6, key="tab3_max_ws")
     folds_cb3 = st.slider("📂 Jumlah Fold", 2, 10, 3, key="tab3_cv")
@@ -150,13 +154,6 @@ def tab3(df, lokasi):
 
         for label in target_digits:
             st.markdown(f"## 🔍 {label.upper()}")
-            alpha_used = 0.5
-            acc_conf = 0.0
-            acc_prob = 0.0
-            hybrid = []
-            stacked = []
-            final_hybrid = []
-
             try:
                 result_df = scan_ws_catboost(df, label, min_ws_cb3, max_ws_cb3, folds_cb3, temp_seed)
 
@@ -204,12 +201,9 @@ def tab3(df, lokasi):
                 )
                 st.session_state.tab3_ensemble[label] = final_ens_conf
 
-                all_probs = [probs for _, probs in lstm_dict.values() if probs]
-                if all_probs:
-                    acc_prob = np.mean(result_df.sort_values("Accuracy Mean", ascending=False)["Accuracy Mean"].head(3))
-                    final_ens_prob = ensemble_probabilistic(all_probs, [acc_conf]*len(all_probs))
-                else:
-                    final_ens_prob = []
+                all_probs = [probs for _, probs in lstm_dict.values() if probs is not None and len(probs) > 0]
+                acc_prob = np.mean(result_df.sort_values("Accuracy Mean", ascending=False)["Accuracy Mean"].head(3)) if all_probs else 0.0
+                final_ens_prob = ensemble_probabilistic(all_probs, [acc_conf]*len(all_probs)) if all_probs else []
 
                 alpha_used = alpha_manual if hybrid_mode == "Manual Alpha" else dynamic_alpha(acc_conf, acc_prob)
                 hybrid = hybrid_voting(final_ens_conf, final_ens_prob, alpha_used)
@@ -230,6 +224,11 @@ def tab3(df, lokasi):
                 st.session_state.tab3_stacked[label] = final_hybrid
                 st.session_state.tab3_final[label] = final_hybrid
 
+                # Simulasi
+                simulasi_prediksi[label] = stacked
+                real_digit = int(df["angka"].astype(str).iloc[-1][DIGIT_LABELS.index(label)])
+                simulasi_target_real[label] = real_digit
+
                 log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, stacked, final_hybrid, lokasi)
 
                 st.markdown(f"### 🧠 Final Ensemble Top6 - {label.upper()}")
@@ -246,59 +245,24 @@ def tab3(df, lokasi):
 
     show_live_accuracy(df, st.session_state.tab3_final)
     show_auto_ensemble_adaptive(st.session_state.tab3_final)
-    st.markdown("### 🧪 Simulasi Live Accuracy")
 
-    # Simulasi: target hari ini (df[-1]), prediksi dari df[:-1]
-    simulasi_df = df[:-1]
-    target_df = df.iloc[-1]
-    simulasi_prediksi = {}
-    simulasi_target_real = {}
-    simulasi_matches = {}
-    
-    for label in DIGIT_LABELS:
-        try:
-            # Ambil WS terbaik sebelumnya
-            best_ws_data = st.session_state.tab3_full_results.get(label)
-            if not best_ws_data:
-                continue
-            best_ws = best_ws_data["ws"]
-            acc_best = best_ws_data["acc"]
-    
-            # Train model tanpa data terakhir
-            model_sim = train_temp_lstm_model(simulasi_df, label, best_ws, temp_seed)
-            top6_simulasi, probs_simulasi = get_top6_lstm_temp(model_sim, simulasi_df, best_ws)
-    
-            # Real digit dari data terakhir
-            real_digit = int(f"{int(target_df['angka']):04d}"[DIGIT_LABELS.index(label)])
-    
-            simulasi_prediksi[label] = top6_simulasi
-            simulasi_target_real[label] = real_digit
-            simulasi_matches[label] = real_digit in top6_simulasi if top6_simulasi else False
-    
-        except Exception as e:
-            simulasi_prediksi[label] = []
-            simulasi_target_real[label] = None
-            simulasi_matches[label] = False
-    
-    # Hitung skor keseluruhan
-    skor_simulasi = sum(1 for v in simulasi_matches.values() if v)
-    st.success(f"🎯 Simulasi Live Accuracy: {skor_simulasi} / 4")
-    
-    # Tampilkan tabel prediksi simulasi
-    st.markdown("### 📊 Hasil Simulasi Prediksi (df[-1])")
+    # Tampilkan hasil simulasi prediksi top-6 untuk semua posisi
+    st.markdown("### 🎯 Hasil Prediksi Simulasi (Top-6 per Posisi)")
     simulasi_tabel = []
-    for label in DIGIT_LABELS:
-        top6 = simulasi_prediksi.get(label, [])
-        real = simulasi_target_real.get(label, None)
-        match = "✅" if real in top6 else "❌"
-        simulasi_tabel.append({
-            "Posisi": label,
-            "Top-6": ", ".join(str(d) for d in top6),
-            "Target Real": real,
-            "Match": match
-        })
-    
-    st.table(pd.DataFrame(simulasi_tabel))
+    digit_order = ['RIBUAN', 'RATUSAN', 'PULUHAN', 'SATUAN']
+    for posisi in digit_order:
+        top6 = simulasi_prediksi.get(posisi, [])
+        real = simulasi_target_real.get(posisi, None)
+        if top6 and real is not None:
+            simulasi_tabel.append({
+                "Posisi": posisi,
+                "Top-6": ", ".join(str(d) for d in top6),
+                "Target Real": real,
+                "Match (in Top-6)": "✅" if safe_in(real, top6) else "❌"
+            })
+    if simulasi_tabel:
+        st.table(pd.DataFrame(simulasi_tabel))
+
     st.markdown("---")
     col1, col2 = st.columns(2)
     with col1:
