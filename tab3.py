@@ -145,6 +145,9 @@ def tab3(df, lokasi):
         for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_hybrid", "tab3_stacked", "tab3_final"]:
             st.session_state[key] = {}
 
+        alpha_used = 0.5
+        acc_conf = 0.0
+        acc_prob = 0.0
         target_digits = DIGIT_LABELS if selected_digit_tab3 == "(Semua)" else [selected_digit_tab3]
 
         for label in target_digits:
