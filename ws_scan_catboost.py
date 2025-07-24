@@ -179,38 +179,13 @@ def train_temp_lstm_model(df, label, window_size=7, seed=42):
     return model
 
 def get_top6_lstm_temp(model, df, ws):
-    # Ambil window terakhir
-    recent_seq = df["angka"].astype(str).apply(lambda x: [int(d) for d in x])
-    input_seq = recent_seq.iloc[-ws:].values.tolist()
-    
-    # Flatten dan reshape
-    input_array = np.array(input_seq).flatten().reshape(1, ws, 4)  # asumsinya input shape (batch, time, features)
-
-    # Prediksi
-    preds = model.predict(input_array)  # <== output shape-nya?
-
-    # Pastikan hasil prediksi benar berupa probabilitas
-    if preds.shape[-1] == 10:
-        probs = preds[0]  # misalnya [0.1, 0.05, ..., 0.12]
-    else:
-        probs = softmax(preds[0])
-
-    # Ambil top6 berdasarkan probabilitas
-    top6_idx = np.argsort(probs)[::-1][:6]
-    top6_digits = top6_idx.tolist()
-    top6_probs = probs[top6_idx].tolist()
-
-    return top6_digits, top6_probs
-    
-def get_top6_lstm_temp(model, df, ws):
     recent_seq = df["angka"].astype(str).apply(lambda x: [int(d) for d in x])
     input_seq = recent_seq.iloc[-ws:].values.tolist()
     input_array = np.array(input_seq).flatten().reshape(1, ws, 4)
 
-    preds = model.predict(input_array)  # (1, 10)
+    preds = model.predict(input_array)
     preds = preds[0] if preds.ndim > 1 else preds
 
-    # Cek dan normalkan
     if not np.isclose(np.sum(preds), 1.0):
         probs = softmax(preds)
     else:
@@ -220,7 +195,7 @@ def get_top6_lstm_temp(model, df, ws):
     top6_digits = top6_idx.tolist()
     top6_probs = probs[top6_idx].tolist()
 
-    return top6_digits, top6_probs
+    return top6_digits, probs  # ✅ return FULL 10-D probs, not just top6_probs
 
 def ensemble_top6(*top6_lists, weights=None):
     counter = Counter()
