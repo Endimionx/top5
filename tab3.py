@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 import os
 from collections import Counter, defaultdict
@@ -16,11 +18,7 @@ def softmax(x):
     e_x = np.exp(x - np.max(x))
     return e_x / e_x.sum()
 
-def ensemble_confidence_voting(
-    lstm_dict, catboost_top6, heatmap_counts,
-    weights=[1.2, 1.0, 0.6],
-    min_lstm_conf=0.3
-):
+def ensemble_confidence_voting(lstm_dict, catboost_top6, heatmap_counts, weights=[1.2, 1.0, 0.6], min_lstm_conf=0.3):
     score = defaultdict(float)
     for ws, (digits, confs) in lstm_dict.items():
         if not digits or confs is None or len(confs) == 0:
@@ -50,21 +48,13 @@ def hybrid_voting(conf, prob, alpha=0.5):
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
-def get_stacked_weights(acc_hybrid, acc_direct):
-    total = acc_hybrid + acc_direct
-    if total == 0:
-        return 0.5, 0.5
-    w_hybrid = acc_hybrid / total
-    w_direct = acc_direct / total
-    return w_hybrid, w_direct
-
 def stacked_hybrid_auto(hybrid, pred_direct, acc_hybrid=0.6, acc_direct=0.4):
-    w_h, w_d = get_stacked_weights(acc_hybrid, acc_direct)
+    weight_hybrid, weight_direct = get_stacked_weights(acc_hybrid, acc_direct)
     counter = defaultdict(float)
     for i, d in enumerate(hybrid):
-        counter[d] += w_h * np.exp(-(i / 2))
+        counter[d] += weight_hybrid * np.exp(-(i / 2))
     for i, d in enumerate(pred_direct):
-        counter[d] += w_d * np.exp(-(i / 2))
+        counter[d] += weight_direct * np.exp(-(i / 2))
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
@@ -76,6 +66,14 @@ def final_ensemble_with_markov(stacked, markov):
         counter[d] += (6 - i)
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
+
+def get_stacked_weights(acc_hybrid, acc_direct):
+    total = acc_hybrid + acc_direct
+    if total == 0:
+        return 0.5, 0.5
+    w_hybrid = acc_hybrid / total
+    w_direct = acc_direct / total
+    return w_hybrid, w_direct
 
 def dynamic_alpha(acc_conf, acc_prob):
     if acc_conf + acc_prob == 0:
@@ -98,6 +96,28 @@ def log_prediction(label, conf, prob, hybrid, alpha, stacked=None, final=None, l
             f.write(f"Final Hybrid: {final}\n")
         f.write("-" * 40 + "\n")
 
+def simulate_live_accuracy(df, final_results, digit_label):
+    correct = 0
+    total = 0
+    for i, row in df.iterrows():
+        if i < 1:
+            continue
+        pred = final_results.get(digit_label, [])
+        if not pred:
+            continue
+        true_digit = int(str(row["angka"])[DIGIT_LABELS.index(digit_label)])
+        if true_digit in pred:
+            correct += 1
+        total += 1
+    acc = (correct / total * 100) if total > 0 else 0.0
+    return acc
+
+def show_auto_ensemble_adaptive(alpha, acc_conf, acc_prob):
+    st.markdown("### 🔄 Auto Ensemble Adaptive Info")
+    st.write(f"📌 Auto Alpha (Confidence vs Probabilistic): `{alpha:.2f}`")
+    st.write(f"📈 Accuracy Confidence: `{acc_conf:.2f}`")
+    st.write(f"📉 Accuracy Probabilistic: `{acc_prob:.2f}`")
+
 def tab3(df, lokasi):
     min_ws_cb3 = st.number_input("🔁 Min WS", 3, 20, 5, key="tab3_min_ws")
     max_ws_cb3 = st.number_input("🔁 Max WS", min_ws_cb3 + 1, 30, min_ws_cb3 + 6, key="tab3_max_ws")
@@ -115,18 +135,17 @@ def tab3(df, lokasi):
     if hybrid_mode == "Manual Alpha":
         alpha_manual = st.slider("Alpha Manual", 0.0, 1.0, 0.5, 0.05, key="tab3_alpha")
 
-    for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_hybrid", "tab3_stacked"]:
+    for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_hybrid", "tab3_stacked", "tab3_final"]:
         if key not in st.session_state:
             st.session_state[key] = {}
 
     selected_digit_tab3 = st.selectbox("Pilih digit yang ingin discan", ["(Semua)"] + DIGIT_LABELS, key="tab3_selected_digit")
 
     if st.button("🔎 Scan Per Digit", use_container_width=True):
-        for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_hybrid", "tab3_stacked"]:
+        for key in ["tab3_full_results", "tab3_top6_acc", "tab3_top6_conf", "tab3_ensemble", "tab3_ensemble_prob", "tab3_hybrid", "tab3_stacked", "tab3_final"]:
             st.session_state[key] = {}
 
         target_digits = DIGIT_LABELS if selected_digit_tab3 == "(Semua)" else [selected_digit_tab3]
-        markov_all = top6_markov_hybrid(df)
 
         for label in target_digits:
             st.markdown(f"## 🔍 {label.upper()}")
@@ -164,6 +183,9 @@ def tab3(df, lokasi):
                 }
 
                 lstm_dict = st.session_state.tab3_top6_acc.get(label, {})
+                if not isinstance(lstm_dict, dict):
+                    lstm_dict = {}
+
                 catboost_top6_all = []
                 for ws_data in st.session_state.tab3_top6_conf[label].values():
                     catboost_top6_all.extend(ws_data[0])
@@ -204,14 +226,19 @@ def tab3(df, lokasi):
                     top6_direct, probs = get_top6_lstm_temp(model, df, best_ws)
                     if probs is not None and np.max(probs) < 0.3:
                         top6_direct = []
+                    elif probs is not None:
+                        probs = probs / np.sum(probs)
                 except:
                     top6_direct = []
 
                 stacked = stacked_hybrid_auto(hybrid, top6_direct, acc_hybrid=acc_conf, acc_direct=acc_conf)
                 st.session_state.tab3_stacked[label] = stacked
 
+                markov_all = top6_markov_hybrid(df)
                 markov_top6 = markov_all[DIGIT_LABELS.index(label)]
+
                 final_hybrid = final_ensemble_with_markov(stacked, markov_top6)
+                st.session_state.tab3_final[label] = final_hybrid
 
                 log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, stacked, final_hybrid, lokasi=lokasi)
 
@@ -243,3 +270,12 @@ def tab3(df, lokasi):
                 st.success("Log berhasil dihapus.")
             else:
                 st.info("Tidak ada log yang bisa dihapus.")
+
+    # 📊 Simulasi Live Accuracy
+    st.markdown("### 📊 Simulasi Live Accuracy")
+    for digit_label in DIGIT_LABELS:
+        acc_live = simulate_live_accuracy(df, st.session_state.tab3_final, digit_label)
+        st.info(f"📍 {digit_label.upper()} → Live Accuracy: `{acc_live:.2f}%`")
+
+    # 🔄 Auto Ensemble Adaptive Info
+    show_auto_ensemble_adaptive(alpha_used, acc_conf, acc_prob)
