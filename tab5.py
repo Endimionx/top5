@@ -12,12 +12,19 @@ def softmax(x):
     return e_x / e_x.sum()
 
 def detect_anomaly_latest(df, window=10, std_threshold=2.0):
+    """Deteksi anomali dari digit 4D terakhir."""
     if len(df) < window + 1:
         return False
-    recent_digits = df["angka"].astype(str).apply(lambda x: [int(d) for d in x])[-(window+1):]
-    stds = np.std(np.array(recent_digits), axis=0)
-    return any(s > std_threshold for s in stds)
-
+    try:
+        recent_digits = df["angka"].astype(str).apply(lambda x: [int(d) for d in x.zfill(4)])[-(window+1):]
+        arr = np.array(recent_digits.tolist())
+        if arr.shape[1] != 4:
+            return False
+        stds = np.std(arr, axis=0)
+        return any(s > std_threshold for s in stds)
+    except Exception as e:
+        print(f"[Anomaly Detection Error] {e}")
+        return False
 def ensemble_confidence_voting(lstm_dict, catboost_top6, heatmap_counts,
                                 weights=[1.2, 1.0, 0.6], min_lstm_conf=0.3):
     score = defaultdict(float)
