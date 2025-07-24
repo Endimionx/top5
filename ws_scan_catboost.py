@@ -205,21 +205,17 @@ def get_top6_lstm_temp(model, df, ws):
 def get_top6_lstm_temp(model, df, ws):
     recent_seq = df["angka"].astype(str).apply(lambda x: [int(d) for d in x])
     input_seq = recent_seq.iloc[-ws:].values.tolist()
-
-    # Flatten dan reshape jadi batch, time, feature
     input_array = np.array(input_seq).flatten().reshape(1, ws, 4)
 
-    # Prediksi
-    preds = model.predict(input_array)  # shape harus (1, 10) atau (10,)
-    preds = preds[0]  # Ambil hasil prediksi
+    preds = model.predict(input_array)  # (1, 10)
+    preds = preds[0] if preds.ndim > 1 else preds
 
-    # Pastikan hasil berupa probabilitas
+    # Cek dan normalkan
     if not np.isclose(np.sum(preds), 1.0):
         probs = softmax(preds)
     else:
         probs = preds
 
-    # Ambil top6
     top6_idx = np.argsort(probs)[::-1][:6]
     top6_digits = top6_idx.tolist()
     top6_probs = probs[top6_idx].tolist()
