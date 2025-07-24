@@ -10,8 +10,8 @@ def detect_anomaly_latest(df, window=10):
     if len(df) < window + 1:
         return False
     recent_digits = df["angka"].astype(str).apply(lambda x: [int(d) for d in x])[-(window+1):]
-recent_array = np.stack(recent_digits.to_numpy())  # ubah menjadi array shape (n, 4)
-stds = np.std(recent_array, axis=0)
+    recent_array = np.stack(recent_digits.to_numpy())  # ubah menjadi array shape (n, 4)
+    stds = np.std(recent_array, axis=0)
     return any(s > 2 for s in stds)
 
 def ensemble_confidence_voting(lstm_dict, catboost_top6, heatmap_counts,
