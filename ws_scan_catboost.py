@@ -178,8 +178,31 @@ def train_temp_lstm_model(df, label, window_size=7, seed=42):
     model.fit(X_all, y, epochs=20, batch_size=16, verbose=0, callbacks=[es])
     return model
 
+def get_top6_lstm_temp(model, df, ws):
+    # Ambil window terakhir
+    recent_seq = df["angka"].astype(str).apply(lambda x: [int(d) for d in x])
+    input_seq = recent_seq.iloc[-ws:].values.tolist()
+    
+    # Flatten dan reshape
+    input_array = np.array(input_seq).flatten().reshape(1, ws, 4)  # asumsinya input shape (batch, time, features)
 
-def get_top6_lstm_temp(model, df, window_size=7):
+    # Prediksi
+    preds = model.predict(input_array)  # <== output shape-nya?
+
+    # Pastikan hasil prediksi benar berupa probabilitas
+    if preds.shape[-1] == 10:
+        probs = preds[0]  # misalnya [0.1, 0.05, ..., 0.12]
+    else:
+        probs = softmax(preds[0])
+
+    # Ambil top6 berdasarkan probabilitas
+    top6_idx = np.argsort(probs)[::-1][:6]
+    top6_digits = top6_idx.tolist()
+    top6_probs = probs[top6_idx].tolist()
+
+    return top6_digits, top6_probs
+    
+def get_top6_lstm_tempx(model, df, window_size=7):
     if len(df) < window_size:
         return [], []
 
