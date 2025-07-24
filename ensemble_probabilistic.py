@@ -1,20 +1,24 @@
 import numpy as np
 from collections import defaultdict
 
+def softmax(x):
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum()
+
 def ensemble_probabilistic(probs_list, catboost_accuracies=None):
-    from collections import defaultdict
+    """
+    Menggabungkan prediksi probabilistik dari beberapa model.
+    """
     score = defaultdict(float)
 
     for i, probs in enumerate(probs_list):
-        # Validasi panjang
         if probs is None or len(probs) != 10:
             continue
 
-        # Normalisasi jika belum
+        # Normalisasi jika belum softmax
         if not np.isclose(np.sum(probs), 1.0):
             probs = softmax(probs)
 
-        # Ambil bobot
         weight = catboost_accuracies[i] if catboost_accuracies and i < len(catboost_accuracies) else 1.0
 
         for d, p in enumerate(probs):
