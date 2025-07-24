@@ -98,14 +98,7 @@ def show_auto_ensemble_adaptive(pred_dict):
     for label, pred in pred_dict.items():
         if pred:
             st.write(f"{label.upper()}: `{pred}`")
-            
-def temperature_scale(probs, T=1.5):
-    """Melakukan temperature scaling ke output probabilitas."""
-    logits = np.log(probs + 1e-9)  # Hindari log(0)
-    scaled_logits = logits / T
-    scaled_probs = np.exp(scaled_logits) / np.sum(np.exp(scaled_logits))
-    return scaled_probs
-    
+
 def tab3(df, lokasi):
     st.markdown("## 🎯 Prediksi Per Digit")
     min_ws = st.number_input("Min WS", 3, 20, 5)
@@ -139,7 +132,6 @@ def tab3(df, lokasi):
             st.markdown(f"### 🔍 {label.upper()}")
             try:
                 result_df = scan_ws_catboost(df, label, min_ws, max_ws, folds, seed)
-                #best_row = result_df.loc[result_df["Accuracy Mean"].idxmax()]
                 result_df["Stabilitas"] = result_df["Accuracy Mean"] - result_df["Accuracy Std"]
                 best_row = result_df.loc[result_df["Stabilitas"].idxmax()]
                 best_ws = int(best_row["WS"])
