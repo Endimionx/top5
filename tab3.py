@@ -1,7 +1,5 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
 import os
 from collections import Counter, defaultdict
@@ -52,13 +50,21 @@ def hybrid_voting(conf, prob, alpha=0.5):
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
+def get_stacked_weights(acc_hybrid, acc_direct):
+    total = acc_hybrid + acc_direct
+    if total == 0:
+        return 0.5, 0.5
+    w_hybrid = acc_hybrid / total
+    w_direct = acc_direct / total
+    return w_hybrid, w_direct
+
 def stacked_hybrid_auto(hybrid, pred_direct, acc_hybrid=0.6, acc_direct=0.4):
-    weight_hybrid, weight_direct = get_stacked_weights(acc_hybrid, acc_direct)
+    w_h, w_d = get_stacked_weights(acc_hybrid, acc_direct)
     counter = defaultdict(float)
     for i, d in enumerate(hybrid):
-        counter[d] += weight_hybrid * np.exp(-(i / 2))
+        counter[d] += w_h * np.exp(-(i / 2))
     for i, d in enumerate(pred_direct):
-        counter[d] += weight_direct * np.exp(-(i / 2))
+        counter[d] += w_d * np.exp(-(i / 2))
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
 
@@ -70,14 +76,6 @@ def final_ensemble_with_markov(stacked, markov):
         counter[d] += (6 - i)
     ranked = sorted(counter.items(), key=lambda x: x[1], reverse=True)
     return [d for d, _ in ranked[:6]]
-
-def get_stacked_weights(acc_hybrid, acc_direct):
-    total = acc_hybrid + acc_direct
-    if total == 0:
-        return 0.5, 0.5
-    w_hybrid = acc_hybrid / total
-    w_direct = acc_direct / total
-    return w_hybrid, w_direct
 
 def dynamic_alpha(acc_conf, acc_prob):
     if acc_conf + acc_prob == 0:
@@ -128,6 +126,7 @@ def tab3(df, lokasi):
             st.session_state[key] = {}
 
         target_digits = DIGIT_LABELS if selected_digit_tab3 == "(Semua)" else [selected_digit_tab3]
+        markov_all = top6_markov_hybrid(df)
 
         for label in target_digits:
             st.markdown(f"## 🔍 {label.upper()}")
@@ -165,9 +164,6 @@ def tab3(df, lokasi):
                 }
 
                 lstm_dict = st.session_state.tab3_top6_acc.get(label, {})
-                if not isinstance(lstm_dict, dict):
-                    lstm_dict = {}
-
                 catboost_top6_all = []
                 for ws_data in st.session_state.tab3_top6_conf[label].values():
                     catboost_top6_all.extend(ws_data[0])
@@ -208,17 +204,13 @@ def tab3(df, lokasi):
                     top6_direct, probs = get_top6_lstm_temp(model, df, best_ws)
                     if probs is not None and np.max(probs) < 0.3:
                         top6_direct = []
-                    elif probs is not None:
-                        probs = probs / np.sum(probs)
                 except:
                     top6_direct = []
 
                 stacked = stacked_hybrid_auto(hybrid, top6_direct, acc_hybrid=acc_conf, acc_direct=acc_conf)
                 st.session_state.tab3_stacked[label] = stacked
 
-                markov_all = top6_markov_hybrid(df)
                 markov_top6 = markov_all[DIGIT_LABELS.index(label)]
-
                 final_hybrid = final_ensemble_with_markov(stacked, markov_top6)
 
                 log_prediction(label, final_ens_conf, final_ens_prob, hybrid, alpha_used, stacked, final_hybrid, lokasi=lokasi)
