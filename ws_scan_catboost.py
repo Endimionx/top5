@@ -202,21 +202,29 @@ def get_top6_lstm_temp(model, df, ws):
 
     return top6_digits, top6_probs
     
-def get_top6_lstm_tempx(model, df, window_size=7):
-    if len(df) < window_size:
-        return [], []
+def get_top6_lstm_temp(model, df, ws):
+    recent_seq = df["angka"].astype(str).apply(lambda x: [int(d) for d in x])
+    input_seq = recent_seq.iloc[-ws:].values.tolist()
 
-    input_seq = df["angka"].values[-window_size:]
-    if any(len(str(x)) != 4 or not str(x).isdigit() for x in input_seq):
-        return [], []
+    # Flatten dan reshape jadi batch, time, feature
+    input_array = np.array(input_seq).flatten().reshape(1, ws, 4)
 
-    seq = [int(d) for num in input_seq for d in f"{int(num):04d}"]
-    X_input = np.array(seq).reshape((1, window_size, 4))
-    probs = model.predict(X_input, verbose=0)[0]
+    # Prediksi
+    preds = model.predict(input_array)  # shape harus (1, 10) atau (10,)
+    preds = preds[0]  # Ambil hasil prediksi
 
-    top6_idx = probs.argsort()[-6:][::-1]
-    return top6_idx.tolist(), probs[top6_idx]
+    # Pastikan hasil berupa probabilitas
+    if not np.isclose(np.sum(preds), 1.0):
+        probs = softmax(preds)
+    else:
+        probs = preds
 
+    # Ambil top6
+    top6_idx = np.argsort(probs)[::-1][:6]
+    top6_digits = top6_idx.tolist()
+    top6_probs = probs[top6_idx].tolist()
+
+    return top6_digits, top6_probs
 
 def ensemble_top6(*top6_lists, weights=None):
     counter = Counter()
