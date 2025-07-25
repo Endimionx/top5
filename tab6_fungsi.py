@@ -2,82 +2,53 @@
 
 import numpy as np
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Bidirectional, Reshape
+from tensorflow.keras.layers import Dense, LSTM, Bidirectional
 from tensorflow.keras.utils import to_categorical
 from datetime import datetime
-from collections import Counter
 import os
 
 DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 
-def build_lstm4d_model(window_size=10):
-    model = Sequential([
-        Bidirectional(LSTM(64, return_sequences=True), input_shape=(window_size, 4)),
-        Bidirectional(LSTM(64)),
-        Dense(40, activation='relu'),
-        Dense(4 * 10, activation='softmax'),
-        Reshape((4, 10))
-    ])
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-    return model
-
-def prepare_lstm4d_data(df, window_size=10):
-    sequences = df['angka'].astype(str).apply(lambda x: [int(d) for d in x]).tolist()
-    X, y = [], []
-    for i in range(len(sequences) - window_size):
-        window = sequences[i:i + window_size]
-        label = sequences[i + window_size]
-        X.append(window)
-        y.append(label)
-    X = np.array(X)
-    y = to_categorical(y, num_classes=10)
-    return X, y
-
-def train_lstm4d(df, window_size=10, epochs=15, batch_size=16):
-    X, y = prepare_lstm4d_data(df, window_size)
-    model = build_lstm4d_model(window_size)
-    model.fit(X, y, epochs=epochs, batch_size=batch_size, verbose=0)
-    return model
-
-def predict_lstm4d_top8(model, df, window_size=10):
-    sequences = df['angka'].astype(str).apply(lambda x: [int(d) for d in x]).tolist()
-    if len(sequences) < window_size:
-        return None, None
-    latest_window = sequences[-window_size:]
-    X_input = np.array([latest_window])
-    preds = model.predict(X_input, verbose=0)[0]
-    top8_per_digit = [np.argsort(p)[::-1][:8].tolist() for p in preds]
-    full_probs = preds.tolist()
-    return top8_per_digit, full_probs
-
-def parse_manual_input(textarea_input):
-    lines = textarea_input.strip().splitlines()
+def parse_reference_input(text):
+    """
+    Mengubah text area menjadi array shape (49, 8)
+    """
+    lines = text.strip().splitlines()
     digits = []
     for line in lines:
         line = line.strip()
         if len(line) == 8 and line.isdigit():
-            digits.append([int(d) for d in line])
-    return digits if len(digits) == 49 else None
+            digits.append([int(c) for c in line])
+    return np.array(digits) if len(digits) == 49 else None
 
-def extract_digit_patterns_from_manual_ref(digits_49):
-    pola_per_posisi = []
-    for i in range(4):
-        kolom_i = [baris[i] for baris in digits_49]
-        pola_per_posisi.append(Counter(kolom_i))
-    return pola_per_posisi
+def get_target_digit_from_df(df, posisi):
+    """
+    Ambil target digit dari df[-1], posisi: 0=ribuan, 1=ratusan, dst
+    """
+    target = str(df.iloc[-1]["angka"])
+    if len(target) != 4:
+        return None
+    return int(target[posisi])
 
-def refine_top8_with_patterns(top8, pola_refs, w_lstm=1.0, w_ref=0.2):
-    refined = []
-    for i in range(4):
-        digit_scores = {}
-        for rank, d in enumerate(top8[i]):
-            score = (8 - rank) * w_lstm
-            score += pola_refs[i].get(d, 0) * w_ref
-            digit_scores[d] = score
-        ranked = sorted(digit_scores.items(), key=lambda x: x[1], reverse=True)
-        refined_digits = [d for d, _ in ranked[:6]]
-        refined.append(refined_digits)
-    return refined
+def build_model(input_shape=(49, 8)):
+    model = Sequential([
+        Bidirectional(LSTM(32, return_sequences=False), input_shape=input_shape),
+        Dense(64, activation="relu"),
+        Dense(10, activation="softmax")
+    ])
+    model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
+    return model
+
+def train_and_predict_top6(X, y_digit, epochs=50, batch_size=16):
+    """
+    Melatih model dan menghasilkan top6 prediksi digit
+    """
+    y_cat = to_categorical([y_digit] * X.shape[0], num_classes=10)
+    model = build_model(input_shape=X.shape[1:])
+    model.fit(X, y_cat, epochs=epochs, batch_size=batch_size, verbose=0)
+    pred = model.predict(np.array([X[-1]]), verbose=0)[0]
+    top6 = np.argsort(pred)[::-1][:6].tolist()
+    return top6, pred.tolist()
 
 def save_prediction_log(result_dict, lokasi):
     today = datetime.now().strftime("%Y-%m-%d")
