@@ -45,7 +45,7 @@ def predict_lstm4d_top8(model, df, window_size=10):
         return None, None
     latest_window = sequences[-window_size:]
     X_input = np.array([latest_window])
-    preds = model.predict(X_input, verbose=0)[0]  # shape: (4, 10)
+    preds = model.predict(X_input, verbose=0)[0]
     top8_per_digit = [np.argsort(p)[::-1][:8].tolist() for p in preds]
     full_probs = preds.tolist()
     return top8_per_digit, full_probs
@@ -60,24 +60,20 @@ def parse_manual_input(textarea_input):
     return digits if len(digits) == 49 else None
 
 def extract_digit_patterns_from_manual_ref(digits_49):
-    pola_list = []
-    for i in range(4):  # untuk setiap posisi (ribuan, ratusan, puluhan, satuan)
+    pola_per_posisi = []
+    for i in range(4):
         kolom_i = [baris[i] for baris in digits_49]
-        pola_list.append(Counter(kolom_i))
-    return pola_list
+        pola_per_posisi.append(Counter(kolom_i))
+    return pola_per_posisi
 
-def refine_top8_with_patterns(top8, pola_refs, model_probs, weight_model=0.8, weight_ref=0.2):
-    """
-    Kombinasi hybrid dari prediksi model + pola referensi (49x8).
-    """
+def refine_top8_with_patterns(top8, pola_refs, w_lstm=1.0, w_ref=0.2):
     refined = []
     for i in range(4):
         digit_scores = {}
-        for d in top8[i]:
-            prob_score = model_probs[i][d]
-            ref_score = pola_refs[i].get(d, 0) / 49  # normalisasi frekuensi
-            total_score = (weight_model * prob_score) + (weight_ref * ref_score)
-            digit_scores[d] = total_score
+        for rank, d in enumerate(top8[i]):
+            score = (8 - rank) * w_lstm
+            score += pola_refs[i].get(d, 0) * w_ref
+            digit_scores[d] = score
         ranked = sorted(digit_scores.items(), key=lambda x: x[1], reverse=True)
         refined_digits = [d for d, _ in ranked[:6]]
         refined.append(refined_digits)
