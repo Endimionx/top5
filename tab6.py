@@ -10,66 +10,66 @@ from tab6_fungsi import (
     predict_lstm4d_top8,
     refine_top8_with_manual,
     parse_manual_input,
+    extract_manual_ref_per_digit,
     save_prediction_log
 )
 
 def tab6(df, lokasi):
-    st.markdown("## 🔮 Prediksi 4D - LSTM Akurat (Per Posisi + Manual Matching)")
+    st.header("🔮 Prediksi 4D (Model LSTM per Posisi + Referensi Manual)")
 
-    # Sidebar atau input baris manual
-    st.markdown("### ✍️ Input Prediksi Manual (100 Hari Terakhir + 1 Prediksi Besok)")
+    # Input parameter
+    window_size = st.number_input("Window Size", min_value=5, max_value=30, value=10, key="ws6")
+    epochs = st.number_input("Epochs", min_value=1, max_value=100, value=15, key="ep6")
+    batch_size = st.number_input("Batch Size", min_value=1, max_value=128, value=16, key="bs6")
+
+    st.subheader("📥 Input Prediksi Manual (49 hari + 1 hari untuk besok)")
+    manual_inputs = {}
     cols = st.columns(4)
-    textarea_inputs = {}
-    valid_refs = {}
-
     for i, label in enumerate(DIGIT_LABELS):
         with cols[i]:
-            textarea_inputs[label] = st.text_area(
-                f"{label.capitalize()} (100 baris)", height=200, key=f"text_{label}"
+            manual_inputs[label] = st.text_area(
+                f"Posisi {label.upper()} (masukkan 50 digit)",
+                height=300,
+                key=f"manual_{label}"
             )
-            parsed = parse_manual_input(textarea_inputs[label])
-            if parsed:
-                valid_refs[label] = parsed
-            else:
-                st.warning(f"❗ Data {label} tidak valid atau tidak 100 baris.")
 
-    st.markdown("---")
-    window_size = st.number_input("🪟 Window Size", 5, 30, 10, key="ws_tab6")
-    epochs = st.number_input("🧠 Epochs", 1, 100, 15, key="ep_tab6")
-    batch_size = st.number_input("📦 Batch Size", 4, 64, 16, key="bs_tab6")
-
-    if st.button("🚀 Jalankan Prediksi", use_container_width=True, key="run_pred_tab6"):
+    if st.button("🚀 Jalankan Prediksi", key="run_tab6"):
         try:
-            st.info("🔧 Melatih model sementara...")
-            model = train_lstm4d(df, window_size=window_size, epochs=epochs, batch_size=batch_size)
+            with st.spinner("Melatih model dan memproses prediksi..."):
+                # Latih model
+                model = train_lstm4d(df, window_size=window_size, epochs=epochs, batch_size=batch_size)
 
-            st.info("🔮 Melakukan prediksi 4D (top-8 per posisi)...")
-            top8_per_pos, _ = predict_lstm4d_top8(model, df, window_size)
+                # Prediksi top-8
+                top8_digits, full_probs = predict_lstm4d_top8(model, df, window_size)
+                if top8_digits is None:
+                    st.error("Data tidak cukup untuk prediksi.")
+                    return
 
-            if not top8_per_pos:
-                return st.error("Gagal memprediksi. Pastikan data cukup.")
+                # Parsing manual input & validasi
+                manual_49_refs, manual_digit_besok = extract_manual_ref_per_digit(manual_inputs)
 
-            st.subheader("📈 Hasil Prediksi Awal (Top-8 per Posisi)")
-            for i, label in enumerate(DIGIT_LABELS):
-                st.write(f"{label.upper()}: {top8_per_pos[i]}")
+                # Gabungkan digit referensi besok sebagai pembanding refinement
+                manual_refs_digit = [manual_digit_besok[pos] for pos in DIGIT_LABELS]
 
-            if len(valid_refs) == 4:
-                # Gunakan baris ke-100 (baris ke-99, index ke-99) sebagai prediksi besok
-                manual_refs = [valid_refs[label][99] for label in DIGIT_LABELS]
-                refined = refine_top8_with_manual(top8_per_pos, manual_refs, extra_score=2.0)
+                # Refinement prediksi berdasarkan referensi manual
+                final_result = refine_top8_with_manual(top8_digits, manual_refs_digit)
 
-                st.subheader("✅ Refinement dengan Referensi Manual (Top-6)")
-                for i, label in enumerate(DIGIT_LABELS):
-                    st.success(f"{label.upper()}: {refined[i]} (ref: {manual_refs[i]})")
+                # Tampilkan hasil
+                st.subheader("📊 Hasil Prediksi Akhir per Posisi")
+                pred_table = []
+                for i, pos in enumerate(DIGIT_LABELS):
+                    pred_table.append({
+                        "Posisi": pos.upper(),
+                        "Top-6": ", ".join(str(d) for d in final_result[i]),
+                        "Manual Besok": manual_refs_digit[i],
+                        "Match": "✅" if manual_refs_digit[i] in final_result[i] else "❌"
+                    })
+                st.table(pd.DataFrame(pred_table))
 
-                # Logging
-                log_file = save_prediction_log(dict(zip(DIGIT_LABELS, refined)), lokasi)
-                st.info(f"📁 Hasil prediksi disimpan ke: `{log_file}`")
-
-            else:
-                st.warning("📄 Input referensi manual belum lengkap atau valid. Refinement dilewati.")
-                for i, label in enumerate(DIGIT_LABELS):
-                    st.write(f"{label.upper()}: {top8_per_pos[i][:6]} (tanpa refinement)")
+                # Simpan hasil ke log
+                result_dict = {DIGIT_LABELS[i]: final_result[i] for i in range(4)}
+                filepath = save_prediction_log(result_dict, lokasi)
+                st.success(f"Hasil disimpan ke `{filepath}`")
 
         except Exception as e:
-            st.error(f"Gagal prediksi: {e}")
+            st.error(f"Gagal melakukan prediksi: {e}")
