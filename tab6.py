@@ -7,64 +7,52 @@ from tab6_fungsi import (
     train_lstm4d,
     predict_lstm4d_top8,
     parse_manual_input,
-    extract_digit_patterns_from_manual_ref,
+    extract_digit_patterns_flat_per_digit,
     refine_top8_with_patterns,
     save_prediction_log
 )
 
-def tab6(df, selected_lokasi):
-    st.header("📘 Prediksi 4D LSTM + Referensi Pola Manual")
+def tab6(df, lokasi):
+    st.header("🔮 Prediksi 4D (LSTM + 49 Referensi Manual Prediksi Tepat)")
+    st.caption("Gunakan 49 baris referensi 8-digit (prediksi tepat) untuk mempengaruhi prediksi AI")
 
-    st.markdown("### ✍️ Masukkan Data Referensi Manual (8 digit, 50 baris, per posisi)")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    ribuan_input = col1.text_area("Ribuan", height=300, key="ribuan_manual")
-    ratusan_input = col2.text_area("Ratusan", height=300, key="ratusan_manual")
-    puluhan_input = col3.text_area("Puluhan", height=300, key="puluhan_manual")
-    satuan_input = col4.text_area("Satuan", height=300, key="satuan_manual")
+    col1, col2 = st.columns(2)
+    with col1:
+        ws = st.number_input("Window Size", 5, 20, 10, key="tab6_ws")
+        epochs = st.number_input("Epochs", 1, 100, 15, key="tab6_epochs")
+        batch_size = st.number_input("Batch Size", 4, 128, 16, key="tab6_batch")
 
-    st.markdown("### 🔧 Parameter Model")
-    window_size = st.number_input("Window Size", min_value=5, max_value=20, value=10, step=1, key="ws_tab6")
-    epochs = st.slider("Epochs", 1, 50, 15, key="epochs_tab6")
-    batch_size = st.slider("Batch Size", 1, 64, 16, key="batch_tab6")
+    st.subheader("🧠 Referensi Prediksi Manual (49 baris x 8 digit)")
+    manual_input = st.text_area(
+        "Masukkan 50 baris (gunakan hanya 49 untuk referensi):",
+        height=300,
+        key="tab6_textarea"
+    )
 
-    if st.button("🚀 Jalankan Prediksi", key="run_tab6"):
-        try:
-            parsed_ribuan = parse_manual_input(ribuan_input)
-            parsed_ratusan = parse_manual_input(ratusan_input)
-            parsed_puluhan = parse_manual_input(puluhan_input)
-            parsed_satuan = parse_manual_input(satuan_input)
+    if st.button("🚀 Prediksi Sekarang", key="tab6_run_button"):
+        digits_50 = parse_manual_input(manual_input)
+        if not digits_50:
+            st.error("Format input salah. Pastikan minimal 49 baris dan tiap baris 8 digit.")
+            return
 
-            if None in (parsed_ribuan, parsed_ratusan, parsed_puluhan, parsed_satuan):
-                st.error("❌ Semua posisi harus berisi 50 baris valid (8 digit per baris).")
-                return
+        referensi = digits_50[:49]  # hanya 49 baris pertama
+        st.success("✅ Referensi valid. Melatih model dan melakukan prediksi...")
 
-            # Gabungkan ke format referensi: list of 50 baris, tiap baris 8 digit
-            referensi_gabungan = [
-                [parsed_ribuan[i][0], parsed_ratusan[i][1], parsed_puluhan[i][2], parsed_satuan[i][3]]
-                for i in range(50)
-            ]
+        # Train dan prediksi
+        model = train_lstm4d(df, window_size=ws, epochs=epochs, batch_size=batch_size)
+        top8, probs = predict_lstm4d_top8(model, df, window_size=ws)
+        if top8 is None:
+            st.error("Data terlalu sedikit untuk melakukan prediksi.")
+            return
 
-            pola_refs, pred_besok = extract_digit_patterns_from_manual_ref(referensi_gabungan)
+        # Ambil pola referensi dari 49 baris manual
+        pola_refs = extract_digit_patterns_flat_per_digit(referensi)
+        refined = refine_top8_with_patterns(top8, pola_refs)
 
-            # Latih model dari data utama
-            model = train_lstm4d(df, window_size=window_size, epochs=epochs, batch_size=batch_size)
+        st.subheader("📊 Hasil Prediksi Final (Top-6 per Posisi):")
+        result_dict = {DIGIT_LABELS[i]: refined[i] for i in range(4)}
+        st.table(result_dict)
 
-            top8, full_probs = predict_lstm4d_top8(model, df, window_size=window_size)
-
-            if top8 is None:
-                st.warning("❗ Jumlah data tidak cukup untuk window size.")
-                return
-
-            refined = refine_top8_with_patterns(top8, pola_refs, pred_besok)
-
-            st.success("✅ Prediksi berhasil dibuat:")
-            for i, label in enumerate(DIGIT_LABELS):
-                st.write(f"**{label.upper()}**: {refined[i]}")
-
-            log_dict = {label: refined[i] for i, label in enumerate(DIGIT_LABELS)}
-            file_path = save_prediction_log(log_dict, selected_lokasi)
-            st.info(f"📁 Hasil disimpan di: `{file_path}`")
-
-        except Exception as e:
-            st.error(f"❌ Gagal prediksi: {e}")
+        # Simpan log otomatis
+        filepath = save_prediction_log(result_dict, lokasi)
+        st.info(f"📁 Hasil disimpan di: `{filepath}`")
