@@ -9,7 +9,7 @@ from tab6_fungsi import (
     predict_lstm4d_top6_per_digit
 )
 
-def tab6(df):
+def tab6(df, lokasi):
     st.markdown("## 🔮 Prediksi 4D Langsung dengan Model AI")
     st.info("Model ini memprediksi seluruh angka 4D sekaligus, namun hasil tetap ditampilkan per digit.")
 
