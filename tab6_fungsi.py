@@ -5,8 +5,8 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Bidirectional, Reshape
 from tensorflow.keras.utils import to_categorical
 from datetime import datetime
-from collections import Counter
 import os
+from collections import Counter
 
 DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 
@@ -52,7 +52,7 @@ def predict_lstm4d_top8(model, df, window_size=10):
 
 def parse_manual_input(textarea_input):
     """
-    Mengubah textarea string ke list of list (masing-masing 8 digit per baris).
+    Mengubah textarea string ke list of list of digits (50 baris, 8 digit per baris).
     """
     lines = textarea_input.strip().splitlines()
     digits = []
@@ -62,29 +62,27 @@ def parse_manual_input(textarea_input):
             digits.append([int(d) for d in line])
     return digits if len(digits) >= 49 else None
 
-def extract_digit_patterns_flat_per_digit(digits_49):
+def extract_digit_pattern_from_8digit_block(data8digit):
     """
-    Ambil pola frekuensi untuk setiap posisi (ribuan, ratusan, puluhan, satuan)
-    dari 8 digit prediksi yang tepat selama 49 hari terakhir.
+    Ambil 49 baris pertama dan hitung frekuensi digit per posisi prediksi (misalnya ribuan saja).
     """
-    pola_list = []
-    for i in range(4):  # ribuan sampai satuan
-        digits_i = []
-        for baris in digits_49[:49]:  # hanya 49 baris pertama
-            digits_i.append(baris[i])  # ambil posisi ke-i
-        pola_list.append(Counter(digits_i))
-    return pola_list
+    ref_49 = data8digit[:49]  # exclude baris terakhir
+    pattern_counter = Counter()
+    for row in ref_49:
+        for digit in row:
+            pattern_counter[digit] += 1
+    return pattern_counter
 
-def refine_top8_with_patterns(top8, pola_refs, extra_score=2.0):
+def refine_top8_with_patterns(top8, pattern_refs, extra_score=1.5):
     """
-    Tambahkan bobot jika cocok dengan pola referensi.
+    Tambahkan bobot berdasarkan pola dari prediksi tepat 49 hari untuk masing-masing posisi.
     """
     refined = []
-    for i in range(4):
+    for i in range(4):  # untuk ribuan, ratusan, dst
         digit_scores = {}
         for rank, d in enumerate(top8[i]):
-            score = (8 - rank)
-            score += pola_refs[i].get(d, 0) * 0.2
+            score = (8 - rank)  # base score
+            score += pattern_refs[i].get(d, 0) * 0.25  # bobot dari frekuensi kemunculan
             digit_scores[d] = score
         ranked = sorted(digit_scores.items(), key=lambda x: x[1], reverse=True)
         refined_digits = [d for d, _ in ranked[:6]]
