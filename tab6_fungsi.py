@@ -2,79 +2,86 @@
 
 import numpy as np
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Bidirectional
+from tensorflow.keras.layers import LSTM, Dense, Bidirectional, Reshape
 from tensorflow.keras.utils import to_categorical
-from collections import Counter
 from datetime import datetime
+from collections import Counter
 import os
 
 DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 
-def build_lstm_model(window_size=10):
+def build_lstm4d_model(window_size=10):
     model = Sequential([
-        Bidirectional(LSTM(64, return_sequences=True), input_shape=(window_size, 1)),
+        Bidirectional(LSTM(64, return_sequences=True), input_shape=(window_size, 4)),
         Bidirectional(LSTM(64)),
-        Dense(32, activation='relu'),
-        Dense(10, activation='softmax')
+        Dense(40, activation='relu'),
+        Dense(4 * 10, activation='softmax'),
+        Reshape((4, 10))
     ])
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
-def prepare_data_for_position(df, pos, window_size=10):
-    sequences = df['angka'].astype(str).apply(lambda x: int(x[pos])).tolist()
+def prepare_lstm4d_data(df, window_size=10):
+    sequences = df['angka'].astype(str).apply(lambda x: [int(d) for d in x]).tolist()
     X, y = [], []
     for i in range(len(sequences) - window_size):
-        X.append(sequences[i:i+window_size])
-        y.append(sequences[i+window_size])
-    X = np.array(X).reshape(-1, window_size, 1)
+        window = sequences[i:i + window_size]
+        label = sequences[i + window_size]
+        X.append(window)
+        y.append(label)
+    X = np.array(X)
     y = to_categorical(y, num_classes=10)
     return X, y
 
-def train_lstm_for_position(df, pos, window_size=10, epochs=15, batch_size=16):
-    X, y = prepare_data_for_position(df, pos, window_size)
-    model = build_lstm_model(window_size)
+def train_lstm4d(df, window_size=10, epochs=15, batch_size=16):
+    X, y = prepare_lstm4d_data(df, window_size)
+    model = build_lstm4d_model(window_size)
     model.fit(X, y, epochs=epochs, batch_size=batch_size, verbose=0)
     return model
 
-def predict_top8_per_position(model, sequence, window_size=10):
-    if len(sequence) < window_size:
-        return []
-    X_input = np.array(sequence[-window_size:]).reshape(1, window_size, 1)
-    probs = model.predict(X_input, verbose=0)[0]
-    top8 = np.argsort(probs)[::-1][:8].tolist()
-    return top8, probs.tolist()
+def predict_lstm4d_top8(model, df, window_size=10):
+    sequences = df['angka'].astype(str).apply(lambda x: [int(d) for d in x]).tolist()
+    if len(sequences) < window_size:
+        return None, None
+    latest_window = sequences[-window_size:]
+    X_input = np.array([latest_window])
+    preds = model.predict(X_input, verbose=0)[0]  # shape: (4, 10)
+    top8_per_digit = [np.argsort(p)[::-1][:8].tolist() for p in preds]
+    full_probs = preds.tolist()
+    return top8_per_digit, full_probs
 
-def parse_manual_8digit_input(textarea_input):
-    """
-    Mengubah input textarea menjadi list of list of digits.
-    Setiap baris harus 8 digit.
-    """
+def parse_manual_input(textarea_input):
     lines = textarea_input.strip().splitlines()
     digits = []
     for line in lines:
         line = line.strip()
         if len(line) == 8 and line.isdigit():
             digits.append([int(d) for d in line])
-    return digits if len(digits) >= 49 else None
+    return digits if len(digits) == 49 else None
 
-def extract_frequencies_8digit(data_8digit, pos):
-    """
-    Ambil frekuensi digit di posisi tertentu dari 49 baris awal.
-    """
-    kolom = [baris[pos] for baris in data_8digit[:49]]
-    return Counter(kolom)
+def extract_digit_patterns_from_manual_ref(digits_49):
+    pola_list = []
+    for i in range(4):  # untuk setiap posisi (ribuan, ratusan, puluhan, satuan)
+        kolom_i = [baris[i] for baris in digits_49]
+        pola_list.append(Counter(kolom_i))
+    return pola_list
 
-def refine_prediction(top8_list, prob_list, freq_counter, freq_weight=0.3, prob_weight=0.7):
+def refine_top8_with_patterns(top8, pola_refs, model_probs, weight_model=0.8, weight_ref=0.2):
     """
-    Gabungkan skor berdasarkan probabilitas dan frekuensi referensi.
+    Kombinasi hybrid dari prediksi model + pola referensi (49x8).
     """
-    scores = {}
-    for i, d in enumerate(top8_list):
-        prob_score = prob_list[d]
-        freq_score = freq_counter.get(d, 0)
-        scores[d] = (prob_score * prob_weight) + (freq_score * freq_weight)
-    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-    return [d for d, _ in ranked[:6]]
+    refined = []
+    for i in range(4):
+        digit_scores = {}
+        for d in top8[i]:
+            prob_score = model_probs[i][d]
+            ref_score = pola_refs[i].get(d, 0) / 49  # normalisasi frekuensi
+            total_score = (weight_model * prob_score) + (weight_ref * ref_score)
+            digit_scores[d] = total_score
+        ranked = sorted(digit_scores.items(), key=lambda x: x[1], reverse=True)
+        refined_digits = [d for d, _ in ranked[:6]]
+        refined.append(refined_digits)
+    return refined
 
 def save_prediction_log(result_dict, lokasi):
     today = datetime.now().strftime("%Y-%m-%d")
