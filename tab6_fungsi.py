@@ -57,9 +57,9 @@ def refine_top8_with_manual(top8, manual_refs, extra_score=2.0):
     for i in range(4):  # untuk setiap posisi
         digit_scores = {}
         for rank, d in enumerate(top8[i]):
-            score = (8 - rank)  # semakin tinggi ranking, semakin tinggi skor awal
+            score = (8 - rank)  # skor dasar berdasarkan posisi
             if d == manual_refs[i]:
-                score += extra_score  # boost jika cocok dengan referensi
+                score += extra_score  # boost jika cocok
             digit_scores[d] = score
         # urutkan ulang berdasarkan skor tertinggi
         ranked = sorted(digit_scores.items(), key=lambda x: x[1], reverse=True)
@@ -69,7 +69,7 @@ def refine_top8_with_manual(top8, manual_refs, extra_score=2.0):
 
 def parse_manual_input(textarea_input):
     """
-    Mengubah textarea string ke list digit (harus 100 baris).
+    Mengubah textarea string ke list digit (harus 50 baris = 49 + 1).
     """
     lines = textarea_input.strip().splitlines()
     digits = []
@@ -80,7 +80,21 @@ def parse_manual_input(textarea_input):
                 digits.append(d)
         except:
             continue
-    return digits if len(digits) == 100 else None
+    return digits if len(digits) == 50 else None
+
+def extract_manual_ref_per_digit(textarea_dict):
+    """
+    Mengembalikan list per posisi: [list_49digit, digit_ke50]
+    """
+    refs_49 = {}
+    digit_50 = {}
+    for pos in DIGIT_LABELS:
+        parsed = parse_manual_input(textarea_dict.get(pos, ""))
+        if parsed is None or len(parsed) != 50:
+            raise ValueError(f"Posisi '{pos}' harus berisi 50 baris angka 0-9.")
+        refs_49[pos] = parsed[:49]
+        digit_50[pos] = parsed[49]
+    return refs_49, digit_50
 
 def save_prediction_log(result_dict, lokasi):
     today = datetime.now().strftime("%Y-%m-%d")
