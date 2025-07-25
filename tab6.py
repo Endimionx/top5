@@ -5,7 +5,6 @@ from tab6_fungsi import (
     DIGIT_LABELS,
     build_lstm4d_model,
     train_lstm4d,
-    prepare_lstm4d_data,
     predict_lstm4d_top8,
     parse_manual_input,
     extract_digit_patterns_from_manual_ref,
@@ -14,53 +13,47 @@ from tab6_fungsi import (
 )
 
 def tab6(df, lokasi):
-    st.header("📊 Prediksi 4D Akurat - Hybrid LSTM + Referensi 49x8")
+    st.header("📊 Prediksi 4D - Refined with Manual 8-Digit Referensi")
 
-    st.markdown("Masukkan 49 baris data referensi untuk masing-masing posisi (8 digit per baris):")
-
-    manual_inputs = {}
-    for label in DIGIT_LABELS:
-        manual_inputs[label] = st.text_area(
-            f"Referensi 49x8 - Posisi {label.upper()}",
-            height=200,
-            key=f"input_{label}"
-        )
-
-    run = st.button("🚀 Jalankan Prediksi", key="run_predict_tab6")
-
-    if run:
-        valid_refs = {}
+    with st.expander("✍️ Masukkan Data Referensi (49 baris 8-digit per posisi)"):
+        manual_inputs = {}
         for label in DIGIT_LABELS:
-            parsed = parse_manual_input(manual_inputs[label])
-            if not parsed:
-                st.error(f"Referensi untuk posisi {label.upper()} tidak valid. Harus 49 baris, tiap baris 8 digit.")
-                return
-            valid_refs[label] = parsed
+            text = st.text_area(f"Referensi 8 Digit - {label.capitalize()} (49 baris, 8 digit per baris)", key=f"ref_input_{label}")
+            parsed = parse_manual_input(text)
+            if parsed:
+                manual_inputs[label] = parsed
+            else:
+                st.warning(f"Referensi {label} belum valid (pastikan 49 baris & 8 digit per baris).")
 
-        with st.spinner("Melatih model LSTM dan membuat prediksi..."):
-            model = train_lstm4d(df)
-            top8, full_probs = predict_lstm4d_top8(model, df)
+    col1, col2 = st.columns(2)
+    with col1:
+        ws = st.number_input("Window Size", 5, 20, 10, key="ws_tab6")
+        epochs = st.number_input("Epochs", 1, 100, 15, key="epochs_tab6")
+    with col2:
+        batch_size = st.number_input("Batch Size", 4, 128, 16, key="bs_tab6")
+        run_pred = st.button("🔮 Jalankan Prediksi", key="run_tab6")
 
-            if not top8:
-                st.error("Prediksi gagal. Pastikan jumlah data mencukupi.")
-                return
+    if run_pred:
+        if len(manual_inputs) != 4:
+            st.error("Pastikan semua posisi memiliki referensi 49 baris valid.")
+            return
 
-            # Ambil pola referensi
-            pola_refs = {label: extract_digit_patterns_from_manual_ref(valid_refs[label]) for label in DIGIT_LABELS}
+        try:
+            with st.spinner("Melatih model dan memproses prediksi..."):
+                model = train_lstm4d(df, window_size=ws, epochs=epochs, batch_size=batch_size)
+                top8, full_probs = predict_lstm4d_top8(model, df, window_size=ws)
 
-            # Refine dengan hybrid pattern
-            # Gabungkan pola referensi per posisi
-            ref_list = [pola_refs[label][i] for i, label in enumerate(DIGIT_LABELS)]
+                pola_refs = {label: extract_digit_patterns_from_manual_ref(manual_inputs[label]) for label in DIGIT_LABELS}
+                refined = refine_top8_with_patterns(top8, [pola_refs[label] for label in DIGIT_LABELS])
 
-        # Refine dengan hybrid pattern
-        refined = refine_top8_with_patterns(top8, ref_list, full_probs)
-        st.success("✅ Prediksi selesai!")
+                st.subheader("✅ Hasil Prediksi (Top-6 Per Posisi)")
+                result_dict = {}
+                for i, label in enumerate(DIGIT_LABELS):
+                    st.markdown(f"**{label.capitalize()}:** {refined[i]}")
+                    result_dict[label] = refined[i]
 
-        # Tampilkan hasil
-        for i, label in enumerate(DIGIT_LABELS):
-            st.write(f"**{label.upper()}**: {refined[i]}")
+                file_path = save_prediction_log(result_dict, lokasi)
+                st.success(f"Hasil disimpan ke: `{file_path}`")
 
-        # Simpan log
-        log_dict = {label: refined[i] for i, label in enumerate(DIGIT_LABELS)}
-        log_file = save_prediction_log(log_dict, lokasi)
-        st.info(f"📁 Hasil prediksi disimpan di: `{log_file}`")
+        except Exception as e:
+            st.error(f"Gagal prediksi: {e}")
