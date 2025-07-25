@@ -1,3 +1,5 @@
+# tab6_fungsi.py
+
 import numpy as np
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Bidirectional, Reshape
@@ -33,6 +35,8 @@ def prepare_lstm4d_data(df, window_size=10):
 
 def train_lstm4d(df, window_size=10, epochs=15, batch_size=16):
     X, y = prepare_lstm4d_data(df, window_size)
+    if len(X) == 0:
+        raise ValueError("Dataset terlalu kecil untuk window size ini.")
     model = build_lstm4d_model(window_size)
     model.fit(X, y, epochs=epochs, batch_size=batch_size, verbose=0)
     return model
@@ -67,7 +71,7 @@ def extract_digit_patterns_from_manual_ref(digits_50):
     referensi = digits_50[:49]
     prediksi_besok = digits_50[49]
     pola_list = []
-    for i in range(4):  # untuk setiap posisi digit (ribuan sampai satuan)
+    for i in range(4):  # untuk setiap posisi digit (0–3)
         kolom_i = [baris[i] for baris in referensi]
         pola_list.append(Counter(kolom_i))
     return pola_list, prediksi_besok[:4]
@@ -81,7 +85,7 @@ def refine_top8_with_patterns(top8, pola_ref, prediksi_manual, extra_score=2.0, 
         digit_scores = {}
         for rank, d in enumerate(top8[i]):
             score = (8 - rank)
-            if isinstance(pola_ref[i], Counter):
+            if isinstance(pola_ref[i], dict):
                 score += pola_ref[i].get(d, 0) * 0.2
             if d == prediksi_manual[i]:
                 score += pred_score
