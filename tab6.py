@@ -1,52 +1,43 @@
-# tab6.py
-
 import streamlit as st
 from tab6_fungsi import (
     DIGIT_LABELS,
     parse_reference_input,
-    prepare_X_y_from_ref_and_df,
-    train_digit_model,
-    predict_top6,
+    prepare_training_from_reference,
+    train_and_predict_ref_model,
     save_prediction_log
 )
 
 def tab6(df, lokasi):
-    st.header("🎯 Tab6 - Mode B: Referensi 8-digit → Target DF")
+    st.header("📊 Tab 6 - Prediksi 4D Mode B (Referensi → Target df)")
+    st.markdown("Referensi: 8 digit per baris (total minimal 10 baris), 1 posisi per text area.")
 
-    st.markdown("Masukkan referensi 8-digit (49 baris + 1 untuk prediksi), **masing-masing posisi digit**:")
-    inputs = {}
+    refs = {}
     for label in DIGIT_LABELS:
-        inputs[label] = st.text_area(f"✏️ Input Referensi {label.upper()} (8 digit × 50 baris)", height=300, key=f"ta_{label}")
+        ref_input = st.text_area(f"📌 Referensi 8 Digit Posisi {label.upper()} (≥10 baris)",
+                                 height=300, key=f"ref_input_{label}")
+        parsed = parse_reference_input(ref_input) if ref_input else None
+        refs[label] = parsed
 
-    if st.button("🚀 Jalankan Prediksi", key="predict_btn_tab6"):
+    if st.button("🔮 Jalankan Prediksi", key="predict_button"):
+        all_valid = all(refs[label] for label in DIGIT_LABELS)
+        if not all_valid:
+            st.error("Pastikan semua text area diisi minimal 10 baris valid (8 digit per baris).")
+            return
+
         hasil_prediksi = {}
-        probs_all = {}
-        success = True
+        full_probs = {}
 
         for i, label in enumerate(DIGIT_LABELS):
-            ref_digits = parse_reference_input(inputs[label])
-            if ref_digits is None:
-                st.error(f"❌ Input tidak valid untuk {label.upper()} (butuh 50 baris 8-digit).")
-                success = False
-                continue
-
-            X, y = prepare_X_y_from_ref_and_df(ref_digits, df, i)
-            if X is None or y is None:
-                st.error(f"❌ Data tidak cukup untuk posisi {label.upper()}.")
-                success = False
-                continue
-
-            model = train_digit_model(X, y)
-            top6, probs = predict_top6(model, ref_digits)
+            ref_data = refs[label]
+            X, y = prepare_training_from_reference(ref_data, df, i)
+            top6, probs = train_and_predict_ref_model(X, y, ref_data[-1])
             hasil_prediksi[label] = top6
-            probs_all[label] = probs
+            full_probs[label] = probs
 
-        if success:
-            st.success("✅ Prediksi berhasil!")
-            st.subheader("🔢 Hasil Prediksi Top-6 per Posisi:")
-            for label in DIGIT_LABELS:
-                st.write(f"**{label.upper()}**: {hasil_prediksi[label]}")
+        st.subheader("✅ Hasil Prediksi Top-6 per Posisi")
+        for label in DIGIT_LABELS:
+            st.markdown(f"**{label.upper()}**: {', '.join(str(d) for d in hasil_prediksi[label])}")
 
-            if st.button("💾 Simpan Hasil", key="save_btn_tab6"):
-                path = save_prediction_log(hasil_prediksi, lokasi)
-                st.success(f"✅ Disimpan ke file: {path}")
+        st.subheader("📥 Simpan Log Prediksi")
+        file_log = save_prediction_log(hasil_prediksi, lokasi)
+        st.success(f"Log disimpan: `{file_log}`")
