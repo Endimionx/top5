@@ -423,5 +423,5 @@ with tab3_container:
 with tab4_container:
     tab4(df)
 with tab5_container:
-    tab5(df, selected_lokasi)
+    tab6(df, selected_lokasi)
             
