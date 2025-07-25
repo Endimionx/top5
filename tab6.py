@@ -2,12 +2,13 @@
 
 import streamlit as st
 import pandas as pd
+
 from tab6_fungsi import (
     DIGIT_LABELS,
     train_lstm4d,
     predict_lstm4d_top8,
     parse_manual_input,
-    refine_top8_with_manual,
+    refine_top8_with_patterns,
     save_prediction_log
 )
 
