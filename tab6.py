@@ -4,9 +4,7 @@ import streamlit as st
 import pandas as pd
 from tab6_fungsi import (
     DIGIT_LABELS,
-    build_lstm4d_model,
     train_lstm4d,
-    prepare_lstm4d_data,
     predict_lstm4d_top8,
     parse_manual_input,
     extract_digit_patterns_from_manual_ref,
@@ -15,54 +13,57 @@ from tab6_fungsi import (
 )
 
 def tab6(df, lokasi):
-    st.markdown("## 🔮 Prediksi 4D dengan Bantuan Pola Manual (8 Digit × 50 Baris)")
+    st.markdown("## 🎯 Prediksi 4D - Model LSTM + Bantuan Pola Manual")
 
-    st.markdown("### ✍️ Input Data Manual Per Posisi (8 digit per baris, 50 baris total)")
-    manual_data = {}
+    window_size = st.slider("Window Size (LSTM)", 5, 20, 10, key="tab6_ws")
+    epochs = st.slider("Epochs", 1, 100, 15, key="tab6_epochs")
+    batch_size = st.slider("Batch Size", 1, 128, 16, key="tab6_batch")
+
+    st.markdown("### ✍️ Input Manual - Prediksi 8 Digit Per Posisi (50 baris per posisi)")
+    manual_digits = {}
+    valid_input = True
+
     col1, col2 = st.columns(2)
     for i, pos in enumerate(DIGIT_LABELS):
         with (col1 if i < 2 else col2):
-            manual_data[pos] = st.text_area(
-                f"{pos.upper()} (50 baris × 8 digit)", height=400, key=f"input_manual_{pos}"
+            textarea = st.text_area(
+                f"{pos.upper()} (50 baris angka 0-9)",
+                height=300,
+                key=f"manual_input_{pos}"
             )
+            digits = parse_manual_input(textarea)
+            if digits is None:
+                st.warning(f"❌ Input untuk {pos.upper()} harus tepat 50 baris angka 0-9.")
+                valid_input = False
+            else:
+                manual_digits[pos] = digits
 
-    window_size = st.number_input("Window Size (LSTM)", 5, 20, 10, key="tab6_ws")
-    epochs = st.number_input("Epochs", 1, 100, 15, key="tab6_epochs")
-    batch_size = st.number_input("Batch Size", 1, 64, 16, key="tab6_bs")
+    if st.button("🔮 Jalankan Prediksi Tab6", key="run_tab6_button") and valid_input:
+        with st.spinner("Melatih model dan memproses prediksi..."):
+            try:
+                model = train_lstm4d(df, window_size=window_size, epochs=epochs, batch_size=batch_size)
+                top8, _ = predict_lstm4d_top8(model, df, window_size=window_size)
+                if not top8:
+                    st.error("❌ Gagal membuat prediksi dari model.")
+                    return
 
-    if st.button("🚀 Jalankan Prediksi Tab6", key="tab6_run"):
-        st.info("Melatih model dan menghitung prediksi...")
+                # Ambil pola referensi & prediksi besok dari 50 baris per posisi
+                pola_refs = []
+                pred_besok = []
+                for i, pos in enumerate(DIGIT_LABELS):
+                    pola_counter, pred_digit = extract_digit_patterns_from_manual_ref(manual_digits[pos])
+                    pola_refs.append(pola_counter)
+                    pred_besok.append(pred_digit)
 
-        model = train_lstm4d(df, window_size, epochs=epochs, batch_size=batch_size)
-        top8, probs = predict_lstm4d_top8(model, df, window_size)
+                refined = refine_top8_with_patterns(top8, pola_refs, pred_besok)
 
-        if top8 is None:
-            return st.error("Data tidak cukup untuk prediksi.")
+                st.success("✅ Prediksi 4D Selesai!")
+                hasil = {pos: refined[i] for i, pos in enumerate(DIGIT_LABELS)}
+                for pos in DIGIT_LABELS:
+                    st.write(f"**{pos.upper()}**: `{hasil[pos]}`")
 
-        # Parsing dan validasi semua input manual
-        manual_digits = {}
-        for pos in DIGIT_LABELS:
-            parsed = parse_manual_input(manual_data[pos])
-            if parsed is None:
-                return st.error(f"Input manual posisi {pos.upper()} tidak valid. Harus 50 baris × 8 digit.")
-            manual_digits[pos] = parsed
+                filename = save_prediction_log(hasil, lokasi)
+                st.info(f"📁 Disimpan otomatis ke file: `{filename}`")
 
-        # Ekstraksi pola dan prediksi dari baris ke-50
-        # Benar: pola_refs langsung per posisi (list of Counter)
-        pola_refs = [None]*4
-        pred_besok = [None]*4
-
-        for i, pos in enumerate(DIGIT_LABELS):
-            pola_list, pred_digit = extract_digit_patterns_from_manual_ref(manual_digits[pos])
-            pola_refs[i] = pola_list[i]  # isi pola_refs[i] dengan Counter
-            pred_besok[i] = pred_digit[i]  # isi prediksi besok per posisi
-            # Gabungkan pola dan prediksi untuk refine
-            refined = refine_top8_with_patterns(top8, pola_refs, pred_besok)
-
-            result_dict = {DIGIT_LABELS[i]: refined[i] for i in range(4)}
-            filename = save_prediction_log(result_dict, lokasi)
-
-        st.success("✅ Prediksi Selesai dan Disimpan")
-        for pos in DIGIT_LABELS:
-            st.write(f"**{pos.upper()}**: {refined[DIGIT_LABELS.index(pos)]}")
-        st.markdown(f"📄 Log disimpan: `{filename}`")
+            except Exception as e:
+                st.error(f"❌ Gagal prediksi: {e}")
