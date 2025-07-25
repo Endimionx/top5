@@ -1,71 +1,55 @@
 # tab6.py
 
 import streamlit as st
+import pandas as pd
 from tab6_fungsi import (
     DIGIT_LABELS,
-    build_lstm4d_model,
-    train_lstm4d,
-    prepare_lstm4d_data,
-    predict_lstm4d_top8,
-    parse_manual_input,
-    extract_digit_pattern_from_8digit_block,
-    refine_top8_with_patterns,
+    train_lstm_for_position,
+    predict_top8_per_position,
+    parse_manual_8digit_input,
+    extract_frequencies_8digit,
+    refine_prediction,
     save_prediction_log
 )
 
 def tab6(df, lokasi):
-    st.header("🔮 Prediksi 4D - LSTM Refinement dengan Data 8 Digit (50 Baris per Posisi)")
-    st.markdown("Gunakan 8 digit per baris untuk masing-masing posisi (50 baris total, baris ke-50 opsional).")
+    st.header("🔢 Prediksi 4D dengan Bantuan Referensi 8-Digit (Per Posisi)")
+    st.info("Masukkan 49 baris referensi (masing-masing baris 8 digit) untuk setiap posisi:")
 
-    with st.expander("✍️ Input Prediksi Tepat 8-Digit per Posisi (49 referensi + 1 opsional prediksi besok)"):
-        text_inputs = {}
-        for label in DIGIT_LABELS:
-            text_inputs[label] = st.text_area(
-                f"Masukkan 8-digit x 50 baris untuk posisi **{label.upper()}**", 
-                height=250, key=f"text_input_{label}"
-            )
+    window_size = st.number_input("Window Size", min_value=5, max_value=20, value=10, key="ws_tab6")
 
-    st.markdown("---")
-    col1, col2, col3 = st.columns([1, 1, 2])
-    with col1:
-        ws = st.number_input("Window Size", 5, 20, 10, key="tab6_ws")
-    with col2:
-        epoch = st.number_input("Epochs", 5, 100, 15, key="tab6_epoch")
-    with col3:
-        batch_size = st.number_input("Batch Size", 1, 128, 16, key="tab6_batch")
+    col_manuals = {}
+    for label in DIGIT_LABELS:
+        with st.expander(f"📥 Input 8-Digit Referensi untuk Posisi {label.upper()} (49 baris, 8 digit tiap baris)"):
+            col_manuals[label] = st.text_area(f"Input {label.upper()}", height=400, key=f"ta_{label}")
 
-    if st.button("🚀 Jalankan Prediksi LSTM + Refinement", key="run_prediksi_tab6"):
-        with st.spinner("Melatih model LSTM dan memproses prediksi..."):
-            try:
-                model = train_lstm4d(df, window_size=ws, epochs=epoch, batch_size=batch_size)
-                top8, _ = predict_lstm4d_top8(model, df, window_size=ws)
+    if st.button("🚀 Jalankan Prediksi", key="predict_btn_tab6"):
+        result_dict = {}
+        for i, label in enumerate(DIGIT_LABELS):
+            st.markdown(f"#### ✴️ Posisi: {label.upper()}")
+            manual_data = parse_manual_8digit_input(col_manuals[label])
+            if not manual_data:
+                st.warning(f"Referensi posisi {label} tidak valid atau kurang dari 49 baris.")
+                continue
 
-                all_manual_data = {}
-                for label in DIGIT_LABELS:
-                    parsed = parse_manual_input(text_inputs[label])
-                    if parsed is None:
-                        st.error(f"❌ Format tidak valid pada posisi {label.upper()}. Harus 50 baris, 8 digit per baris.")
-                        return
-                    all_manual_data[label] = parsed
+            # Latih model
+            model = train_lstm_for_position(df, i, window_size=window_size)
 
-                # Ambil pattern frekuensi digit dari 49 baris awal
-                pola_refs = []
-                for label in DIGIT_LABELS:
-                    pola = extract_digit_pattern_from_8digit_block(all_manual_data[label])
-                    pola_refs.append(pola)
+            # Ambil sequence digit posisi dari df
+            seq = df['angka'].astype(str).apply(lambda x: int(x[i])).tolist()
 
-                # Refinement berdasarkan pattern referensi
-                refined = refine_top8_with_patterns(top8, pola_refs)
+            # Prediksi top8 + probabilitas
+            top8, probs = predict_top8_per_position(model, seq, window_size=window_size)
 
-                # Tampilkan hasil akhir
-                st.subheader("🎯 Hasil Prediksi Final (Top-6 per Posisi):")
-                result = {}
-                for idx, label in enumerate(DIGIT_LABELS):
-                    st.markdown(f"**{label.upper()}**: {refined[idx]}")
-                    result[label] = refined[idx]
+            # Frekuensi digit referensi
+            freqs = extract_frequencies_8digit(manual_data, i)
 
-                file_saved = save_prediction_log(result, lokasi)
-                st.success(f"Hasil prediksi disimpan di: `{file_saved}`")
+            # Refinement
+            refined = refine_prediction(top8, probs, freqs)
 
-            except Exception as e:
-                st.error(f"Gagal prediksi: {e}")
+            result_dict[label] = refined
+            st.write(f"Top-6 Refinement ({label}):", refined)
+
+        if result_dict:
+            filename = save_prediction_log(result_dict, lokasi)
+            st.success(f"✅ Hasil prediksi disimpan ke file: `{filename}`")
