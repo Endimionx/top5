@@ -8,7 +8,7 @@ from tab6_fungsi import (
     predict_lstm4d_top6_per_digit
 )
 
-def tab6(df):
+def tab6(df, lokasi):
     st.markdown("## 🎯 Prediksi 4D Langsung (Hasil Per Posisi)")
 
     col1, col2 = st.columns(2)
