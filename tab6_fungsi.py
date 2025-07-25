@@ -25,7 +25,7 @@ def get_target_digit_from_df(df, posisi):
     """
     Ambil target digit dari df[-1], posisi: 0=ribuan, 1=ratusan, dst
     """
-    target = str(df.iloc[-1]["angka"])
+    target = str(df.iloc[-1]["angka"]).zfill(4)
     if len(target) != 4:
         return None
     return int(target[posisi])
@@ -39,14 +39,16 @@ def build_model(input_shape=(49, 8)):
     model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
     return model
 
-def train_and_predict_top6(X, y_digit, epochs=50, batch_size=16):
+def train_and_predict_top6(X_raw, y_digit, epochs=50, batch_size=16):
     """
     Melatih model dan menghasilkan top6 prediksi digit
     """
-    y_cat = to_categorical([y_digit] * X.shape[0], num_classes=10)
-    model = build_model(input_shape=X.shape[1:])
-    model.fit(X, y_cat, epochs=epochs, batch_size=batch_size, verbose=0)
-    pred = model.predict(np.array([X[-1]]), verbose=0)[0]
+    # X shape: (49, 8) → tambah batch dimension: (1, 49, 8)
+    X = np.expand_dims(X_raw, axis=0)
+    y_cat = to_categorical([y_digit], num_classes=10)
+    model = build_model(input_shape=(49, 8))
+    model.fit(X, y_cat, epochs=epochs, batch_size=1, verbose=0)
+    pred = model.predict(X, verbose=0)[0]
     top6 = np.argsort(pred)[::-1][:6].tolist()
     return top6, pred.tolist()
 
