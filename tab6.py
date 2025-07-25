@@ -48,18 +48,19 @@ def tab6(df, lokasi):
             manual_digits[pos] = parsed
 
         # Ekstraksi pola dan prediksi dari baris ke-50
-        pola_refs = []
-        pred_besok = []
-        for pos in DIGIT_LABELS:
-            pola, pred = extract_digit_patterns_from_manual_ref(manual_digits[pos])
-            pola_refs.append(pola)
-            pred_besok.append(pred)
+        # Benar: pola_refs langsung per posisi (list of Counter)
+        pola_refs = [None]*4
+        pred_besok = [None]*4
 
-        # Gabungkan pola dan prediksi untuk refine
-        refined = refine_top8_with_patterns(top8, pola_refs, pred_besok)
+        for i, pos in enumerate(DIGIT_LABELS):
+            pola_list, pred_digit = extract_digit_patterns_from_manual_ref(manual_digits[pos])
+            pola_refs[i] = pola_list[i]  # isi pola_refs[i] dengan Counter
+            pred_besok[i] = pred_digit[i]  # isi prediksi besok per posisi
+            # Gabungkan pola dan prediksi untuk refine
+            refined = refine_top8_with_patterns(top8, pola_refs, pred_besok)
 
-        result_dict = {DIGIT_LABELS[i]: refined[i] for i in range(4)}
-        filename = save_prediction_log(result_dict, lokasi)
+            result_dict = {DIGIT_LABELS[i]: refined[i] for i in range(4)}
+            filename = save_prediction_log(result_dict, lokasi)
 
         st.success("✅ Prediksi Selesai dan Disimpan")
         for pos in DIGIT_LABELS:
