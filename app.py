@@ -29,6 +29,7 @@ from ws_scan_catboost import (
 from tab3 import tab3
 from tab4 import tab4
 from tab5 import tab5
+from tab6 import tab6
 
 st.set_page_config(page_title="Prediksi AI", layout="wide")
 
