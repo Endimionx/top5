@@ -2,55 +2,94 @@
 
 import numpy as np
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, LSTM, Bidirectional
+from tensorflow.keras.layers import LSTM, Dense, Bidirectional, Reshape
 from tensorflow.keras.utils import to_categorical
 from datetime import datetime
 import os
+from collections import Counter
 
 DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 
-def parse_reference_input(text):
+def build_lstm4d_model(window_size=10):
+    model = Sequential([
+        Bidirectional(LSTM(64, return_sequences=True), input_shape=(window_size, 8)),  # Perbaikan di sini, input dimensi 8
+        Bidirectional(LSTM(64)),
+        Dense(40, activation='relu'),
+        Dense(10, activation='softmax'),  # Output 10 digit per posisi
+    ])
+    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+def prepare_lstm4d_data(df, window_size=10):
+    sequences = df['angka'].astype(str).apply(lambda x: [int(d) for d in x]).tolist()
+    X, y = [], []
+    for i in range(len(sequences) - window_size):
+        window = sequences[i:i + window_size]
+        label = sequences[i + window_size]
+        X.append(window)
+        y.append(label)
+    X = np.array(X)
+    y = to_categorical(y, num_classes=10)  # Mengonversi ke format kategori
+    return X, y
+
+def train_lstm4d(df, window_size=10, epochs=15, batch_size=16):
+    X, y = prepare_lstm4d_data(df, window_size)
+    model = build_lstm4d_model(window_size)
+    model.fit(X, y, epochs=epochs, batch_size=batch_size, verbose=0)
+    return model
+
+def predict_lstm4d_top8(model, df, window_size=10):
+    sequences = df['angka'].astype(str).apply(lambda x: [int(d) for d in x]).tolist()
+    if len(sequences) < window_size:
+        return None, None
+    latest_window = sequences[-window_size:]  # Ambil window terakhir
+    X_input = np.array([latest_window])  # Membuat input untuk prediksi
+    preds = model.predict(X_input, verbose=0)[0]  # shape: (4, 10), prediksi per posisi
+    top8_per_digit = [np.argsort(p)[::-1][:8].tolist() for p in preds]  # Ambil 8 terbesar
+    full_probs = preds.tolist()  # Probabilitas penuh untuk setiap digit
+    return top8_per_digit, full_probs
+
+def parse_manual_input(textarea_input):
     """
-    Mengubah text area menjadi array shape (49, 8)
+    Mengubah textarea string ke list digit 8 angka per baris (harus 50 baris).
     """
-    lines = text.strip().splitlines()
+    lines = textarea_input.strip().splitlines()
     digits = []
     for line in lines:
         line = line.strip()
         if len(line) == 8 and line.isdigit():
             digits.append([int(c) for c in line])
-    return np.array(digits) if len(digits) == 49 else None
+    return digits if len(digits) == 50 else None
 
-def get_target_digit_from_df(df, posisi):
+def extract_digit_patterns_from_manual_ref(digits_50):
     """
-    Ambil target digit dari df[-1], posisi: 0=ribuan, 1=ratusan, dst
+    Ambil pola dari 49 baris pertama (referensi), dan 1 baris terakhir sebagai prediksi manual.
     """
-    target = str(df.iloc[-1]["angka"]).zfill(4)
-    if len(target) != 4:
-        return None
-    return int(target[posisi])
+    referensi = digits_50[:49]
+    prediksi_besok = digits_50[49]
+    pola_list = []
+    for i in range(4):  # untuk setiap posisi digit
+        kolom_i = [baris[i] for baris in referensi]
+        pola_list.append(Counter(kolom_i))
+    return pola_list, prediksi_besok[:4]
 
-def build_model(input_shape=(49, 8)):
-    model = Sequential([
-        Bidirectional(LSTM(32, return_sequences=False), input_shape=input_shape),
-        Dense(64, activation="relu"),
-        Dense(10, activation="softmax")
-    ])
-    model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
-    return model
-
-def train_and_predict_top6(X_raw, y_digit, epochs=50, batch_size=16):
+def refine_top8_with_patterns(top8, pola_ref, prediksi_manual, extra_score=2.0, pred_score=3.0):
     """
-    Melatih model dan menghasilkan top6 prediksi digit
+    Tambahkan bobot jika cocok dengan pola referensi atau prediksi besok.
     """
-    # X shape: (49, 8) → tambah batch dimension: (1, 49, 8)
-    X = np.expand_dims(X_raw, axis=0)
-    y_cat = to_categorical([y_digit], num_classes=10)
-    model = build_model(input_shape=(49, 8))
-    model.fit(X, y_cat, epochs=epochs, batch_size=1, verbose=0)
-    pred = model.predict(X, verbose=0)[0]
-    top6 = np.argsort(pred)[::-1][:6].tolist()
-    return top6, pred.tolist()
+    refined = []
+    for i in range(4):
+        digit_scores = {}
+        for rank, d in enumerate(top8[i]):
+            score = (8 - rank)
+            score += pola_ref[i].get(d, 0) * 0.2  # Normalisasi frekuensi
+            if d == prediksi_manual[i]:
+                score += pred_score
+            digit_scores[d] = score
+        ranked = sorted(digit_scores.items(), key=lambda x: x[1], reverse=True)
+        refined_digits = [d for d, _ in ranked[:6]]
+        refined.append(refined_digits)
+    return refined
 
 def save_prediction_log(result_dict, lokasi):
     today = datetime.now().strftime("%Y-%m-%d")
