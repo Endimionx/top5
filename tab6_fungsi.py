@@ -5,8 +5,8 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Bidirectional, Reshape
 from tensorflow.keras.utils import to_categorical
 from datetime import datetime
-import os
 from collections import Counter
+import os
 
 DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 
@@ -35,8 +35,6 @@ def prepare_lstm4d_data(df, window_size=10):
 
 def train_lstm4d(df, window_size=10, epochs=15, batch_size=16):
     X, y = prepare_lstm4d_data(df, window_size)
-    if len(X) == 0:
-        raise ValueError("Dataset terlalu kecil untuk window size ini.")
     model = build_lstm4d_model(window_size)
     model.fit(X, y, epochs=epochs, batch_size=batch_size, verbose=0)
     return model
@@ -54,7 +52,7 @@ def predict_lstm4d_top8(model, df, window_size=10):
 
 def parse_manual_input(textarea_input):
     """
-    Mengubah textarea string ke list digit 8 angka per baris (harus 50 baris).
+    Mengubah textarea string ke list of list (masing-masing 8 digit per baris).
     """
     lines = textarea_input.strip().splitlines()
     digits = []
@@ -62,33 +60,31 @@ def parse_manual_input(textarea_input):
         line = line.strip()
         if len(line) == 8 and line.isdigit():
             digits.append([int(d) for d in line])
-    return digits if len(digits) == 50 else None
+    return digits if len(digits) >= 49 else None
 
-def extract_digit_patterns_from_manual_ref(digits_50):
+def extract_digit_patterns_flat_per_digit(digits_49):
     """
-    Ambil pola dari 49 baris pertama (referensi), dan 1 baris terakhir sebagai prediksi manual.
+    Ambil pola frekuensi untuk setiap posisi (ribuan, ratusan, puluhan, satuan)
+    dari 8 digit prediksi yang tepat selama 49 hari terakhir.
     """
-    referensi = digits_50[:49]
-    prediksi_besok = digits_50[49]
     pola_list = []
-    for i in range(4):  # untuk setiap posisi digit (0–3)
-        kolom_i = [baris[i] for baris in referensi]
-        pola_list.append(Counter(kolom_i))
-    return pola_list, prediksi_besok[:4]
+    for i in range(4):  # ribuan sampai satuan
+        digits_i = []
+        for baris in digits_49[:49]:  # hanya 49 baris pertama
+            digits_i.append(baris[i])  # ambil posisi ke-i
+        pola_list.append(Counter(digits_i))
+    return pola_list
 
-def refine_top8_with_patterns(top8, pola_ref, prediksi_manual, extra_score=2.0, pred_score=3.0):
+def refine_top8_with_patterns(top8, pola_refs, extra_score=2.0):
     """
-    Tambahkan bobot jika cocok dengan pola referensi atau prediksi besok.
+    Tambahkan bobot jika cocok dengan pola referensi.
     """
     refined = []
     for i in range(4):
         digit_scores = {}
         for rank, d in enumerate(top8[i]):
             score = (8 - rank)
-            if isinstance(pola_ref[i], dict):
-                score += pola_ref[i].get(d, 0) * 0.2
-            if d == prediksi_manual[i]:
-                score += pred_score
+            score += pola_refs[i].get(d, 0) * 0.2
             digit_scores[d] = score
         ranked = sorted(digit_scores.items(), key=lambda x: x[1], reverse=True)
         refined_digits = [d for d, _ in ranked[:6]]
