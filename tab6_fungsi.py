@@ -1,15 +1,13 @@
-# tab6_fungsi.py
 import numpy as np
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Bidirectional, Reshape
-from tensorflow.keras.utils import to_categorical
 from itertools import product
-import os
 from datetime import datetime
+import os
 
 DIGIT_LABELS = ["ribuan", "ratusan", "puluhan", "satuan"]
 
 def build_lstm4d_model(window_size):
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import LSTM, Dense, Bidirectional, Reshape
     model = Sequential([
         Bidirectional(LSTM(64, return_sequences=True), input_shape=(window_size, 4)),
         Bidirectional(LSTM(64)),
@@ -20,7 +18,8 @@ def build_lstm4d_model(window_size):
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
-def prepare_lstm4d_data(df, window_size=10):
+def prepare_lstm4d_data(df, window_size):
+    from tensorflow.keras.utils import to_categorical
     sequences = df['angka'].astype(str).apply(lambda x: [int(d) for d in x]).tolist()
     X, y = [], []
     for i in range(len(sequences) - window_size):
@@ -29,48 +28,50 @@ def prepare_lstm4d_data(df, window_size=10):
         X.append(window)
         y.append(label)
     X = np.array(X)
-    y = to_categorical(y, num_classes=10)
+    y = np.array(y)
+    y = np.array([to_categorical(label, num_classes=10) for label in y])
     return X, y
 
 def train_lstm4d(model, X, y, epochs=20, batch_size=32):
-    model.fit(X, y, epochs=epochs, batch_size=batch_size, verbose=0)
-    return model
+    return model.fit(X, y, epochs=epochs, batch_size=batch_size, verbose=0).model
 
-def predict_lstm4d_top6_per_digit(model, df, window_size):
+def predict_lstm4d_topk_per_digit(model, df, window_size, top_k=8):
     sequences = df['angka'].astype(str).apply(lambda x: [int(d) for d in x]).tolist()
     if len(sequences) < window_size:
         return None, None
     latest_window = sequences[-window_size:]
     X_input = np.array([latest_window])
     preds = model.predict(X_input, verbose=0)[0]  # shape: (4, 10)
-    top6_per_digit = [np.argsort(p)[::-1][:6].tolist() for p in preds]
-    full_probs = preds.tolist()
-    return top6_per_digit, full_probs
+    topk_digits = [np.argsort(p)[::-1][:top_k].tolist() for p in preds]
+    return topk_digits, preds.tolist()
 
-def generate_all_4d_combinations(prediksi_top6):
-    all_4d = list(product(*prediksi_top6))  # list of tuple (r, r, p, s)
-    return [''.join(str(d) for d in tup) for tup in all_4d]
+def generate_all_4d_combinations_with_probs(topk_digits, probs):
+    all_4d = []
+    for comb in product(*topk_digits):  # (d1, d2, d3, d4)
+        prob_sum = sum([probs[i][d] for i, d in enumerate(comb)])
+        angka = "".join(str(d) for d in comb)
+        all_4d.append((angka, prob_sum))
+    return all_4d
 
-def filter_by_reference_8digit(all_4d, data_ref):
-    if not data_ref:
-        return all_4d
-    return [angka for angka in all_4d if any(angka in ref for ref in data_ref)]
+def filter_and_rank_by_reference(all_4d_with_scores, ref_dict):
+    result = []
+    for angka, score in all_4d_with_scores:
+        cocok = True
+        for i, label in enumerate(DIGIT_LABELS):
+            if ref_dict[label] and int(angka[i]) not in ref_dict[label]:
+                cocok = False
+                break
+        if cocok:
+            result.append((angka, score))
+    return sorted(result, key=lambda x: -x[1])
 
-def save_prediction_to_txt(hasil_angka4d, lokasi="lokasi_default", note=None):
-    """Simpan hasil prediksi ke file txt berdasarkan lokasi dan tanggal"""
-    if not hasil_angka4d:
-        return
-
-    today = datetime.today().strftime("%Y-%m-%d")
+def save_prediction_to_txt(pred_list, lokasi, note=""):
     os.makedirs("prediksi_output", exist_ok=True)
-    filename = f"prediksi_output/{lokasi.lower()}_{today}.txt"
-
+    tgl = datetime.now().strftime("%Y-%m-%d")
+    filename = f"prediksi_output/{lokasi}_{tgl}.txt"
     with open(filename, "w") as f:
-        f.write(f"📌 Prediksi 4D\nLokasi: {lokasi}\nTanggal: {today}\n")
+        f.write(f"Prediksi {tgl} - Lokasi: {lokasi}\n")
         if note:
-            f.write(f"Catatan: {note}\n")
-        f.write(f"Total Kombinasi: {len(hasil_angka4d)}\n")
-        f.write("=" * 40 + "\n")
-        for angka in hasil_angka4d:
+            f.write(note + "\n")
+        for angka in pred_list:
             f.write(f"{angka}\n")
-    print(f"[Saved] {filename}")
