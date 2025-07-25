@@ -1,60 +1,69 @@
 # tab6.py
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+import numpy as np
+import datetime
 import os
+
 from tab6_fungsi import (
     DIGIT_LABELS,
     build_lstm4d_model,
     train_lstm4d,
     prepare_lstm4d_data,
-    predict_lstm4d_topk_per_digit,
-    generate_all_4d_combinations_with_probs,
-    filter_and_rank_by_reference,
-    save_prediction_to_txt
+    predict_lstm4d_top6_per_digit,
+    match_top_with_reference,
 )
 
-def tab6(df, lokasi="lokasi_default"):
-    st.title("🎯 Prediksi Langsung 4D (Top-8 Match Ref, Rank by Bobot)")
+def tab6(df, lokasi):
+    st.markdown("## 🔮 Prediksi 4D Langsung per Posisi")
+    st.info("Model akan mempelajari data angka untuk memprediksi digit berikutnya.")
 
-    window_size = st.slider("Window Size", 5, 30, 10, 1, key="tab6_ws")
-    epochs = st.slider("Epochs", 1, 100, 20, 1, key="tab6_epochs")
-    batch_size = st.slider("Batch Size", 8, 128, 32, 8, key="tab6_batch")
+    window_size = st.slider("Window Size", 3, 20, 10, key="tab6_ws")
+    epochs = st.slider("Epochs", 10, 200, 50, step=10, key="tab6_epochs")
+    batch_size = st.slider("Batch Size", 4, 64, 16, step=4, key="tab6_batch")
 
+    # Input referensi prediksi lain
     st.markdown("### 📘 Referensi Prediksi per Posisi")
     referensi_digit = {}
     cols = st.columns(4)
     for i, pos in enumerate(DIGIT_LABELS):
         with cols[i]:
-            textarea = st.text_area(f"{pos.upper()}", height=150, key=f"ref_{pos}")
+            textarea = st.text_area(f"{pos.upper()} (Referensi)", height=150, key=f"ref_{pos}")
             lines = [int(line.strip()) for line in textarea.strip().splitlines() if line.strip().isdigit()]
             referensi_digit[pos] = lines
 
-    if st.button("🚀 Jalankan Prediksi", key="tab6_run"):
-        with st.spinner("Melatih model dan memprediksi..."):
-            try:
-                model = build_lstm4d_model(window_size)
-                X, y = prepare_lstm4d_data(df, window_size)
-                model = train_lstm4d(model, X, y, epochs=epochs, batch_size=batch_size)
+    if st.button("🚀 Jalankan Prediksi 4D", key="tab6_run"):
+        try:
+            X, y = prepare_lstm4d_data(df, window_size)
+            model = build_lstm4d_model(window_size)
+            model = train_lstm4d(model, X, y, epochs=epochs, batch_size=batch_size)
 
-                topk_per_digit, full_probs = predict_lstm4d_topk_per_digit(model, df, window_size, top_k=8)
+            top8_per_digit, probs = predict_lstm4d_top6_per_digit(model, df, window_size, top_k=8)
+            result = []
 
-                st.markdown("### 🔢 Top-8 Prediksi per Posisi")
-                for i, label in enumerate(DIGIT_LABELS):
-                    st.write(f"{label.upper()}: `{topk_per_digit[i]}`")
+            for i, pos in enumerate(DIGIT_LABELS):
+                top8 = top8_per_digit[i]
+                ref = referensi_digit.get(pos, [])
+                matched = match_top_with_reference(top8, ref)
+                result.append({
+                    "Posisi": pos,
+                    "Top-8": ", ".join(str(d) for d in top8),
+                    "Referensi": ", ".join(str(r) for r in ref),
+                    "Match": "✅" if matched else "❌"
+                })
 
-                all_4d = generate_all_4d_combinations_with_probs(topk_per_digit, full_probs)
-                filtered_sorted_4d = filter_and_rank_by_reference(all_4d, referensi_digit)
+            df_result = pd.DataFrame(result)
+            st.markdown("### 🎯 Hasil Prediksi dan Pencocokan")
+            st.table(df_result)
 
-                st.markdown("### 🧠 Final Prediksi 4D (Disaring dan Diurutkan Bobot)")
-                if filtered_sorted_4d:
-                    st.success(f"{len(filtered_sorted_4d)} kombinasi cocok ditemukan:")
-                    preview = "\n".join([f"{item[0]} | Skor: {item[1]:.4f}" for item in filtered_sorted_4d[:30]])
-                    st.code(preview + ("\n..." if len(filtered_sorted_4d) > 30 else ""))
-                    save_prediction_to_txt([x[0] for x in filtered_sorted_4d], lokasi)
-                else:
-                    st.warning("Tidak ada kombinasi 4D yang cocok dengan referensi posisi.")
-                    save_prediction_to_txt([x[0] for x in all_4d], lokasi, note="(Tanpa kecocokan referensi posisi)")
+            # Simpan otomatis ke file log berdasarkan lokasi & tanggal
+            now = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
+            filename = f"prediksi_tab6_{lokasi}_{now}.txt"
+            with open(filename, "w") as f:
+                f.write(f"📍 Lokasi: {lokasi} | Waktu: {now}\n")
+                for row in result:
+                    f.write(f"{row['Posisi'].upper()}: Top-8={row['Top-8']} | Referensi={row['Referensi']} | Match={row['Match']}\n")
+            st.success(f"Hasil disimpan ke `{filename}`")
 
-            except Exception as e:
-                st.error(f"Terjadi kesalahan: {e}")
+        except Exception as e:
+            st.error(f"Gagal prediksi: {e}")
