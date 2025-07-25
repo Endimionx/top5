@@ -1,5 +1,3 @@
-# tab6_fungsi.py
-
 import numpy as np
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Bidirectional, Reshape
@@ -69,7 +67,7 @@ def extract_digit_patterns_from_manual_ref(digits_50):
     referensi = digits_50[:49]
     prediksi_besok = digits_50[49]
     pola_list = []
-    for i in range(4):  # untuk setiap posisi digit
+    for i in range(4):  # untuk setiap posisi digit (ribuan sampai satuan)
         kolom_i = [baris[i] for baris in referensi]
         pola_list.append(Counter(kolom_i))
     return pola_list, prediksi_besok[:4]
@@ -83,7 +81,8 @@ def refine_top8_with_patterns(top8, pola_ref, prediksi_manual, extra_score=2.0, 
         digit_scores = {}
         for rank, d in enumerate(top8[i]):
             score = (8 - rank)
-            score += pola_ref[i].get(d, 0) * 0.2
+            if isinstance(pola_ref[i], Counter):
+                score += pola_ref[i].get(d, 0) * 0.2
             if d == prediksi_manual[i]:
                 score += pred_score
             digit_scores[d] = score
