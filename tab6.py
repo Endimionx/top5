@@ -1,7 +1,6 @@
+# tab6.py
 import streamlit as st
 import pandas as pd
-import numpy as np
-import os
 from tab6_fungsi import (
     DIGIT_LABELS,
     build_lstm4d_model,
@@ -10,56 +9,53 @@ from tab6_fungsi import (
     predict_lstm4d_top6_per_digit
 )
 
-def tab6(df, lokasi):
-    st.markdown("## 🔢 Prediksi Langsung 4D (Hasil Per Posisi)")
-    ws = st.slider("Window Size (WS)", 5, 20, 10, key="tab6_ws")
-    test_size = st.slider("Ukuran Data Test", 10, 100, 20, key="tab6_testsize")
-    epochs = st.slider("Epochs", 5, 100, 20, key="tab6_epochs")
-    seed = st.number_input("Seed", 0, 9999, 42, key="tab6_seed")
+def tab6(df):
+    st.markdown("## 🔮 Prediksi 4D Langsung dengan Model AI")
+    st.info("Model ini memprediksi seluruh angka 4D sekaligus, namun hasil tetap ditampilkan per digit.")
 
-    if st.button("🚀 Prediksi 4D", use_container_width=True):
-        try:
-            # Persiapan data
-            X, y = prepare_lstm4d_data(df, window_size=ws)
-            X_train, y_train = X[:-test_size], y[:-test_size]
+    # Set parameter pelatihan
+    ws = st.number_input("Window Size (WS)", 5, 50, 10, key="tab6_ws")
+    epoch = st.number_input("Epoch", 1, 100, 10, key="tab6_epoch")
+    batch = st.number_input("Batch Size", 1, 128, 32, key="tab6_batch")
 
-            # Training
-            st.write("⏳ Melatih model...")
-            model = build_lstm4d_model(input_shape=X.shape[1:])
-            model = train_lstm4d(model, X_train, y_train, epochs=epochs)
+    if st.button("🚀 Latih dan Prediksi", use_container_width=True, key="tab6_btn_train_predict"):
+        with st.spinner("Melatih model dan melakukan prediksi..."):
+            try:
+                # Siapkan data
+                X, y = prepare_lstm4d_data(df, window_size=ws)
+                if len(X) == 0:
+                    st.error("Data tidak cukup untuk pelatihan.")
+                    return
 
-            # Prediksi terhadap window terakhir
-            X_last = X[-1].reshape(1, *X.shape[1:])
-            top6_dict = predict_lstm4d_top6_per_digit(model, X_last)
+                # Latih model
+                model = build_lstm4d_model(window_size=ws)
+                model = train_lstm4d(model, X, y, epochs=epoch, batch_size=batch)
 
-            # Tampilkan hasil
-            st.subheader("🎯 Hasil Prediksi 4D per Posisi")
-            cols = st.columns(4)
-            for i, pos in enumerate(DIGIT_LABELS):
-                cols[i].markdown(f"**{pos.upper()}**: `{top6_dict[pos]}`")
+                # Prediksi
+                top6_digits, full_probs = predict_lstm4d_top6_per_digit(model, df, window_size=ws)
 
-            # Logging prediksi
-            with open("log_tab6.txt", "a") as f:
-                f.write(f"Lokasi: {lokasi} | WS={ws}, Epochs={epochs}, Seed={seed}\n")
-                for pos in DIGIT_LABELS:
-                    f.write(f"{pos.upper()}: {top6_dict[pos]}\n")
-                f.write("-" * 40 + "\n")
+                if top6_digits is None:
+                    st.error("Data tidak cukup untuk prediksi.")
+                    return
 
-        except Exception as e:
-            st.error(f"❌ Gagal prediksi: {e}")
+                st.success("✅ Prediksi selesai!")
 
-    # Tampilkan log
-    st.markdown("---")
-    col1, col2 = st.columns(2)
-    if col1.button("📄 Lihat Log Tab6", use_container_width=True):
-        if os.path.exists("log_tab6.txt"):
-            with open("log_tab6.txt", "r") as f:
-                st.code(f.read())
-        else:
-            st.info("Belum ada log.")
-    if col2.button("🧹 Hapus Log", use_container_width=True):
-        if os.path.exists("log_tab6.txt"):
-            os.remove("log_tab6.txt")
-            st.success("Log dihapus.")
-        else:
-            st.info("Tidak ada log.")
+                # Tampilkan hasil per posisi digit
+                st.markdown("### 🎯 Top-6 Digit Terprediksi per Posisi")
+                for i, label in enumerate(DIGIT_LABELS):
+                    top6 = top6_digits[i]
+                    st.write(f"**{label.upper()}**: `{top6}`")
+
+                st.markdown("---")
+                st.markdown("### 🔍 Probabilitas Lengkap per Digit")
+                for i, label in enumerate(DIGIT_LABELS):
+                    probs = full_probs[i]
+                    df_probs = pd.DataFrame({
+                        'Digit': list(range(10)),
+                        'Probabilitas': [round(p, 4) for p in probs]
+                    }).sort_values("Probabilitas", ascending=False).reset_index(drop=True)
+                    st.write(f"**{label.upper()}**:")
+                    st.table(df_probs)
+
+            except Exception as e:
+                st.error(f"Gagal prediksi: {e}")
