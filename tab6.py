@@ -1,53 +1,54 @@
-# tab6.py
-
 import streamlit as st
 from tab6_fungsi import (
-    DIGIT_LABELS,
     parse_reference_input,
-    get_target_digit_from_df,
-    train_and_predict_top6,
+    extract_target_from_df,
+    train_model_per_posisi,
+    predict_last_row,
+    DIGIT_LABELS,
     save_prediction_log
 )
 
-def tab6(df, lokasi):
-    st.header("📊 Prediksi 4D Berdasarkan Referensi Per Posisi")
+def tab6(df, selected_lokasi):
+    st.header("📊 Prediksi 4D - Mode B (Referensi Jadi Model)")
 
-    st.markdown("Masukkan 49 baris referensi 8-digit yang masing-masing **berasal dari 1 posisi**:")
+    st.markdown("Masukkan data referensi 8 digit untuk masing-masing posisi. Harus 50 baris, masing-masing 8 digit.")
 
-    input_refs = {}
+    text_areas = {}
     for label in DIGIT_LABELS:
-        input_refs[label] = st.text_area(
-            f"Referensi 8 Digit - {label.capitalize()}",
-            height=300,
-            key=f"input_{label}"
-        )
+        text_areas[label] = st.text_area(f"📥 Data Referensi 8 Digit - {label.capitalize()}",
+                                         height=300, key=f"ref_{label}")
 
-    if st.button("🔮 Prediksi", key="predict_button"):
-        all_refs = {}
+    if st.button("🔮 Jalankan Prediksi", key="run_prediksi_modeB"):
+        all_valid = True
+        references = {}
+
         for label in DIGIT_LABELS:
-            parsed = parse_reference_input(input_refs[label])
+            parsed = parse_reference_input(text_areas[label])
             if parsed is None:
-                st.error(f"Referensi {label} tidak valid. Pastikan 49 baris × 8 digit.")
-                return
-            all_refs[label] = parsed
+                st.error(f"Format referensi {label} tidak valid. Harus 50 baris, masing-masing 8 digit.")
+                all_valid = False
+            else:
+                references[label] = parsed
 
-        hasil = {}
-        full_probs = {}
+        if not all_valid:
+            return
 
+        if len(df) < 49:
+            st.error("Data utama (df) kurang dari 49 baris.")
+            return
+
+        pred_result = {}
         for idx, label in enumerate(DIGIT_LABELS):
-            target_digit = get_target_digit_from_df(df, idx)
-            if target_digit is None:
-                st.error("Data target tidak valid.")
-                return
-            top6, probs = train_and_predict_top6(all_refs[label], target_digit)
-            hasil[label] = top6
-            full_probs[label] = probs
+            X = references[label][:49]  # 49 baris pertama
+            y = extract_target_from_df(df, idx)
+            model = train_model_per_posisi(X, y)
+            pred_digit = predict_last_row(references[label], model)
+            pred_result[label] = pred_digit
 
-        st.subheader("✅ Hasil Prediksi Top-6 per Posisi")
+        st.success("✅ Prediksi Selesai!")
+        st.write("### Hasil Prediksi Per Posisi:")
         for label in DIGIT_LABELS:
-            st.write(f"**{label.capitalize()}**: {hasil[label]}")
+            st.write(f"**{label.capitalize()}**: {pred_result[label]}")
 
-        st.subheader("📄 Simpan ke Log")
-        if st.button("💾 Simpan Log"):
-            filename = save_prediction_log(hasil, lokasi)
-            st.success(f"Disimpan ke: {filename}")
+        filename = save_prediction_log(pred_result, selected_lokasi)
+        st.info(f"Hasil disimpan di: `{filename}`")
