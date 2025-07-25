@@ -49,8 +49,11 @@ def tab6(df, lokasi):
             pola_refs = {label: extract_digit_patterns_from_manual_ref(valid_refs[label]) for label in DIGIT_LABELS}
 
             # Refine dengan hybrid pattern
-            refined = refine_top8_with_patterns(top8, [pola_refs[label] for label in DIGIT_LABELS], full_probs)
+            # Gabungkan pola referensi per posisi
+            ref_list = [pola_refs[label][i] for i, label in enumerate(DIGIT_LABELS)]
 
+        # Refine dengan hybrid pattern
+        refined = refine_top8_with_patterns(top8, ref_list, full_probs)
         st.success("✅ Prediksi selesai!")
 
         # Tampilkan hasil
