@@ -52,17 +52,14 @@ def predict_lstm4d_top8(model, df, window_size=10):
 
 def parse_manual_input(textarea_input):
     """
-    Mengubah textarea string ke list digit (harus 50 baris).
+    Mengubah textarea string ke list digit 8 angka per baris (harus 50 baris).
     """
     lines = textarea_input.strip().splitlines()
     digits = []
     for line in lines:
-        try:
-            d = int(line.strip())
-            if 0 <= d <= 9:
-                digits.append(d)
-        except:
-            continue
+        line = line.strip()
+        if len(line) == 8 and line.isdigit():
+            digits.append([int(d) for d in line])
     return digits if len(digits) == 50 else None
 
 def extract_digit_patterns_from_manual_ref(digits_50):
@@ -71,8 +68,11 @@ def extract_digit_patterns_from_manual_ref(digits_50):
     """
     referensi = digits_50[:49]
     prediksi_besok = digits_50[49]
-    frekuensi = Counter(referensi)
-    return frekuensi, prediksi_besok
+    pola_list = []
+    for i in range(4):  # untuk setiap posisi digit
+        kolom_i = [baris[i] for baris in referensi]
+        pola_list.append(Counter(kolom_i))
+    return pola_list, prediksi_besok[:4]
 
 def refine_top8_with_patterns(top8, pola_ref, prediksi_manual, extra_score=2.0, pred_score=3.0):
     """
