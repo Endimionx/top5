@@ -50,11 +50,13 @@ def tab6(df, lokasi):
                 # Ambil pola referensi & prediksi besok dari 50 baris per posisi
                 pola_refs = []
                 pred_besok = []
-                for i, pos in enumerate(DIGIT_LABELS):
+                for pos in DIGIT_LABELS:
                     pola_counter, pred_digit = extract_digit_patterns_from_manual_ref(manual_digits[pos])
-                    pola_refs.append(pola_counter)
-                    pred_besok.append(pred_digit)
-
+                    if not isinstance(pola_counter, Counter):
+                        pola_counter = Counter()  # fallback if somehow failed
+                        pola_refs.append(pola_counter)
+                        pred_besok.append(pred_digit)
+                        
                 refined = refine_top8_with_patterns(top8, pola_refs, pred_besok)
 
                 st.success("✅ Prediksi 4D Selesai!")
