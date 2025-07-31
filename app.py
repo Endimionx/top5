@@ -100,7 +100,7 @@ with st.expander("✏️ Edit Data Angka Manual", expanded=True):
     df = pd.DataFrame({"angka": st.session_state.angka_list})
 
 # ======== Tabs Utama ========
-tab5_container, tab4_container, tab3_container, tab2, tab1 = st.tabs(["Tester", "Scan Pola", "🔮 Scan Angka", "🪟 Scan Angka", "CatBoost"])
+tab3_container, tab2, tab1 = st.tabs(["Tester", "Scan Pola", "🔮 Scan Angka", "🪟 Scan Angka", "CatBoost"])
 
 # ======== TAB 1 ========
 with tab1:
