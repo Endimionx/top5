@@ -92,9 +92,9 @@ with col1:
                 #angka_api = [d["result"] for d in data["data"] if len(d["result"]) == 4 and d["result"].isdigit()]
                 #st.session_state.angka_list = angka_api
                 #st.success(f"{len(angka_api)} angka berhasil diambil.")
-                print("Status:", res.status_code)
-                print("Headers:", res.headers)
-                print("Text:", res.text[:500])  # cuma 500 karakter pertama
+                st.text(f"Status: {res.status_code}")
+                st.text(f"Headers: {res.headers}")
+                st.text(f"Text:" {res.text[:500]}")  # cuma 500 karakter pertama
         except Exception as e:
             st.error(f"❌ Gagal ambil data: {e}")
         
