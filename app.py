@@ -88,15 +88,15 @@ with col1:
                 headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
                 scraper = cloudscraper.create_scraper()
                 res = scraper.get(url, headers=headers)
-                data = res.json()
+                #data = res.json()
                 angka_api = [d["result"] for d in data["data"] if len(d["result"]) == 4 and d["result"].isdigit()]
                 st.session_state.angka_list = angka_api
                 st.success(f"{len(angka_api)} angka berhasil diambil.")
-                print("Status:", resp.status_code)
-                print("Headers:", resp.headers)
-                print("Text:", resp.text[:500])  # cuma 500 karakter pertama
+                print("Status:", res.status_code)
+                print("Headers:", res.headers)
+                print("Text:", res.text[:500])  # cuma 500 karakter pertama
         except Exception as e:
-            st.error(f"❌ Gagal ambil data: {data}")
+            st.error(f"❌ Gagal ambil data: {e}")
         
 
 with col2:
