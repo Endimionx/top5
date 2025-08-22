@@ -95,7 +95,7 @@ with col1:
                 print("Status:", resp.status_code)
                 print("Headers:", resp.headers)
                 print("Text:", resp.text[:500])  # cuma 500 karakter pertama
-       except Exception as e:
+        except Exception as e:
             st.error(f"❌ Gagal ambil data: {data}")
         
 
