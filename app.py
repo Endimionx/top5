@@ -6,6 +6,7 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 import seaborn as sns
+import cloudscraper
 
 from markov_model import top6_markov, top6_markov_order2, top6_markov_hybrid
 from ai_model import (
@@ -78,17 +79,22 @@ if "angka_list" not in st.session_state:
 
 col1, col2 = st.columns([1, 4])
 with col1:
+    
+
     if st.button("🔄 Ambil Data dari API", use_container_width=True):
         try:
             with st.spinner("🔄 Mengambil data..."):
                 url = f"https://wysiwygscan.com/api?pasaran={selected_lokasi.lower()}&hari={selected_hari}&putaran={putaran}&format=json&urut=asc"
                 headers = {"Authorization": "Bearer 6705327a2c9a9135f2c8fbad19f09b46"}
-                data = requests.get(url, headers=headers).json()
+                scraper = cloudscraper.create_scraper()
+                res = scraper.get(url, headers=headers)
+                data = res.json()
                 angka_api = [d["result"] for d in data["data"] if len(d["result"]) == 4 and d["result"].isdigit()]
                 st.session_state.angka_list = angka_api
                 st.success(f"{len(angka_api)} angka berhasil diambil.")
-        except Exception as e:
+       except Exception as e:
             st.error(f"❌ Gagal ambil data: {e}")
+        
 
 with col2:
     st.caption("📌 Data angka akan digunakan untuk pelatihan dan prediksi")
