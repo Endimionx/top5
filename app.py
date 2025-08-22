@@ -89,9 +89,9 @@ with col1:
                 scraper = cloudscraper.create_scraper()
                 res = scraper.get(url, headers=headers)
                 #data = res.json()
-                angka_api = [d["result"] for d in data["data"] if len(d["result"]) == 4 and d["result"].isdigit()]
-                st.session_state.angka_list = angka_api
-                st.success(f"{len(angka_api)} angka berhasil diambil.")
+                #angka_api = [d["result"] for d in data["data"] if len(d["result"]) == 4 and d["result"].isdigit()]
+                #st.session_state.angka_list = angka_api
+                #st.success(f"{len(angka_api)} angka berhasil diambil.")
                 print("Status:", res.status_code)
                 print("Headers:", res.headers)
                 print("Text:", res.text[:500])  # cuma 500 karakter pertama
