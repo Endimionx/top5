@@ -93,7 +93,7 @@ with col1:
                 st.session_state.angka_list = angka_api
                 st.success(f"{len(angka_api)} angka berhasil diambil.")
        except Exception as e:
-            st.error(f"❌ Gagal ambil data: {e}")
+            st.error(f"❌ Gagal ambil data: {data}")
         
 
 with col2:
