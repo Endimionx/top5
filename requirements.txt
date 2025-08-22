@@ -11,3 +11,4 @@ streamlit_lottie
 seaborn
 catboost
 scikit-learn
+cloudscraper
