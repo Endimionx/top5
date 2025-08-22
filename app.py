@@ -94,7 +94,7 @@ with col1:
                 #st.success(f"{len(angka_api)} angka berhasil diambil.")
                 st.text(f"Status: {res.status_code}")
                 st.text(f"Headers: {res.headers}")
-                st.text(f"Text:" {res.text[:500]}")  # cuma 500 karakter pertama
+                st.text(f"Text: {res.text[:500]}")  # cuma 500 karakter pertama
         except Exception as e:
             st.error(f"❌ Gagal ambil data: {e}")
         
